@@ -1,14 +1,76 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  ColumnDef,
+  ColumnFiltersState,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  SortingState,
+  useReactTable,
+  VisibilityState,
+} from "@tanstack/react-table";
+import {
+  ArrowUpDown,
+  ChevronDown,
+  Download,
+  RefreshCw,
+  Loader2,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react";
+import {
+  useQueryState,
+  useQueryStates,
+  parseAsInteger,
+  parseAsString,
+  parseAsArrayOf,
+} from "nuqs";
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Search, RefreshCw, Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { LogEntry } from "@/types";
-import { getLogs, downloadLogs, getAvailableDomains, DomainInfo } from "@/services/logs.service";
+import {
+  getLogs,
+  downloadLogs,
+  getAvailableDomains,
+  DomainInfo,
+  PaginatedLogsResponse,
+} from "@/services/logs.service";
 import { useToast } from "@/hooks/use-toast";
 
 const Logs = () => {
@@ -17,11 +79,47 @@ const Logs = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [domains, setDomains] = useState<DomainInfo[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [levelFilter, setLevelFilter] = useState<string>("all");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [domainFilter, setDomainFilter] = useState<string>("all");
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
+
+  // URL state management with nuqs
+  const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1));
+  const [limit, setLimit] = useQueryState(
+    "limit",
+    parseAsInteger.withDefault(10)
+  );
+  const [search, setSearch] = useQueryState(
+    "search",
+    parseAsString.withDefault("")
+  );
+  const [level, setLevel] = useQueryState(
+    "level",
+    parseAsString.withDefault("all")
+  );
+  const [type, setType] = useQueryState(
+    "type",
+    parseAsString.withDefault("all")
+  );
+  const [domain, setDomain] = useQueryState(
+    "domain",
+    parseAsString.withDefault("all")
+  );
+
+  // Table state
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+
+  // Update pagination state when URL params change
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, page, limit }));
+  }, [page, limit]);
 
   // Fetch domains list
   const fetchDomains = async () => {
@@ -29,7 +127,7 @@ const Logs = () => {
       const data = await getAvailableDomains();
       setDomains(data);
     } catch (error: any) {
-      console.error('Failed to fetch domains:', error);
+      console.error("Failed to fetch domains:", error);
     }
   };
 
@@ -37,25 +135,34 @@ const Logs = () => {
   const fetchLogs = async () => {
     try {
       setLoading(true);
-      const params: any = { limit: 100 };
-      
-      if (levelFilter !== 'all') {
-        params.level = levelFilter;
+      const params: any = {
+        page,
+        limit,
+      };
+
+      if (level !== "all") {
+        params.level = level;
       }
-      if (typeFilter !== 'all') {
-        params.type = typeFilter;
+      if (type !== "all") {
+        params.type = type;
       }
-      if (domainFilter !== 'all') {
-        params.domain = domainFilter;
+      if (domain !== "all") {
+        params.domain = domain;
       }
-      if (searchTerm) {
-        params.search = searchTerm;
+      if (search) {
+        params.search = search;
       }
 
-      const data = await getLogs(params);
-      setLogs(data);
+      const response: PaginatedLogsResponse = await getLogs(params);
+      setLogs(response.data);
+      setPagination({
+        page: response.pagination.page,
+        limit: response.pagination.limit,
+        total: response.pagination.total,
+        totalPages: response.pagination.totalPages,
+      });
     } catch (error: any) {
-      console.error('Failed to fetch logs:', error);
+      console.error("Failed to fetch logs:", error);
       toast({
         title: "Error",
         description: error.response?.data?.message || "Failed to fetch logs",
@@ -81,55 +188,56 @@ const Logs = () => {
     }, 5000); // Refresh every 5 seconds
 
     return () => clearInterval(interval);
-  }, [autoRefresh, levelFilter, typeFilter, domainFilter, searchTerm]);
+  }, [autoRefresh, page, limit, search, level, type, domain]);
 
-  // Refetch when filters change
+  // Refetch when URL params change
   useEffect(() => {
     fetchLogs();
-  }, [levelFilter, typeFilter, domainFilter]);
+  }, [page, limit, search, level, type, domain]);
 
-  const filteredLogs = logs.filter(log => {
-    const matchesSearch = log.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         log.source.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (log.ip && log.ip.includes(searchTerm));
-    const matchesLevel = levelFilter === "all" || log.level === levelFilter;
-    const matchesType = typeFilter === "all" || log.type === typeFilter;
-    return matchesSearch && matchesLevel && matchesType;
-  });
-
-  const getLevelColor = (level: string) => {
+  const getLevelColor = (
+    level: string
+  ): "destructive" | "default" | "secondary" | "outline" => {
     switch (level) {
-      case 'error': return 'destructive';
-      case 'warning': return 'warning';
-      case 'info': return 'default';
-      default: return 'secondary';
+      case "error":
+        return "destructive";
+      case "warning":
+        return "outline";
+      case "info":
+        return "default";
+      default:
+        return "secondary";
     }
   };
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'access': return 'default';
-      case 'error': return 'destructive';
-      case 'system': return 'secondary';
-      default: return 'outline';
+      case "access":
+        return "default";
+      case "error":
+        return "destructive";
+      case "system":
+        return "secondary";
+      default:
+        return "outline";
     }
   };
 
   const handleDownloadLogs = async () => {
     try {
       const params: any = { limit: 1000 };
-      
-      if (levelFilter !== 'all') {
-        params.level = levelFilter;
+
+      if (level !== "all") {
+        params.level = level;
       }
-      if (typeFilter !== 'all') {
-        params.type = typeFilter;
+      if (type !== "all") {
+        params.type = type;
       }
-      if (domainFilter !== 'all') {
-        params.domain = domainFilter;
+      if (domain !== "all") {
+        params.domain = domain;
       }
-      if (searchTerm) {
-        params.search = searchTerm;
+      if (search) {
+        params.search = search;
       }
 
       await downloadLogs(params);
@@ -138,7 +246,7 @@ const Logs = () => {
         description: "Logs downloaded successfully",
       });
     } catch (error: any) {
-      console.error('Failed to download logs:', error);
+      console.error("Failed to download logs:", error);
       toast({
         title: "Error",
         description: error.response?.data?.message || "Failed to download logs",
@@ -147,26 +255,156 @@ const Logs = () => {
     }
   };
 
+  // Define columns for the table
+  const columns: ColumnDef<LogEntry>[] = [
+    {
+      accessorKey: "timestamp",
+      header: ({ column }) => (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="h-auto p-0 font-semibold"
+        >
+          Timestamp
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => (
+        <div className="font-mono text-xs">
+          {new Date(row.getValue("timestamp")).toLocaleString()}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "level",
+      header: "Level",
+      cell: ({ row }) => (
+        <Badge variant={getLevelColor(row.getValue("level"))}>
+          {row.getValue("level")}
+        </Badge>
+      ),
+      filterFn: (row, id, value) => {
+        return value === "all" || row.getValue(id) === value;
+      },
+    },
+    {
+      accessorKey: "type",
+      header: "Type",
+      cell: ({ row }) => (
+        <Badge variant={getTypeColor(row.getValue("type"))}>
+          {row.getValue("type")}
+        </Badge>
+      ),
+      filterFn: (row, id, value) => {
+        return value === "all" || row.getValue(id) === value;
+      },
+    },
+    {
+      accessorKey: "source",
+      header: "Source",
+      cell: ({ row }) => (
+        <div className="font-medium">{row.getValue("source")}</div>
+      ),
+    },
+    {
+      accessorKey: "domain",
+      header: "Domain",
+      cell: ({ row }) => {
+        const domain = row.getValue("domain") as string;
+        return domain ? (
+          <Badge variant="outline" className="font-mono">
+            {domain}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground text-xs">-</span>
+        );
+      },
+      filterFn: (row, id, value) => {
+        return value === "all" || row.getValue(id) === value;
+      },
+    },
+    {
+      accessorKey: "message",
+      header: "Message",
+      cell: ({ row }) => (
+        <div className="max-w-md truncate" title={row.getValue("message")}>
+          {row.getValue("message")}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "details",
+      header: "Details",
+      cell: ({ row }) => {
+        const log = row.original;
+        return (
+          <div className="text-xs text-muted-foreground">
+            {log.ip && <div>IP: {log.ip}</div>}
+            {log.method && log.path && (
+              <div>
+                {log.method} {log.path}
+              </div>
+            )}
+            {log.statusCode && <div>Status: {log.statusCode}</div>}
+            {log.responseTime && <div>RT: {log.responseTime}ms</div>}
+          </div>
+        );
+      },
+    },
+  ];
+
+  // Create table instance
+  const table = useReactTable({
+    data: logs,
+    columns,
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    manualPagination: true,
+    manualFiltering: true,
+    pageCount: pagination.totalPages,
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+      pagination: {
+        pageIndex: page - 1,
+        pageSize: limit,
+      },
+    },
+  });
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      {/* Header with action buttons */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Logs</h1>
-          <p className="text-muted-foreground">View and analyze nginx access and error logs</p>
+          <p className="text-muted-foreground">
+            View and analyze nginx access and error logs
+          </p>
         </div>
         <div className="flex gap-2">
-          <Button 
-            variant={autoRefresh ? "default" : "outline"} 
+          <Button
+            variant={autoRefresh ? "default" : "outline"}
             size="sm"
             onClick={() => setAutoRefresh(!autoRefresh)}
             disabled={loading}
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`h-4 w-4 mr-2 ${autoRefresh ? "animate-spin" : ""}`}
+            />
             Auto Refresh
           </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={fetchLogs}
             disabled={loading}
           >
@@ -177,125 +415,151 @@ const Logs = () => {
             )}
             Refresh
           </Button>
-          <Button variant="outline" size="sm" onClick={handleDownloadLogs} disabled={loading}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownloadLogs}
+            disabled={loading}
+          >
             <Download className="h-4 w-4 mr-2" />
             Download
           </Button>
         </div>
       </div>
 
+      {/* Table Card with Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>Log Filters</CardTitle>
-          <CardDescription>Filter and search through log entries</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="md:col-span-2 lg:col-span-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search logs..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      fetchLogs();
-                    }
-                  }}
-                  className="pl-10"
-                  disabled={loading}
-                />
-                {searchTerm && (
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="absolute right-2 top-1.5"
-                    onClick={fetchLogs}
-                    disabled={loading}
-                  >
-                    <Search className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
-            <Select value={domainFilter} onValueChange={setDomainFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by domain" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Domains</SelectItem>
-                {domains.map((domain) => (
-                  <SelectItem key={domain.name} value={domain.name}>
-                    {domain.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={levelFilter} onValueChange={setLevelFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by level" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Levels</SelectItem>
-                <SelectItem value="info">Info</SelectItem>
-                <SelectItem value="warning">Warning</SelectItem>
-                <SelectItem value="error">Error</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="access">Access</SelectItem>
-                <SelectItem value="error">Error</SelectItem>
-                <SelectItem value="system">System</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Log Entries ({filteredLogs.length})</CardTitle>
+          <CardTitle>Log Entries ({pagination.total})</CardTitle>
           <CardDescription>
-            {loading ? "Loading logs..." : "Real-time log streaming from nginx and ModSecurity"}
+            {loading
+              ? "Loading logs..."
+              : "Real-time log streaming from nginx and ModSecurity"}
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Filters */}
+          <div className="flex flex-col gap-4 mb-6 lg:flex-row lg:items-center">
+            {/* Search */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search logs..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="pl-10"
+                disabled={loading}
+              />
+            </div>
+
+            {/* Filters */}
+            <div className="flex flex-wrap gap-2">
+              <Select
+                value={domain}
+                onValueChange={(value) => setDomain(value)}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by domain" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Domains</SelectItem>
+                  {domains.map((domain) => (
+                    <SelectItem key={domain.name} value={domain.name}>
+                      {domain.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={level} onValueChange={(value) => setLevel(value)}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Filter by level" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Levels</SelectItem>
+                  <SelectItem value="info">Info</SelectItem>
+                  <SelectItem value="warning">Warning</SelectItem>
+                  <SelectItem value="error">Error</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={type} onValueChange={(value) => setType(value)}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Filter by type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="access">Access</SelectItem>
+                  <SelectItem value="error">Error</SelectItem>
+                  <SelectItem value="system">System</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="ml-auto">
+                    Columns <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {table
+                    .getAllColumns()
+                    .filter((column) => column.getCanHide())
+                    .map((column) => {
+                      return (
+                        <DropdownMenuCheckboxItem
+                          key={column.id}
+                          className="capitalize"
+                          checked={column.getIsVisible()}
+                          onCheckedChange={(value) =>
+                            column.toggleVisibility(!!value)
+                          }
+                        >
+                          {column.id}
+                        </DropdownMenuCheckboxItem>
+                      );
+                    })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
           <div className="rounded-md border">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Timestamp</TableHead>
-                  <TableHead>Level</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Domain</TableHead>
-                  <TableHead>Message</TableHead>
-                  <TableHead>Details</TableHead>
-                </TableRow>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead key={header.id}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                ))}
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    <TableCell
+                      colSpan={columns.length}
+                      className="text-center text-muted-foreground"
+                    >
                       <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                       <p className="mt-2">Loading logs...</p>
                     </TableCell>
                   </TableRow>
-                ) : filteredLogs.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">
-                      No logs found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredLogs.map((log) => (
-                    <TableRow key={log.id}>
+                ) : logs.length > 0 ? (
+                  logs.map((log, index) => (
+                    <TableRow
+                      key={log.id || index}
+                      data-state={
+                        rowSelection[String(log.id || index)] && "selected"
+                      }
+                    >
                       <TableCell className="font-mono text-xs">
                         {new Date(log.timestamp).toLocaleString()}
                       </TableCell>
@@ -309,28 +573,126 @@ const Logs = () => {
                           {log.type}
                         </Badge>
                       </TableCell>
-                      <TableCell className="font-medium">{log.source}</TableCell>
+                      <TableCell className="font-medium">
+                        {log.source}
+                      </TableCell>
                       <TableCell className="text-sm">
                         {log.domain ? (
                           <Badge variant="outline" className="font-mono">
                             {log.domain}
                           </Badge>
                         ) : (
-                          <span className="text-muted-foreground text-xs">-</span>
+                          <span className="text-muted-foreground text-xs">
+                            -
+                          </span>
                         )}
                       </TableCell>
-                      <TableCell className="max-w-md truncate">{log.message}</TableCell>
+                      <TableCell
+                        className="max-w-md truncate"
+                        title={log.message}
+                      >
+                        {log.message}
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {log.ip && <div>IP: {log.ip}</div>}
-                        {log.method && log.path && <div>{log.method} {log.path}</div>}
+                        {log.method && log.path && (
+                          <div>
+                            {log.method} {log.path}
+                          </div>
+                        )}
                         {log.statusCode && <div>Status: {log.statusCode}</div>}
-                        {log.responseTime && <div>RT: {log.responseTime}ms</div>}
+                        {log.responseTime && (
+                          <div>RT: {log.responseTime}ms</div>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      className="h-24 text-center"
+                    >
+                      No logs found.
+                    </TableCell>
+                  </TableRow>
                 )}
               </TableBody>
             </Table>
+          </div>
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between space-x-2 py-4">
+            <div className="text-sm text-muted-foreground">
+              {table.getFilteredSelectedRowModel().rows.length} of{" "}
+              {table.getFilteredRowModel().rows.length} row(s) selected.
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2">
+                <p className="text-sm font-medium">Rows per page</p>
+                <Select
+                  value={`${limit}`}
+                  onValueChange={(value) => {
+                    setLimit(Number(value));
+                    setPage(1); // Reset to first page when changing page size
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[70px]">
+                    <SelectValue
+                      placeholder={table.getState().pagination.pageSize}
+                    />
+                  </SelectTrigger>
+                  <SelectContent side="top">
+                    {[10, 20, 30, 40, 50].map((pageSize) => (
+                      <SelectItem key={pageSize} value={`${pageSize}`}>
+                        {pageSize}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+                Page {page} of {pagination.totalPages || 1}
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  className="hidden h-8 w-8 p-0 lg:flex"
+                  onClick={() => setPage(1)}
+                  disabled={page === 1}
+                >
+                  <span className="sr-only">Go to first page</span>
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setPage(page - 1)}
+                  disabled={page === 1}
+                >
+                  <span className="sr-only">Go to previous page</span>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setPage(page + 1)}
+                  disabled={page === (pagination.totalPages || 1)}
+                >
+                  <span className="sr-only">Go to next page</span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  className="hidden h-8 w-8 p-0 lg:flex"
+                  onClick={() => setPage(pagination.totalPages || 1)}
+                  disabled={page === (pagination.totalPages || 1)}
+                >
+                  <span className="sr-only">Go to last page</span>
+                  <ChevronsRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
