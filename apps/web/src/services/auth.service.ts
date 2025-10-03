@@ -113,3 +113,8 @@ export const accountService = {
     await api.post('/account/2fa/disable', { password });
   },
 };
+
+// Export TanStack Query hooks for backward compatibility
+// These will be imported from the query options files in components
+// but we're keeping the service functions as they are for now
+// to ensure backward compatibility during the transition

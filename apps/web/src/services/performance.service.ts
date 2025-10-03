@@ -25,19 +25,25 @@ export const performanceService = {
    * @param timeRange - Time range: 5m, 15m, 1h, 6h, 24h
    */
   async getMetrics(domain: string = 'all', timeRange: string = '1h'): Promise<PerformanceMetric[]> {
-    const response = await api.get<{ success: boolean; data: any[] }>(
-      `/performance/metrics?domain=${domain}&timeRange=${timeRange}`
-    );
-    
-    return response.data.data.map((metric: any) => ({
-      id: metric.id || `${metric.domain}-${metric.timestamp}`,
-      domain: metric.domain,
-      timestamp: metric.timestamp,
-      responseTime: metric.responseTime,
-      throughput: metric.throughput,
-      errorRate: metric.errorRate,
-      requestCount: metric.requestCount
-    }));
+    console.log(`[Performance Service] Fetching metrics for domain: ${domain}, timeRange: ${timeRange}`);
+    try {
+      const response = await api.get<{ success: boolean; data: any[] }>(
+        `/performance/metrics?domain=${domain}&timeRange=${timeRange}`
+      );
+      console.log(`[Performance Service] Successfully fetched ${response.data.data.length} metrics`);
+      return response.data.data.map((metric: any) => ({
+        id: metric.id || `${metric.domain}-${metric.timestamp}`,
+        domain: metric.domain,
+        timestamp: metric.timestamp,
+        responseTime: metric.responseTime,
+        throughput: metric.throughput,
+        errorRate: metric.errorRate,
+        requestCount: metric.requestCount
+      }));
+    } catch (error) {
+      console.error('[Performance Service] Error fetching metrics:', error);
+      throw error;
+    }
   },
 
   /**
@@ -46,11 +52,17 @@ export const performanceService = {
    * @param timeRange - Time range: 5m, 15m, 1h, 6h, 24h
    */
   async getStats(domain: string = 'all', timeRange: string = '1h'): Promise<PerformanceStats> {
-    const response = await api.get<{ success: boolean; data: PerformanceStats }>(
-      `/performance/stats?domain=${domain}&timeRange=${timeRange}`
-    );
-    
-    return response.data.data;
+    console.log(`[Performance Service] Fetching stats for domain: ${domain}, timeRange: ${timeRange}`);
+    try {
+      const response = await api.get<{ success: boolean; data: PerformanceStats }>(
+        `/performance/stats?domain=${domain}&timeRange=${timeRange}`
+      );
+      console.log(`[Performance Service] Successfully fetched stats`);
+      return response.data.data;
+    } catch (error) {
+      console.error('[Performance Service] Error fetching stats:', error);
+      throw error;
+    }
   },
 
   /**

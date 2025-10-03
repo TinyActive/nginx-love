@@ -1,0 +1,192 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { domainService } from '@/services/domain.service';
+import { createQueryKeys } from '@/lib/query-client';
+import type { CreateDomainRequest, UpdateDomainRequest } from '@/services/domain.service';
+import type { Domain } from '@/types';
+
+// Create query keys for domain operations
+export const domainQueryKeys = createQueryKeys('domains');
+
+// Query options for domains
+export const domainQueryOptions = {
+  // Get all domains
+  all: {
+    queryKey: domainQueryKeys.lists(),
+    queryFn: domainService.getAll,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+    retry: 2,
+  },
+  
+  // Get domain by ID
+  byId: (id: string) => ({
+    queryKey: domainQueryKeys.detail(id),
+    queryFn: () => domainService.getById(id),
+    staleTime: 1 * 60 * 1000, // 1 minute
+    gcTime: 5 * 60 * 1000, // 5 minutes
+    retry: 2,
+  }),
+  
+  // Get installation status
+  installationStatus: {
+    queryKey: ['system', 'installation-status'],
+    queryFn: domainService.getInstallationStatus,
+    staleTime: 30 * 1000, // 30 seconds
+    gcTime: 2 * 60 * 1000, // 2 minutes
+    retry: 3,
+    refetchInterval: 30 * 1000, // Auto-refresh every 30 seconds
+  },
+};
+
+// Mutation options for domains
+export const domainMutationOptions = {
+  // Create domain
+  create: {
+    mutationFn: (data: CreateDomainRequest) => domainService.create(data),
+    onSuccess: (data: Domain) => {
+      console.log('Domain created successfully');
+    },
+    onError: (error: any) => {
+      console.error('Domain creation failed:', error);
+    },
+  },
+  
+  // Update domain
+  update: {
+    mutationFn: ({ id, data }: { id: string; data: UpdateDomainRequest }) =>
+      domainService.update(id, data),
+    onSuccess: (data: Domain) => {
+      console.log('Domain updated successfully');
+    },
+    onError: (error: any) => {
+      console.error('Domain update failed:', error);
+    },
+  },
+  
+  // Delete domain
+  delete: {
+    mutationFn: (id: string) => domainService.delete(id),
+    onSuccess: () => {
+      console.log('Domain deleted successfully');
+    },
+    onError: (error: any) => {
+      console.error('Domain deletion failed:', error);
+    },
+  },
+  
+  // Toggle SSL
+  toggleSSL: {
+    mutationFn: ({ id, sslEnabled }: { id: string; sslEnabled: boolean }) =>
+      domainService.toggleSSL(id, sslEnabled),
+    onSuccess: (data: Domain) => {
+      console.log('SSL status toggled successfully');
+    },
+    onError: (error: any) => {
+      console.error('SSL toggle failed:', error);
+    },
+  },
+  
+  // Reload Nginx
+  reloadNginx: {
+    mutationFn: domainService.reloadNginx,
+    onSuccess: () => {
+      console.log('Nginx configuration reloaded successfully');
+    },
+    onError: (error: any) => {
+      console.error('Nginx reload failed:', error);
+    },
+  },
+};
+
+// Custom hooks for domain operations
+export const useDomains = () => {
+  return useQuery(domainQueryOptions.all);
+};
+
+export const useDomain = (id: string) => {
+  return useQuery(domainQueryOptions.byId(id));
+};
+
+export const useInstallationStatus = () => {
+  return useQuery(domainQueryOptions.installationStatus);
+};
+
+export const useCreateDomain = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    ...domainMutationOptions.create,
+    onSuccess: (data: Domain) => {
+      domainMutationOptions.create.onSuccess?.(data);
+      // Invalidate domains list to refresh
+      queryClient.invalidateQueries({ queryKey: domainQueryKeys.lists() });
+    },
+  });
+};
+
+export const useUpdateDomain = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    ...domainMutationOptions.update,
+    onSuccess: (data: Domain, { id }) => {
+      domainMutationOptions.update.onSuccess?.(data);
+      // Update the specific domain in cache
+      queryClient.setQueryData(domainQueryKeys.detail(id), data);
+      // Invalidate domains list to refresh
+      queryClient.invalidateQueries({ queryKey: domainQueryKeys.lists() });
+    },
+  });
+};
+
+export const useDeleteDomain = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    ...domainMutationOptions.delete,
+    onSuccess: (_, id) => {
+      domainMutationOptions.delete.onSuccess?.();
+      // Remove the specific domain from cache
+      queryClient.removeQueries({ queryKey: domainQueryKeys.detail(id) });
+      // Invalidate domains list to refresh
+      queryClient.invalidateQueries({ queryKey: domainQueryKeys.lists() });
+    },
+  });
+};
+
+export const useToggleDomainSSL = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    ...domainMutationOptions.toggleSSL,
+    onSuccess: (data: Domain, { id }) => {
+      domainMutationOptions.toggleSSL.onSuccess?.(data);
+      // Update the specific domain in cache
+      queryClient.setQueryData(domainQueryKeys.detail(id), data);
+      // Invalidate domains list to refresh
+      queryClient.invalidateQueries({ queryKey: domainQueryKeys.lists() });
+    },
+  });
+};
+
+export const useReloadNginx = () => {
+  return useMutation(domainMutationOptions.reloadNginx);
+};
+
+// Hook to preload domains data
+export const usePreloadDomains = () => {
+  const queryClient = useQueryClient();
+  
+  return () => {
+    queryClient.prefetchQuery(domainQueryOptions.all);
+  };
+};
+
+// Hook to ensure domains data is loaded (useful for route loaders)
+export const useEnsureDomains = () => {
+  const queryClient = useQueryClient();
+  
+  return () => {
+    return queryClient.ensureQueryData(domainQueryOptions.all);
+  };
+};

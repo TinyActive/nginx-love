@@ -13,6 +13,7 @@ import { UserPlus, Mail, Key, Trash2, Edit, Shield, Loader2 } from "lucide-react
 import { useToast } from "@/hooks/use-toast";
 import userService, { User } from "@/services/user.service";
 import { useStore } from "@/store/useStore";
+import { SkeletonStatsCard, SkeletonTable, SkeletonForm, Skeleton } from "@/components/ui/skeletons";
 
 const Users = () => {
   const { t } = useTranslation();
@@ -236,8 +237,22 @@ const Users = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <Skeleton className="h-9 w-48 mb-2" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <Skeleton className="h-10 w-32" />
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <SkeletonStatsCard key={i} />
+          ))}
+        </div>
+
+        <SkeletonTable rows={8} columns={6} />
       </div>
     );
   }
@@ -257,9 +272,9 @@ const Users = () => {
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'admin': return 'destructive';
-      case 'moderator': return 'warning';
-      case 'viewer': return 'default';
-      default: return 'secondary';
+      case 'moderator': return 'default';
+      case 'viewer': return 'secondary';
+      default: return 'outline';
     }
   };
 
@@ -492,7 +507,7 @@ const Users = () => {
             </p>
           </div>
           <div className="flex items-start gap-3">
-            <Badge variant="warning">
+            <Badge variant="default">
               <Shield className="h-3 w-3 mr-1" />
               Moderator
             </Badge>
@@ -501,7 +516,7 @@ const Users = () => {
             </p>
           </div>
           <div className="flex items-start gap-3">
-            <Badge variant="default">
+            <Badge variant="secondary">
               <Shield className="h-3 w-3 mr-1" />
               Viewer
             </Badge>

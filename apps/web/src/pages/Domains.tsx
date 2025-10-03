@@ -17,6 +17,7 @@ import { DomainDialog } from '@/components/domains/DomainDialog';
 import { InstallationProgressDialog } from '@/components/installation/InstallationProgressDialog';
 import { toast } from 'sonner';
 import * as domainService from '@/services/domain.service';
+import { SkeletonStatsCard, SkeletonTable } from '@/components/ui/skeletons';
 
 export default function Domains() {
   const { t } = useTranslation();
@@ -225,8 +226,8 @@ export default function Domains() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground">
-                      Loading...
+                    <TableCell colSpan={6}>
+                      <SkeletonTable rows={5} columns={6} showCard={false} showHeader={false} />
                     </TableCell>
                   </TableRow>
                 ) : filteredDomains.length === 0 ? (

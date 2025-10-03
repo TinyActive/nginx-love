@@ -78,6 +78,7 @@ const parseNginxLogLine = (line: string, domain: string): NginxLogEntry | null =
 const collectMetricsFromLogs = async (domain?: string, minutes: number = 60): Promise<NginxLogEntry[]> => {
   try {
     const logDir = '/var/log/nginx';
+    logger.info(`[Performance Controller] Collecting metrics from log directory: ${logDir}`);
     const entries: NginxLogEntry[] = [];
     const cutoffTime = new Date(Date.now() - minutes * 60 * 1000);
 
@@ -96,15 +97,19 @@ const collectMetricsFromLogs = async (domain?: string, minutes: number = 60): Pr
       const sslLogFile = path.join(logDir, `${domainName}_ssl_access.log`);
       const httpLogFile = path.join(logDir, `${domainName}_access.log`);
       
+      logger.info(`[Performance Controller] Checking for log files: ${sslLogFile}, ${httpLogFile}`);
+      
       let logFile: string | null = null;
       if (fs.existsSync(sslLogFile)) {
         logFile = sslLogFile;
+        logger.info(`[Performance Controller] Using SSL log file: ${logFile}`);
       } else if (fs.existsSync(httpLogFile)) {
         logFile = httpLogFile;
+        logger.info(`[Performance Controller] Using HTTP log file: ${logFile}`);
       }
       
       if (!logFile) {
-        logger.warn(`Log file not found for domain: ${domainName}`);
+        logger.warn(`[Performance Controller] Log file not found for domain: ${domainName}`);
         continue;
       }
 
@@ -189,6 +194,7 @@ const calculateMetrics = (entries: NginxLogEntry[], intervalMinutes: number = 5)
 export const getPerformanceMetrics = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { domain = 'all', timeRange = '1h' } = req.query;
+    logger.info(`[Performance Controller] Fetching metrics for domain: ${domain}, timeRange: ${timeRange}`);
 
     // Parse timeRange to minutes
     const timeRangeMap: { [key: string]: number } = {
@@ -201,8 +207,11 @@ export const getPerformanceMetrics = async (req: AuthRequest, res: Response): Pr
     const minutes = timeRangeMap[timeRange as string] || 60;
 
     // Collect and calculate metrics from logs
+    logger.info(`[Performance Controller] Collecting metrics from logs for ${minutes} minutes`);
     const logEntries = await collectMetricsFromLogs(domain as string, minutes);
+    logger.info(`[Performance Controller] Collected ${logEntries.length} log entries`);
     const metrics = calculateMetrics(logEntries, 5); // 5-minute intervals
+    logger.info(`[Performance Controller] Calculated ${metrics.length} metrics`);
 
     // Also save recent metrics to database for historical tracking
     if (metrics.length > 0) {
@@ -248,6 +257,7 @@ export const getPerformanceMetrics = async (req: AuthRequest, res: Response): Pr
 export const getPerformanceStats = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { domain = 'all', timeRange = '1h' } = req.query;
+    logger.info(`[Performance Controller] Fetching stats for domain: ${domain}, timeRange: ${timeRange}`);
 
     // Parse timeRange
     const timeRangeMap: { [key: string]: number } = {
@@ -260,8 +270,11 @@ export const getPerformanceStats = async (req: AuthRequest, res: Response): Prom
     const minutes = timeRangeMap[timeRange as string] || 60;
 
     // Collect metrics from logs
+    logger.info(`[Performance Controller] Collecting metrics from logs for ${minutes} minutes`);
     const logEntries = await collectMetricsFromLogs(domain as string, minutes);
+    logger.info(`[Performance Controller] Collected ${logEntries.length} log entries`);
     const metrics = calculateMetrics(logEntries, 5);
+    logger.info(`[Performance Controller] Calculated ${metrics.length} metrics`);
 
     if (metrics.length === 0) {
       res.json({
