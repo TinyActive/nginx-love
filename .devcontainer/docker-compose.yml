@@ -15,14 +15,15 @@ services:
       - /run
       - /tmp
     ports:
-      - "3001:3001"    # API backend
-      - "8080:8080"    # Frontend (Vite)
-      - "8088:8088"    # Nginx portal
-      - "80:80"        # Nginx HTTP
-      - "443:443"      # Nginx HTTPS
-      - "5555:5555"    # Prisma Studio
+      - "3001:3001" # API backend
+      - "8080:8080" # Frontend (Vite)
+      - "8088:8088" # Nginx portal
+      - "80:80" # Nginx HTTP
+      - "443:443" # Nginx HTTPS
+      - "5555:5555" # Prisma Studio
     networks:
       - devcontainer-network
+    # Use systemd as init system (nginx will start via systemd service)
     command: /sbin/init
     stop_signal: SIGRTMIN+3
     environment:

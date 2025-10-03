@@ -1,17 +1,17 @@
-import { Response } from 'express';
-import prisma from '../config/database';
-import { AuthRequest } from '../middleware/auth';
-import logger from '../utils/logger';
-import { validationResult } from 'express-validator';
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { Response } from "express";
+import prisma from "../config/database";
+import { AuthRequest } from "../middleware/auth";
+import logger from "../utils/logger";
+import { validationResult } from "express-validator";
+import * as fs from "fs/promises";
+import * as path from "path";
+import { exec } from "child_process";
+import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
-const NGINX_SITES_AVAILABLE = '/etc/nginx/sites-available';
-const NGINX_SITES_ENABLED = '/etc/nginx/sites-enabled';
+const NGINX_SITES_AVAILABLE = "/etc/nginx/sites-available";
+const NGINX_SITES_ENABLED = "/etc/nginx/sites-enabled";
 
 /**
  * Auto reload nginx with smart retry logic
@@ -19,50 +19,104 @@ const NGINX_SITES_ENABLED = '/etc/nginx/sites-enabled';
  */
 async function autoReloadNginx(silent: boolean = false): Promise<boolean> {
   try {
+    // Check if we're in a container environment
+    const isContainer =
+      process.env.NODE_ENV === "development" ||
+      process.env.CONTAINERIZED === "true";
+    logger.info(
+      `Environment check - Container: ${isContainer}, Node Env: ${process.env.NODE_ENV}`
+    );
+
     // Test nginx configuration first
     try {
-      await execAsync('nginx -t');
+      await execAsync("nginx -t");
+      logger.info("Nginx configuration test passed");
     } catch (error: any) {
-      logger.error('Nginx configuration test failed:', error.stderr);
+      logger.error("Nginx configuration test failed:", error.stderr);
       if (!silent) throw new Error(`Nginx config test failed: ${error.stderr}`);
       return false;
     }
 
     // Try graceful reload first
     try {
-      logger.info('Auto-reloading nginx (graceful)...');
-      await execAsync('systemctl reload nginx');
-      
+      if (isContainer) {
+        logger.info("Auto-reloading nginx (container mode - direct signal)...");
+        // In container, use direct nginx signal
+        await execAsync("nginx -s reload");
+      } else {
+        logger.info("Auto-reloading nginx (host mode - systemctl)...");
+        await execAsync("systemctl reload nginx");
+      }
+
       // Wait for reload to take effect
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Verify nginx is active
-      const { stdout } = await execAsync('systemctl is-active nginx');
-      if (stdout.trim() === 'active') {
-        logger.info('Nginx auto-reloaded successfully');
-        return true;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Verify nginx is running
+      if (isContainer) {
+        // In container, check if nginx process is running
+        const { stdout } = await execAsync(
+          'pgrep nginx > /dev/null && echo "running" || echo "not running"'
+        );
+        if (stdout.trim() === "running") {
+          logger.info("Nginx auto-reloaded successfully (container mode)");
+          return true;
+        }
+      } else {
+        // On host, use systemctl
+        const { stdout } = await execAsync("systemctl is-active nginx");
+        if (stdout.trim() === "active") {
+          logger.info("Nginx auto-reloaded successfully (host mode)");
+          return true;
+        }
       }
     } catch (error: any) {
-      logger.warn('Graceful reload failed, trying restart...', error.message);
+      logger.warn("Graceful reload failed, trying restart...", error.message);
     }
 
     // Fallback to restart
-    logger.info('Auto-restarting nginx...');
-    await execAsync('systemctl restart nginx');
-    
-    // Wait for restart
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Verify nginx started
-    const { stdout } = await execAsync('systemctl is-active nginx');
-    if (stdout.trim() !== 'active') {
-      throw new Error('Nginx not active after restart');
+    if (isContainer) {
+      logger.info("Auto-restarting nginx (container mode)...");
+      // In container, we need to restart nginx differently
+      // First check if nginx is running
+      try {
+        await execAsync("pgrep nginx");
+        // If running, send reload signal again
+        await execAsync("nginx -s reload");
+      } catch (e) {
+        // If not running, start nginx
+        await execAsync("nginx");
+      }
+    } else {
+      logger.info("Auto-restarting nginx (host mode)...");
+      await execAsync("systemctl restart nginx");
     }
-    
-    logger.info('Nginx auto-restarted successfully');
+
+    // Wait for restart
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // Verify nginx started
+    if (isContainer) {
+      const { stdout } = await execAsync(
+        'pgrep nginx > /dev/null && echo "running" || echo "not running"'
+      );
+      if (stdout.trim() !== "running") {
+        throw new Error("Nginx not running after restart (container mode)");
+      }
+    } else {
+      const { stdout } = await execAsync("systemctl is-active nginx");
+      if (stdout.trim() !== "active") {
+        throw new Error("Nginx not active after restart (host mode)");
+      }
+    }
+
+    logger.info(
+      `Nginx auto-restarted successfully (${
+        isContainer ? "container" : "host"
+      } mode)`
+    );
     return true;
   } catch (error: any) {
-    logger.error('Auto reload nginx failed:', error);
+    logger.error("Auto reload nginx failed:", error);
     if (!silent) throw error;
     return false;
   }
@@ -71,7 +125,10 @@ async function autoReloadNginx(silent: boolean = false): Promise<boolean> {
 /**
  * Get all domains
  */
-export const getDomains = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getDomains = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
   try {
     const domains = await prisma.domain.findMany({
       include: {
@@ -91,7 +148,7 @@ export const getDomains = async (req: AuthRequest, res: Response): Promise<void>
           select: { id: true, name: true, category: true },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
 
     res.json({
@@ -99,10 +156,10 @@ export const getDomains = async (req: AuthRequest, res: Response): Promise<void>
       data: domains,
     });
   } catch (error) {
-    logger.error('Get domains error:', error);
+    logger.error("Get domains error:", error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error',
+      message: "Internal server error",
     });
   }
 };
@@ -110,7 +167,10 @@ export const getDomains = async (req: AuthRequest, res: Response): Promise<void>
 /**
  * Get domain by ID
  */
-export const getDomainById = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getDomainById = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
   try {
     const { id } = req.params;
 
@@ -127,7 +187,7 @@ export const getDomainById = async (req: AuthRequest, res: Response): Promise<vo
     if (!domain) {
       res.status(404).json({
         success: false,
-        message: 'Domain not found',
+        message: "Domain not found",
       });
       return;
     }
@@ -137,10 +197,10 @@ export const getDomainById = async (req: AuthRequest, res: Response): Promise<vo
       data: domain,
     });
   } catch (error) {
-    logger.error('Get domain by ID error:', error);
+    logger.error("Get domain by ID error:", error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error',
+      message: "Internal server error",
     });
   }
 };
@@ -148,7 +208,10 @@ export const getDomainById = async (req: AuthRequest, res: Response): Promise<vo
 /**
  * Create new domain
  */
-export const createDomain = async (req: AuthRequest, res: Response): Promise<void> => {
+export const createDomain = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -169,7 +232,7 @@ export const createDomain = async (req: AuthRequest, res: Response): Promise<voi
     if (existingDomain) {
       res.status(400).json({
         success: false,
-        message: 'Domain already exists',
+        message: "Domain already exists",
       });
       return;
     }
@@ -178,27 +241,30 @@ export const createDomain = async (req: AuthRequest, res: Response): Promise<voi
     const domain = await prisma.domain.create({
       data: {
         name,
-        status: 'inactive',
+        status: "inactive",
         modsecEnabled: modsecEnabled !== undefined ? modsecEnabled : true,
         upstreams: {
           create: upstreams.map((u: any) => ({
             host: u.host,
             port: u.port,
-            protocol: u.protocol || 'http',
+            protocol: u.protocol || "http",
             sslVerify: u.sslVerify !== undefined ? u.sslVerify : true,
             weight: u.weight || 1,
             maxFails: u.maxFails || 3,
             failTimeout: u.failTimeout || 10,
-            status: 'checking',
+            status: "checking",
           })),
         },
         loadBalancer: {
           create: {
-            algorithm: loadBalancer?.algorithm || 'round_robin',
-            healthCheckEnabled: loadBalancer?.healthCheckEnabled !== undefined ? loadBalancer.healthCheckEnabled : true,
+            algorithm: loadBalancer?.algorithm || "round_robin",
+            healthCheckEnabled:
+              loadBalancer?.healthCheckEnabled !== undefined
+                ? loadBalancer.healthCheckEnabled
+                : true,
             healthCheckInterval: loadBalancer?.healthCheckInterval || 30,
             healthCheckTimeout: loadBalancer?.healthCheckTimeout || 5,
-            healthCheckPath: loadBalancer?.healthCheckPath || '/',
+            healthCheckPath: loadBalancer?.healthCheckPath || "/",
           },
         },
       },
@@ -214,7 +280,7 @@ export const createDomain = async (req: AuthRequest, res: Response): Promise<voi
     // Update domain status to active after successful config generation
     const updatedDomain = await prisma.domain.update({
       where: { id: domain.id },
-      data: { status: 'active' },
+      data: { status: "active" },
       include: {
         upstreams: true,
         loadBalancer: true,
@@ -239,9 +305,9 @@ export const createDomain = async (req: AuthRequest, res: Response): Promise<voi
       data: {
         userId: req.user!.userId,
         action: `Created domain: ${name}`,
-        type: 'config_change',
-        ip: req.ip || 'unknown',
-        userAgent: req.headers['user-agent'] || 'unknown',
+        type: "config_change",
+        ip: req.ip || "unknown",
+        userAgent: req.headers["user-agent"] || "unknown",
         success: true,
       },
     });
@@ -250,14 +316,14 @@ export const createDomain = async (req: AuthRequest, res: Response): Promise<voi
 
     res.status(201).json({
       success: true,
-      message: 'Domain created successfully',
+      message: "Domain created successfully",
       data: updatedDomain,
     });
   } catch (error) {
-    logger.error('Create domain error:', error);
+    logger.error("Create domain error:", error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error',
+      message: "Internal server error",
     });
   }
 };
@@ -265,7 +331,10 @@ export const createDomain = async (req: AuthRequest, res: Response): Promise<voi
 /**
  * Update domain
  */
-export const updateDomain = async (req: AuthRequest, res: Response): Promise<void> => {
+export const updateDomain = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -286,7 +355,7 @@ export const updateDomain = async (req: AuthRequest, res: Response): Promise<voi
     if (!domain) {
       res.status(404).json({
         success: false,
-        message: 'Domain not found',
+        message: "Domain not found",
       });
       return;
     }
@@ -297,7 +366,8 @@ export const updateDomain = async (req: AuthRequest, res: Response): Promise<voi
       data: {
         name: name || domain.name,
         status: status || domain.status,
-        modsecEnabled: modsecEnabled !== undefined ? modsecEnabled : domain.modsecEnabled,
+        modsecEnabled:
+          modsecEnabled !== undefined ? modsecEnabled : domain.modsecEnabled,
       },
       include: {
         upstreams: true,
@@ -318,12 +388,12 @@ export const updateDomain = async (req: AuthRequest, res: Response): Promise<voi
           domainId: id,
           host: u.host,
           port: u.port,
-          protocol: u.protocol || 'http',
+          protocol: u.protocol || "http",
           sslVerify: u.sslVerify !== undefined ? u.sslVerify : true,
           weight: u.weight || 1,
           maxFails: u.maxFails || 3,
           failTimeout: u.failTimeout || 10,
-          status: 'checking',
+          status: "checking",
         })),
       });
     }
@@ -334,11 +404,14 @@ export const updateDomain = async (req: AuthRequest, res: Response): Promise<voi
         where: { domainId: id },
         create: {
           domainId: id,
-          algorithm: loadBalancer.algorithm || 'round_robin',
-          healthCheckEnabled: loadBalancer.healthCheckEnabled !== undefined ? loadBalancer.healthCheckEnabled : true,
+          algorithm: loadBalancer.algorithm || "round_robin",
+          healthCheckEnabled:
+            loadBalancer.healthCheckEnabled !== undefined
+              ? loadBalancer.healthCheckEnabled
+              : true,
           healthCheckInterval: loadBalancer.healthCheckInterval || 30,
           healthCheckTimeout: loadBalancer.healthCheckTimeout || 5,
-          healthCheckPath: loadBalancer.healthCheckPath || '/',
+          healthCheckPath: loadBalancer.healthCheckPath || "/",
         },
         update: {
           algorithm: loadBalancer.algorithm,
@@ -362,7 +435,7 @@ export const updateDomain = async (req: AuthRequest, res: Response): Promise<voi
 
     if (finalDomain) {
       await generateNginxConfig(finalDomain);
-      
+
       // Auto-reload nginx after config update
       await autoReloadNginx(true);
     }
@@ -372,25 +445,27 @@ export const updateDomain = async (req: AuthRequest, res: Response): Promise<voi
       data: {
         userId: req.user!.userId,
         action: `Updated domain: ${updatedDomain.name}`,
-        type: 'config_change',
-        ip: req.ip || 'unknown',
-        userAgent: req.headers['user-agent'] || 'unknown',
+        type: "config_change",
+        ip: req.ip || "unknown",
+        userAgent: req.headers["user-agent"] || "unknown",
         success: true,
       },
     });
 
-    logger.info(`Domain ${updatedDomain.name} updated by user ${req.user!.username}`);
+    logger.info(
+      `Domain ${updatedDomain.name} updated by user ${req.user!.username}`
+    );
 
     res.json({
       success: true,
-      message: 'Domain updated successfully',
+      message: "Domain updated successfully",
       data: finalDomain,
     });
   } catch (error) {
-    logger.error('Update domain error:', error);
+    logger.error("Update domain error:", error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error',
+      message: "Internal server error",
     });
   }
 };
@@ -398,7 +473,10 @@ export const updateDomain = async (req: AuthRequest, res: Response): Promise<voi
 /**
  * Delete domain
  */
-export const deleteDomain = async (req: AuthRequest, res: Response): Promise<void> => {
+export const deleteDomain = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
   try {
     const { id } = req.params;
 
@@ -409,7 +487,7 @@ export const deleteDomain = async (req: AuthRequest, res: Response): Promise<voi
     if (!domain) {
       res.status(404).json({
         success: false,
-        message: 'Domain not found',
+        message: "Domain not found",
       });
       return;
     }
@@ -430,9 +508,9 @@ export const deleteDomain = async (req: AuthRequest, res: Response): Promise<voi
       data: {
         userId: req.user!.userId,
         action: `Deleted domain: ${domain.name}`,
-        type: 'config_change',
-        ip: req.ip || 'unknown',
-        userAgent: req.headers['user-agent'] || 'unknown',
+        type: "config_change",
+        ip: req.ip || "unknown",
+        userAgent: req.headers["user-agent"] || "unknown",
         success: true,
       },
     });
@@ -441,13 +519,13 @@ export const deleteDomain = async (req: AuthRequest, res: Response): Promise<voi
 
     res.json({
       success: true,
-      message: 'Domain deleted successfully',
+      message: "Domain deleted successfully",
     });
   } catch (error) {
-    logger.error('Delete domain error:', error);
+    logger.error("Delete domain error:", error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error',
+      message: "Internal server error",
     });
   }
 };
@@ -455,62 +533,130 @@ export const deleteDomain = async (req: AuthRequest, res: Response): Promise<voi
 /**
  * Reload nginx configuration with smart retry logic
  */
-export const reloadNginx = async (req: AuthRequest, res: Response): Promise<void> => {
+export const reloadNginx = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
   try {
+    // Check if we're in a container environment
+    const isContainer =
+      process.env.NODE_ENV === "development" ||
+      process.env.CONTAINERIZED === "true";
+    logger.info(
+      `[reloadNginx] Environment check - Container: ${isContainer}, Node Env: ${process.env.NODE_ENV}`
+    );
+
     // Test nginx configuration first
     try {
-      await execAsync('nginx -t');
+      await execAsync("nginx -t");
+      logger.info("[reloadNginx] Nginx configuration test passed");
     } catch (error: any) {
-      logger.error('Nginx configuration test failed:', error);
+      logger.error("[reloadNginx] Nginx configuration test failed:", error);
       res.status(400).json({
         success: false,
-        message: 'Nginx configuration test failed',
+        message: "Nginx configuration test failed",
         details: error.stderr,
       });
       return;
     }
 
-    let reloadMethod = 'reload';
+    let reloadMethod = "reload";
     let reloadSuccess = false;
 
     // Try graceful reload first
     try {
-      logger.info('Attempting graceful nginx reload...');
-      await execAsync('systemctl reload nginx');
-      
+      if (isContainer) {
+        logger.info(
+          "[reloadNginx] Attempting graceful nginx reload (container mode)..."
+        );
+        await execAsync("nginx -s reload");
+      } else {
+        logger.info(
+          "[reloadNginx] Attempting graceful nginx reload (host mode)..."
+        );
+        await execAsync("systemctl reload nginx");
+      }
+
       // Wait a bit for reload to take effect
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       // Verify nginx is still running
-      const { stdout } = await execAsync('systemctl is-active nginx');
-      if (stdout.trim() === 'active') {
-        reloadSuccess = true;
-        logger.info('Nginx reloaded successfully');
+      if (isContainer) {
+        const { stdout } = await execAsync(
+          'pgrep nginx > /dev/null && echo "running" || echo "not running"'
+        );
+        if (stdout.trim() === "running") {
+          reloadSuccess = true;
+          logger.info(
+            "[reloadNginx] Nginx reloaded successfully (container mode)"
+          );
+        }
+      } else {
+        const { stdout } = await execAsync("systemctl is-active nginx");
+        if (stdout.trim() === "active") {
+          reloadSuccess = true;
+          logger.info("[reloadNginx] Nginx reloaded successfully (host mode)");
+        }
       }
     } catch (error: any) {
-      logger.warn('Graceful reload failed or verification failed:', error.message);
+      logger.warn(
+        "[reloadNginx] Graceful reload failed or verification failed:",
+        error.message
+      );
     }
 
     // If reload failed or verification failed, try restart
     if (!reloadSuccess) {
-      logger.info('Falling back to nginx restart...');
+      logger.info("[reloadNginx] Falling back to nginx restart...");
       try {
-        await execAsync('systemctl restart nginx');
-        reloadMethod = 'restart';
-        
-        // Wait for restart to complete
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Verify nginx started successfully
-        const { stdout } = await execAsync('systemctl is-active nginx');
-        if (stdout.trim() !== 'active') {
-          throw new Error('Nginx failed to start after restart');
+        if (isContainer) {
+          logger.info("[reloadNginx] Restarting nginx (container mode)...");
+          // Check if nginx is running
+          try {
+            await execAsync("pgrep nginx");
+            // If running, try to stop and start
+            await execAsync("nginx -s stop");
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            await execAsync("nginx");
+          } catch (e) {
+            // If not running, just start it
+            await execAsync("nginx");
+          }
+        } else {
+          logger.info("[reloadNginx] Restarting nginx (host mode)...");
+          await execAsync("systemctl restart nginx");
         }
-        
+
+        reloadMethod = "restart";
+
+        // Wait for restart to complete
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        // Verify nginx started successfully
+        if (isContainer) {
+          const { stdout } = await execAsync(
+            'pgrep nginx > /dev/null && echo "running" || echo "not running"'
+          );
+          if (stdout.trim() !== "running") {
+            throw new Error(
+              "Nginx failed to start after restart (container mode)"
+            );
+          }
+        } else {
+          const { stdout } = await execAsync("systemctl is-active nginx");
+          if (stdout.trim() !== "active") {
+            throw new Error("Nginx failed to start after restart (host mode)");
+          }
+        }
+
         reloadSuccess = true;
-        logger.info('Nginx restarted successfully');
+        logger.info(
+          `[reloadNginx] Nginx restarted successfully (${
+            isContainer ? "container" : "host"
+          } mode)`
+        );
       } catch (restartError: any) {
-        logger.error('Nginx restart failed:', restartError);
+        logger.error("[reloadNginx] Nginx restart failed:", restartError);
         throw new Error(`Failed to reload nginx: ${restartError.message}`);
       }
     }
@@ -519,26 +665,35 @@ export const reloadNginx = async (req: AuthRequest, res: Response): Promise<void
     await prisma.activityLog.create({
       data: {
         userId: req.user!.userId,
-        action: `Nginx ${reloadMethod} successful`,
-        type: 'config_change',
-        ip: req.ip || 'unknown',
-        userAgent: req.headers['user-agent'] || 'unknown',
+        action: `Nginx ${reloadMethod} successful (${
+          isContainer ? "container" : "host"
+        } mode)`,
+        type: "config_change",
+        ip: req.ip || "unknown",
+        userAgent: req.headers["user-agent"] || "unknown",
         success: true,
       },
     });
 
-    logger.info(`Nginx ${reloadMethod} by user ${req.user!.username}`);
+    logger.info(
+      `[reloadNginx] Nginx ${reloadMethod} by user ${req.user!.username} (${
+        isContainer ? "container" : "host"
+      } mode)`
+    );
 
     res.json({
       success: true,
-      message: `Nginx ${reloadMethod === 'restart' ? 'restarted' : 'reloaded'} successfully`,
+      message: `Nginx ${
+        reloadMethod === "restart" ? "restarted" : "reloaded"
+      } successfully`,
       method: reloadMethod,
+      mode: isContainer ? "container" : "host",
     });
   } catch (error: any) {
-    logger.error('Reload nginx error:', error);
+    logger.error("[reloadNginx] Reload nginx error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to reload nginx',
+      message: error.message || "Failed to reload nginx",
     });
   }
 };
@@ -546,15 +701,18 @@ export const reloadNginx = async (req: AuthRequest, res: Response): Promise<void
 /**
  * Toggle SSL for domain (Enable/Disable SSL)
  */
-export const toggleSSL = async (req: AuthRequest, res: Response): Promise<void> => {
+export const toggleSSL = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
   try {
     const { id } = req.params;
     const { sslEnabled } = req.body;
 
-    if (typeof sslEnabled !== 'boolean') {
+    if (typeof sslEnabled !== "boolean") {
       res.status(400).json({
         success: false,
-        message: 'sslEnabled must be a boolean value',
+        message: "sslEnabled must be a boolean value",
       });
       return;
     }
@@ -571,7 +729,7 @@ export const toggleSSL = async (req: AuthRequest, res: Response): Promise<void> 
     if (!domain) {
       res.status(404).json({
         success: false,
-        message: 'Domain not found',
+        message: "Domain not found",
       });
       return;
     }
@@ -580,7 +738,8 @@ export const toggleSSL = async (req: AuthRequest, res: Response): Promise<void> 
     if (sslEnabled && !domain.sslCertificate) {
       res.status(400).json({
         success: false,
-        message: 'Cannot enable SSL: No SSL certificate found for this domain. Please issue or upload a certificate first.',
+        message:
+          "Cannot enable SSL: No SSL certificate found for this domain. Please issue or upload a certificate first.",
       });
       return;
     }
@@ -588,9 +747,12 @@ export const toggleSSL = async (req: AuthRequest, res: Response): Promise<void> 
     // Update domain SSL status
     await prisma.domain.update({
       where: { id },
-      data: { 
+      data: {
         sslEnabled,
-        sslExpiry: sslEnabled && domain.sslCertificate ? domain.sslCertificate.validTo : null,
+        sslExpiry:
+          sslEnabled && domain.sslCertificate
+            ? domain.sslCertificate.validTo
+            : null,
       },
     });
 
@@ -605,7 +767,7 @@ export const toggleSSL = async (req: AuthRequest, res: Response): Promise<void> 
     });
 
     if (!updatedDomain) {
-      throw new Error('Failed to fetch updated domain');
+      throw new Error("Failed to fetch updated domain");
     }
 
     logger.info(`Fetched domain for nginx config: ${updatedDomain.name}`);
@@ -613,12 +775,14 @@ export const toggleSSL = async (req: AuthRequest, res: Response): Promise<void> 
     logger.info(`- sslCertificate exists: ${!!updatedDomain.sslCertificate}`);
     if (updatedDomain.sslCertificate) {
       logger.info(`- Certificate ID: ${updatedDomain.sslCertificate.id}`);
-      logger.info(`- Certificate commonName: ${updatedDomain.sslCertificate.commonName}`);
+      logger.info(
+        `- Certificate commonName: ${updatedDomain.sslCertificate.commonName}`
+      );
     }
 
     // Regenerate nginx config with SSL settings
     await generateNginxConfig(updatedDomain);
-    
+
     // Auto-reload nginx
     await autoReloadNginx(true);
 
@@ -626,26 +790,32 @@ export const toggleSSL = async (req: AuthRequest, res: Response): Promise<void> 
     await prisma.activityLog.create({
       data: {
         userId: req.user!.userId,
-        action: `${sslEnabled ? 'Enabled' : 'Disabled'} SSL for domain: ${domain.name}`,
-        type: 'config_change',
-        ip: req.ip || 'unknown',
-        userAgent: req.headers['user-agent'] || 'unknown',
+        action: `${sslEnabled ? "Enabled" : "Disabled"} SSL for domain: ${
+          domain.name
+        }`,
+        type: "config_change",
+        ip: req.ip || "unknown",
+        userAgent: req.headers["user-agent"] || "unknown",
         success: true,
       },
     });
 
-    logger.info(`SSL ${sslEnabled ? 'enabled' : 'disabled'} for ${domain.name} by user ${req.user!.username}`);
+    logger.info(
+      `SSL ${sslEnabled ? "enabled" : "disabled"} for ${domain.name} by user ${
+        req.user!.username
+      }`
+    );
 
     res.json({
       success: true,
-      message: `SSL ${sslEnabled ? 'enabled' : 'disabled'} successfully`,
+      message: `SSL ${sslEnabled ? "enabled" : "disabled"} successfully`,
       data: updatedDomain,
     });
   } catch (error) {
-    logger.error('Toggle SSL error:', error);
+    logger.error("Toggle SSL error:", error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error',
+      message: "Internal server error",
     });
   }
 };
@@ -666,18 +836,23 @@ async function generateNginxConfig(domain: any): Promise<void> {
   }
 
   // Determine if any upstream uses HTTPS
-  const hasHttpsUpstream = domain.upstreams.some((u: any) => u.protocol === 'https');
-  const upstreamProtocol = hasHttpsUpstream ? 'https' : 'http';
-  
+  const hasHttpsUpstream = domain.upstreams.some(
+    (u: any) => u.protocol === "https"
+  );
+  const upstreamProtocol = hasHttpsUpstream ? "https" : "http";
+
   // Generate upstream block
   const upstreamBlock = `
-upstream ${domain.name.replace(/\./g, '_')}_backend {
-    ${domain.loadBalancer?.algorithm === 'least_conn' ? 'least_conn;' : ''}
-    ${domain.loadBalancer?.algorithm === 'ip_hash' ? 'ip_hash;' : ''}
+upstream ${domain.name.replace(/\./g, "_")}_backend {
+    ${domain.loadBalancer?.algorithm === "least_conn" ? "least_conn;" : ""}
+    ${domain.loadBalancer?.algorithm === "ip_hash" ? "ip_hash;" : ""}
     
-    ${domain.upstreams.map((u: any) => 
-      `server ${u.host}:${u.port} weight=${u.weight} max_fails=${u.maxFails} fail_timeout=${u.failTimeout}s;`
-    ).join('\n    ')}
+    ${domain.upstreams
+      .map(
+        (u: any) =>
+          `server ${u.host}:${u.port} weight=${u.weight} max_fails=${u.maxFails} fail_timeout=${u.failTimeout}s;`
+      )
+      .join("\n    ")}
 }
 `;
 
@@ -693,39 +868,56 @@ server {
     # Include ACME challenge location for Let's Encrypt
     include /etc/nginx/snippets/acme-challenge.conf;
     
-    ${domain.sslEnabled ? `
+    ${
+      domain.sslEnabled
+        ? `
     # Redirect HTTP to HTTPS
     return 301 https://$server_name$request_uri;
-    ` : `
-    ${domain.modsecEnabled ? 'modsecurity on;' : 'modsecurity off;'}
+    `
+        : `
+    ${domain.modsecEnabled ? "modsecurity on;" : "modsecurity off;"}
     
     access_log /var/log/nginx/${domain.name}_access.log main;
     error_log /var/log/nginx/${domain.name}_error.log warn;
     
     location / {
-        proxy_pass ${upstreamProtocol}://${domain.name.replace(/\./g, '_')}_backend;
+        proxy_pass ${upstreamProtocol}://${domain.name.replace(
+            /\./g,
+            "_"
+          )}_backend;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         
-        ${hasHttpsUpstream ? `
+        ${
+          hasHttpsUpstream
+            ? `
         # HTTPS Backend Settings
-        ${domain.upstreams.some((u: any) => u.protocol === 'https' && !u.sslVerify) ? 
-          'proxy_ssl_verify off;' : 
-          'proxy_ssl_verify on;'
+        ${
+          domain.upstreams.some(
+            (u: any) => u.protocol === "https" && !u.sslVerify
+          )
+            ? "proxy_ssl_verify off;"
+            : "proxy_ssl_verify on;"
         }
         proxy_ssl_server_name on;
         proxy_ssl_name ${domain.name};
         proxy_ssl_protocols TLSv1.2 TLSv1.3;
-        ` : ''}
+        `
+            : ""
+        }
         
-        ${domain.loadBalancer?.healthCheckEnabled ? `
+        ${
+          domain.loadBalancer?.healthCheckEnabled
+            ? `
         # Health check settings
         proxy_next_upstream error timeout http_502 http_503 http_504;
         proxy_next_upstream_tries 3;
         proxy_next_upstream_timeout ${domain.loadBalancer.healthCheckTimeout}s;
-        ` : ''}
+        `
+            : ""
+        }
     }
     
     location /nginx_health {
@@ -733,12 +925,13 @@ server {
         return 200 "healthy\\n";
         add_header Content-Type text/plain;
     }
-    `}
+    `
+    }
 }
 `;
 
   // HTTPS server block (only if SSL enabled)
-  let httpsServerBlock = '';
+  let httpsServerBlock = "";
   if (domain.sslEnabled && domain.sslCertificate) {
     httpsServerBlock = `
 server {
@@ -751,7 +944,11 @@ server {
     # SSL Certificate Configuration
     ssl_certificate /etc/nginx/ssl/${domain.name}.crt;
     ssl_certificate_key /etc/nginx/ssl/${domain.name}.key;
-    ${domain.sslCertificate.chain ? `ssl_trusted_certificate /etc/nginx/ssl/${domain.name}.chain.crt;` : ''}
+    ${
+      domain.sslCertificate.chain
+        ? `ssl_trusted_certificate /etc/nginx/ssl/${domain.name}.chain.crt;`
+        : ""
+    }
     
     # SSL Security Settings
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -768,35 +965,49 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     
-    ${domain.modsecEnabled ? 'modsecurity on;' : 'modsecurity off;'}
+    ${domain.modsecEnabled ? "modsecurity on;" : "modsecurity off;"}
     
     access_log /var/log/nginx/${domain.name}_ssl_access.log main;
     error_log /var/log/nginx/${domain.name}_ssl_error.log warn;
     
     location / {
-        proxy_pass ${upstreamProtocol}://${domain.name.replace(/\./g, '_')}_backend;
+        proxy_pass ${upstreamProtocol}://${domain.name.replace(
+      /\./g,
+      "_"
+    )}_backend;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         
-        ${hasHttpsUpstream ? `
+        ${
+          hasHttpsUpstream
+            ? `
         # HTTPS Backend Settings
-        ${domain.upstreams.some((u: any) => u.protocol === 'https' && !u.sslVerify) ? 
-          'proxy_ssl_verify off;' : 
-          'proxy_ssl_verify on;'
+        ${
+          domain.upstreams.some(
+            (u: any) => u.protocol === "https" && !u.sslVerify
+          )
+            ? "proxy_ssl_verify off;"
+            : "proxy_ssl_verify on;"
         }
         proxy_ssl_server_name on;
         proxy_ssl_name ${domain.name};
         proxy_ssl_protocols TLSv1.2 TLSv1.3;
-        ` : ''}
+        `
+            : ""
+        }
         
-        ${domain.loadBalancer?.healthCheckEnabled ? `
+        ${
+          domain.loadBalancer?.healthCheckEnabled
+            ? `
         # Health check settings
         proxy_next_upstream error timeout http_502 http_503 http_504;
         proxy_next_upstream_tries 3;
         proxy_next_upstream_timeout ${domain.loadBalancer.healthCheckTimeout}s;
-        ` : ''}
+        `
+            : ""
+        }
     }
     
     location /nginx_health {
@@ -817,7 +1028,7 @@ server {
     await fs.writeFile(configPath, fullConfig);
 
     // Create symlink if domain is active
-    if (domain.status === 'active') {
+    if (domain.status === "active") {
       try {
         await fs.unlink(enabledPath);
       } catch (e) {
