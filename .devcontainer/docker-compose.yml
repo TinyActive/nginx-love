@@ -1,0 +1,66 @@
+services:
+  workspace:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nginx-love-devcontainer
+    privileged: true
+    user: root
+    volumes:
+      - ../:/workspace:cached
+      # Mount nginx config from repo
+      - ../config/nginx.conf:/etc/nginx/sites-available/default:rw
+      # Systemd requirements
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      - /run
+      - /tmp
+    ports:
+      - "3001:3001"    # API backend
+      - "8080:8080"    # Frontend (Vite)
+      - "8088:8088"    # Nginx portal
+      - "80:80"        # Nginx HTTP
+      - "443:443"      # Nginx HTTPS
+      - "5555:5555"    # Prisma Studio
+    networks:
+      - devcontainer-network
+    command: /sbin/init
+    stop_signal: SIGRTMIN+3
+    environment:
+      - NODE_ENV=development
+      - PNPM_HOME=/home/node/.local/share/pnpm
+      - PATH=/home/node/.local/share/pnpm:$PATH
+      # Database connection from within container network
+      - DATABASE_URL=postgresql://${DB_USER:-nginx_love_user}:${DB_PASSWORD:-change_this_password}@postgres:5432/${DB_NAME:-nginx_love_db}?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: nginx-love-devcontainer-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-nginx_love_db}
+      POSTGRES_USER: ${DB_USER:-nginx_love_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_this_password}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - devcontainer-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-nginx_love_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:
+    driver: local
+
+networks:
+  devcontainer-network:
+    driver: bridge

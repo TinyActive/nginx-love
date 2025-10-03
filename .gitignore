@@ -24,6 +24,7 @@ build
 # Environment
 *.local
 .env*.local
+.devcontainer/.env
 
 # Lock files (using pnpm)
 package-lock.json
@@ -42,3 +43,4 @@ yarn.lock
 *.sw?
 landing/*
 .env
+.pnpm-store/
