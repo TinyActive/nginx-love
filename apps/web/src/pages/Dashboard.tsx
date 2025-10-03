@@ -59,6 +59,7 @@ export default function Dashboard() {
         dashboardService.getRecentAlerts(5),
       ]);
 
+      
       setStats(statsData);
       setMetrics(metricsData);
       setRecentAlerts(alertsData);
@@ -221,15 +222,14 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            {metrics?.cpu ? (
+            {metrics?.cpu && metrics.cpu.length > 0 ? (
               <ChartContainer
                 config={{
                   cpu: {
                     label: "CPU Usage",
-                    color: "hsl(var(--primary))",
                   },
                 }}
-                className="h-[200px]"
+                className="h-[200px] w-full"
               >
                 <LineChart data={metrics.cpu}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -266,7 +266,7 @@ export default function Dashboard() {
                   <Line
                     type="monotone"
                     dataKey="value"
-                    stroke="var(--color-cpu)"
+                    stroke="var(--color-primary-500)"
                     strokeWidth={2}
                     dot={false}
                     name="cpu"
@@ -311,15 +311,14 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            {metrics?.memory ? (
+            {metrics?.memory && metrics.memory.length > 0 ? (
               <ChartContainer
                 config={{
                   memory: {
                     label: "Memory Usage",
-                    color: "hsl(var(--success))",
                   },
                 }}
-                className="h-[200px]"
+                className="h-[200px] w-full"
               >
                 <LineChart data={metrics.memory}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -356,7 +355,7 @@ export default function Dashboard() {
                   <Line
                     type="monotone"
                     dataKey="value"
-                    stroke="var(--color-memory)"
+                    stroke="var(--color-success-500)"
                     strokeWidth={2}
                     dot={false}
                     name="memory"
