@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from 'next-themes';
 import {
@@ -43,8 +43,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useStore } from '@/store/useStore';
-import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/auth';
+import { useRouter } from '@tanstack/react-router';
 
 const menuGroups = [
   {
@@ -90,12 +90,13 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const isCollapsed = state === 'collapsed';
   const { theme, setTheme } = useTheme();
-  const { currentUser, logout } = useStore();
-  const navigate = useNavigate();
+  const { user: currentUser, logout } = useAuth();
+  const router = useRouter();
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const handleLogout = async () => {
+    await logout();
+    await router.invalidate();
+    router.navigate({ to: '/login' });
   };
 
   const changeLanguage = (lng: string) => {
@@ -123,17 +124,16 @@ export function AppSidebar() {
                 {group.items.map((item) => (
                   <SidebarMenuItem key={item.key}>
                     <SidebarMenuButton asChild>
-                      <NavLink
+                      <Link
                         to={item.path}
-                        className={({ isActive }) =>
-                          isActive
-                            ? 'bg-primary/10 text-primary font-medium'
-                            : 'hover:bg-accent'
-                        }
+                        className="hover:bg-accent data-[active]:bg-primary/10 data-[active]:text-primary data-[active]:font-medium"
+                        activeProps={{
+                          className: 'bg-primary/10 text-primary font-medium'
+                        }}
                       >
                         <item.icon className="h-4 w-4" />
                         {!isCollapsed && <span>{t(`nav.${item.key}`)}</span>}
-                      </NavLink>
+                      </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
@@ -209,7 +209,7 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem onClick={() => navigate('/account')}>
+                <DropdownMenuItem onClick={() => router.navigate({ to: '/account' })}>
                   <Settings className="mr-2 h-4 w-4" />
                   Account Settings
                 </DropdownMenuItem>

@@ -9,7 +9,8 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from '@tanstack/react-router';
+import { Link } from '@tanstack/react-router';
 
 interface DashboardHeaderProps {
   title?: string;
@@ -63,9 +64,11 @@ export function DashboardHeader({ title, breadcrumbs }: DashboardHeaderProps) {
               <div key={index} className="flex items-center gap-2">
                 <BreadcrumbItem>
                   {item.href ? (
-                    <BreadcrumbLink href={item.href} className="text-muted-foreground hover:text-foreground">
-                      {item.label}
-                    </BreadcrumbLink>
+                    <Link to={item.href}>
+                      <BreadcrumbLink className="text-muted-foreground hover:text-foreground">
+                        {item.label}
+                      </BreadcrumbLink>
+                    </Link>
                   ) : (
                     <BreadcrumbPage className="text-base font-medium">
                       {item.label}

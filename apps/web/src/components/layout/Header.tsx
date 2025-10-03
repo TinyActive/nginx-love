@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useStore } from '@/store/useStore';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@tanstack/react-router';
 
 export function Header() {
   const { t, i18n } = useTranslation();
@@ -20,7 +20,7 @@ export function Header() {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate({ to: '/login' });
   };
 
   const changeLanguage = (lng: string) => {
@@ -65,7 +65,7 @@ export function Header() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem onClick={() => navigate('/account')}>
+            <DropdownMenuItem onClick={() => navigate({ to: '/account' })}>
               <Settings className="mr-2 h-4 w-4" />
               Account Settings
             </DropdownMenuItem>

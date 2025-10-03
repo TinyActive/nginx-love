@@ -1,62 +1,72 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter, useRouterState } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useStore } from '@/store/useStore';
+import { useAuth } from '@/auth';
 import { toast } from 'sonner';
-import { authService } from '@/services/auth.service';
+import { Route } from '@/routes/login';
 
 export default function Login() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const { setUser } = useStore();
+  const router = useRouter();
+  const isLoading = useRouterState({ select: (s) => s.isLoading });
+  const { login, loginWith2FA, isAuthenticated, isLoading: authLoading } = useAuth();
+  const navigate = Route.useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [twoFactor, setTwoFactor] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [requires2FA, setRequires2FA] = useState(false);
   const [userId, setUserId] = useState('');
+  
+  const search = Route.useSearch();
+  
+  const isLoggingIn = isLoading || isSubmitting || authLoading;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setIsSubmitting(true);
 
     try {
       if (requires2FA && userId) {
         // Verify 2FA token
-        const response = await authService.verify2FA({ userId, token: twoFactor });
-        localStorage.setItem('accessToken', response.accessToken);
-        localStorage.setItem('refreshToken', response.refreshToken);
-        localStorage.setItem('user', JSON.stringify(response.user));
-        setUser(response.user);
+        const response = await loginWith2FA(userId, twoFactor);
         toast.success('Login successful');
-        navigate('/dashboard');
+        
+        await router.invalidate();
+        
+        // Wait a moment for auth state to update
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        await navigate({ to: search.redirect || '/dashboard' });
       } else {
         // Initial login
-        const response = await authService.login({ username, password });
+        const response = await login(username, password);
         
         if (response.requires2FA) {
           setRequires2FA(true);
           setUserId(response.user.id);
           toast.info('Please enter your 2FA code');
         } else {
-          localStorage.setItem('accessToken', response.accessToken);
-          localStorage.setItem('refreshToken', response.refreshToken);
-          localStorage.setItem('user', JSON.stringify(response.user));
-          setUser(response.user);
           toast.success('Login successful');
-          navigate('/dashboard');
+          
+          await router.invalidate();
+          
+          // Wait a moment for auth state to update
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          await navigate({ to: search.redirect || '/dashboard' });
         }
       }
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'Login failed';
       toast.error(errorMessage);
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -128,8 +138,8 @@ export default function Login() {
               </div>
             )}
 
-            <Button type="submit" className="w-full" disabled={loading || (requires2FA && twoFactor.length !== 6)}>
-              {loading ? 'Verifying...' : requires2FA ? 'Verify & Sign In' : t('login.signin')}
+            <Button type="submit" className="w-full" disabled={isLoggingIn || (requires2FA && twoFactor.length !== 6)}>
+              {isLoggingIn ? 'Verifying...' : requires2FA ? 'Verify & Sign In' : t('login.signin')}
             </Button>
 
             {requires2FA && (
