@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router';
+import { Link, useMatchRoute } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from 'next-themes';
 import {
@@ -121,22 +121,25 @@ export function AppSidebar() {
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {group.items.map((item) => (
-                  <SidebarMenuItem key={item.key}>
-                    <SidebarMenuButton asChild>
-                      <Link
-                        to={item.path}
-                        className="hover:bg-accent data-[active]:bg-primary/10 data-[active]:text-primary data-[active]:font-medium"
-                        activeProps={{
-                          className: 'bg-primary/10 text-primary font-medium'
-                        }}
-                      >
-                        <item.icon className="h-4 w-4" />
-                        {!isCollapsed && <span>{t(`nav.${item.key}`)}</span>}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                {group.items.map((item) => {
+                  // Use useMatchRoute to determine if the current route is active
+                  const matchRoute = useMatchRoute();
+                  const isActive = matchRoute({ to: item.path, fuzzy: true });
+                  
+                  return (
+                    <SidebarMenuItem key={item.key}>
+                      <SidebarMenuButton asChild>
+                        <Link
+                          to={item.path}
+                          className={`hover:bg-accent ${isActive ? 'bg-primary/10 text-primary font-medium' : ''}`}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          {!isCollapsed && <span>{t(`nav.${item.key}`)}</span>}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
