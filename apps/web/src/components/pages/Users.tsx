@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,20 +12,81 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { UserPlus, Mail, Key, Trash2, Edit, Shield, Loader2, Users as UsersIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import userService, { User } from "@/services/user.service";
 import { useStore } from "@/store/useStore";
-import { SkeletonStatsCard, SkeletonTable, SkeletonForm, Skeleton } from "@/components/ui/skeletons";
+import { SkeletonStatsCard, SkeletonTable } from "@/components/ui/skeletons";
+import {
+  useSuspenseUsers,
+  useSuspenseUserStats,
+  useCreateUser,
+  useUpdateUser,
+  useDeleteUser,
+  useUpdateUserStatus,
+  useResetUserPassword
+} from "@/queries";
 
-const Users = () => {
+// Component for user statistics with suspense
+function UserStatsCards() {
+  const { data: stats } = useSuspenseUserStats();
+
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+          <UserPlus className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{stats.data.total}</div>
+          <p className="text-xs text-muted-foreground">
+            {stats.data.active} active
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Administrators</CardTitle>
+          <Shield className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{stats.data.byRole.admin}</div>
+          <p className="text-xs text-muted-foreground">
+            Full access users
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Recent Logins</CardTitle>
+          <UserPlus className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{stats.data.recentLogins}</div>
+          <p className="text-xs text-muted-foreground">
+            In the last 24 hours
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Component for users table with suspense
+function UsersTable() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const currentUser = useStore(state => state.currentUser);
-  
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, active: 0, admins: 0, recentLogins: 0 });
+  const { data: users } = useSuspenseUsers();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const createUser = useCreateUser();
+  const updateUser = useUpdateUser();
+  const deleteUser = useDeleteUser();
+  const updateUserStatus = useUpdateUserStatus();
+  const resetUserPassword = useResetUserPassword();
 
   const [formData, setFormData] = useState({
     username: "",
@@ -38,46 +100,6 @@ const Users = () => {
   // Check permissions
   const canManageUsers = currentUser?.role === 'admin';
   const canViewUsers = currentUser?.role === 'admin' || currentUser?.role === 'moderator';
-
-  // Load users on mount
-  useEffect(() => {
-    loadUsers();
-    loadStats();
-  }, []);
-
-  const loadUsers = async () => {
-    try {
-      setLoading(true);
-      const response = await userService.getAll();
-      if (response.success) {
-        setUsers(response.data);
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error loading users",
-        description: error.response?.data?.message || "Failed to load users",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadStats = async () => {
-    try {
-      const response = await userService.getStats();
-      if (response.success) {
-        setStats({
-          total: response.data.total,
-          active: response.data.active,
-          admins: response.data.byRole.admin,
-          recentLogins: response.data.recentLogins
-        });
-      }
-    } catch (error: any) {
-      console.error("Failed to load stats:", error);
-    }
-  };
 
   const handleAddUser = async () => {
     try {
@@ -102,38 +124,33 @@ const Users = () => {
 
       if (editingUser) {
         // Update existing user
-        const response = await userService.update(editingUser.id, {
-          username: formData.username,
-          email: formData.email,
-          fullName: formData.fullName,
-          role: formData.role,
-          status: formData.status as "active" | "inactive" | "suspended"
+        await updateUser.mutateAsync({
+          id: editingUser.id,
+          data: {
+            username: formData.username,
+            email: formData.email,
+            fullName: formData.fullName,
+            role: formData.role,
+            status: formData.status as "active" | "inactive" | "suspended"
+          }
         });
 
-        if (response.success) {
-          toast({ title: "User updated successfully" });
-          loadUsers();
-          loadStats();
-        }
+        toast({ title: "User updated successfully" });
       } else {
         // Create new user
-        const response = await userService.create({
+        await createUser.mutateAsync({
           username: formData.username,
           email: formData.email,
           password: formData.password,
           fullName: formData.fullName,
           role: formData.role,
-          status: formData.status
+          status: formData.status as "active" | "inactive"
         });
 
-        if (response.success) {
-          toast({ 
-            title: "User created successfully",
-            description: "User has been invited to the system"
-          });
-          loadUsers();
-          loadStats();
-        }
+        toast({ 
+          title: "User created successfully",
+          description: "User has been invited to the system"
+        });
       }
 
       setIsDialogOpen(false);
@@ -159,7 +176,7 @@ const Users = () => {
     });
   };
 
-  const handleEdit = (user: User) => {
+  const handleEdit = (user: any) => {
     setEditingUser(user);
     setFormData({
       username: user.username,
@@ -176,12 +193,8 @@ const Users = () => {
     if (!confirm("Are you sure you want to delete this user?")) return;
 
     try {
-      const response = await userService.delete(id);
-      if (response.success) {
-        toast({ title: "User deleted successfully" });
-        loadUsers();
-        loadStats();
-      }
+      await deleteUser.mutateAsync(id);
+      toast({ title: "User deleted successfully" });
     } catch (error: any) {
       toast({
         title: "Error deleting user",
@@ -192,18 +205,14 @@ const Users = () => {
   };
 
   const handleToggleStatus = async (id: string) => {
-    const user = users.find(u => u.id === id);
+    const user = users.data.find(u => u.id === id);
     if (!user) return;
 
     const newStatus = user.status === 'active' ? 'inactive' : 'active';
 
     try {
-      const response = await userService.updateStatus(id, newStatus);
-      if (response.success) {
-        toast({ title: `User ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully` });
-        loadUsers();
-        loadStats();
-      }
+      await updateUserStatus.mutateAsync({ id, status: newStatus });
+      toast({ title: `User ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully` });
     } catch (error: any) {
       toast({
         title: "Error updating status",
@@ -217,15 +226,13 @@ const Users = () => {
     if (!confirm("Are you sure you want to reset this user's password?")) return;
 
     try {
-      const response = await userService.resetPassword(userId);
-      if (response.success) {
-        toast({ 
-          title: "Password reset successfully",
-          description: response.data?.temporaryPassword 
-            ? `Temporary password: ${response.data.temporaryPassword}` 
-            : "Password reset email sent to user"
-        });
-      }
+      const result = await resetUserPassword.mutateAsync(userId);
+      toast({ 
+        title: "Password reset successfully",
+        description: result.data?.temporaryPassword 
+          ? `Temporary password: ${result.data.temporaryPassword}` 
+          : "Password reset email sent to user"
+      });
     } catch (error: any) {
       toast({
         title: "Error resetting password",
@@ -234,28 +241,6 @@ const Users = () => {
       });
     }
   };
-
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <Skeleton className="h-9 w-48 mb-2" />
-            <Skeleton className="h-4 w-64" />
-          </div>
-          <Skeleton className="h-10 w-32" />
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <SkeletonStatsCard key={i} />
-          ))}
-        </div>
-
-        <SkeletonTable rows={8} columns={6} />
-      </div>
-    );
-  }
 
   if (!canViewUsers) {
     return (
@@ -283,7 +268,7 @@ const Users = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">
@@ -308,134 +293,97 @@ const Users = () => {
                 Invite User
               </Button>
             </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingUser ? "Edit User" : "Invite New User"}</DialogTitle>
-              <DialogDescription>
-                {editingUser ? "Update user information and permissions" : "Send an invitation to a new user"}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  placeholder="john.doe"
-                  disabled={!!editingUser}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="email">Email Address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="john.doe@example.com"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input
-                  id="fullName"
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                  placeholder="John Doe"
-                />
-              </div>
-              {!editingUser && (
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingUser ? "Edit User" : "Invite New User"}</DialogTitle>
+                <DialogDescription>
+                  {editingUser ? "Update user information and permissions" : "Send an invitation to a new user"}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="username">Username</Label>
                   <Input
-                    id="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    placeholder="••••••••"
+                    id="username"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    placeholder="john.doe"
+                    disabled={!!editingUser}
                   />
                 </div>
-              )}
-              <div className="grid gap-2">
-                <Label htmlFor="role">Role</Label>
-                <Select value={formData.role} onValueChange={(value: any) => setFormData({ ...formData, role: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="viewer">Viewer - Read-only access</SelectItem>
-                    <SelectItem value="moderator">Moderator - Can manage configurations</SelectItem>
-                    <SelectItem value="admin">Admin - Full access</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="grid gap-2">
+                  <Label htmlFor="email">Email Address</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="john.doe@example.com"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="fullName">Full Name</Label>
+                  <Input
+                    id="fullName"
+                    value={formData.fullName}
+                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                    placeholder="John Doe"
+                  />
+                </div>
+                {!editingUser && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="••••••••"
+                    />
+                  </div>
+                )}
+                <div className="grid gap-2">
+                  <Label htmlFor="role">Role</Label>
+                  <Select value={formData.role} onValueChange={(value: any) => setFormData({ ...formData, role: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="viewer">Viewer - Read-only access</SelectItem>
+                      <SelectItem value="moderator">Moderator - Can manage configurations</SelectItem>
+                      <SelectItem value="admin">Admin - Full access</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={formData.status} onValueChange={(value: any) => setFormData({ ...formData, status: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="status">Status</Label>
-                <Select value={formData.status} onValueChange={(value: any) => setFormData({ ...formData, status: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleAddUser}>{editingUser ? "Update" : "Invite"} User</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleAddUser}>{editingUser ? "Update" : "Invite"} User</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            <UserPlus className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.active} active
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Administrators</CardTitle>
-            <Shield className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.admins}</div>
-            <p className="text-xs text-muted-foreground">
-              Full access users
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recent Logins</CardTitle>
-            <UserPlus className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.recentLogins}</div>
-            <p className="text-xs text-muted-foreground">
-              In the last 24 hours
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <Suspense fallback={<SkeletonStatsCard />}>
+        <UserStatsCards />
+      </Suspense>
 
       <Card>
         <CardHeader>
-          <CardTitle>Users ({users.length})</CardTitle>
+          <CardTitle>Users ({users.data.length})</CardTitle>
           <CardDescription>Manage user accounts and permissions</CardDescription>
         </CardHeader>
         <CardContent>
@@ -452,7 +400,7 @@ const Users = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((user) => (
+                {users.data.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.username}</TableCell>
                     <TableCell>{user.email}</TableCell>
@@ -531,6 +479,17 @@ const Users = () => {
           </div>
         </CardContent>
       </Card>
+    </>
+  );
+}
+
+// Main Users component
+const Users = () => {
+  return (
+    <div className="space-y-6">
+      <Suspense fallback={<SkeletonTable rows={8} columns={6} title="Users" />}>
+        <UsersTable />
+      </Suspense>
     </div>
   );
 };

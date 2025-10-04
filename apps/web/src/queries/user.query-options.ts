@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import userService, { 
   type User, 
   type CreateUserData, 
@@ -12,6 +12,27 @@ export const userQueryKeys = createQueryKeys('users');
 
 // Query options for users
 export const userQueryOptions = {
+  // Get all users
+  all: (params?: { role?: string; status?: string; search?: string }) => ({
+    queryKey: userQueryKeys.list(params || {}),
+    queryFn: () => userService.getAll(params),
+  }),
+  
+  // Get user by ID
+  byId: (id: string) => ({
+    queryKey: userQueryKeys.detail(id),
+    queryFn: () => userService.getById(id),
+  }),
+  
+  // Get user statistics
+  stats: {
+    queryKey: userQueryKeys.detail('stats'),
+    queryFn: userService.getStats,
+  },
+};
+
+// Suspense query options for users
+export const userSuspenseQueryOptions = {
   // Get all users
   all: (params?: { role?: string; status?: string; search?: string }) => ({
     queryKey: userQueryKeys.list(params || {}),
@@ -102,6 +123,19 @@ export const useUser = (id: string) => {
 
 export const useUserStats = () => {
   return useQuery(userQueryOptions.stats);
+};
+
+// Suspense hooks for deferred loading pattern
+export const useSuspenseUsers = (params?: { role?: string; status?: string; search?: string }) => {
+  return useSuspenseQuery(userSuspenseQueryOptions.all(params));
+};
+
+export const useSuspenseUser = (id: string) => {
+  return useSuspenseQuery(userSuspenseQueryOptions.byId(id));
+};
+
+export const useSuspenseUserStats = () => {
+  return useSuspenseQuery(userSuspenseQueryOptions.stats);
 };
 
 export const useCreateUser = () => {

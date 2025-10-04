@@ -1,13 +1,17 @@
 import Performance from '@/components/pages/Performance'
 import { createFileRoute } from '@tanstack/react-router'
-import { ensurePerformanceData } from '@/lib/route-loaders'
+import { performanceQueryOptions } from '@/queries/performance.query-options'
 
 export const Route = createFileRoute('/_auth/performance')({
   component: RouteComponent,
   loader: async ({ context }) => {
     const { queryClient } = context;
-    // Only prefetch the fast-loading stats data in the loader
-    await ensurePerformanceData(queryClient, 'all', '1h');
+    
+    // Prefetch performance data but don't await it (allow it to load in background)
+    queryClient.prefetchQuery(performanceQueryOptions.metrics())
+    queryClient.prefetchQuery(performanceQueryOptions.stats())
+    queryClient.prefetchQuery(performanceQueryOptions.history())
+    
     return {};
   },
 })

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { aclService } from '@/services/acl.service';
 import { createQueryKeys } from '@/lib/query-client';
 import type { ACLRule } from '@/types';
@@ -8,6 +8,21 @@ export const aclQueryKeys = createQueryKeys('acl');
 
 // Query options for ACL rules
 export const aclQueryOptions = {
+  // Get all ACL rules
+  all: {
+    queryKey: aclQueryKeys.lists(),
+    queryFn: aclService.getAll,
+  },
+  
+  // Get ACL rule by ID
+  byId: (id: string) => ({
+    queryKey: aclQueryKeys.detail(id),
+    queryFn: () => aclService.getById(id),
+  }),
+};
+
+// Suspense query options for ACL rules
+export const aclSuspenseQueryOptions = {
   // Get all ACL rules
   all: {
     queryKey: aclQueryKeys.lists(),
@@ -86,6 +101,15 @@ export const useAclRules = () => {
 
 export const useAclRule = (id: string) => {
   return useQuery(aclQueryOptions.byId(id));
+};
+
+// Suspense hooks for deferred loading pattern
+export const useSuspenseAclRules = () => {
+  return useSuspenseQuery(aclSuspenseQueryOptions.all);
+};
+
+export const useSuspenseAclRule = (id: string) => {
+  return useSuspenseQuery(aclSuspenseQueryOptions.byId(id));
 };
 
 export const useCreateAclRule = () => {

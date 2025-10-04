@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { notificationChannelService, alertRuleService } from '@/services/alerts.service';
 import { createQueryKeys } from '@/lib/query-client';
 import type { NotificationChannel, AlertRule } from '@/types';
@@ -24,6 +24,36 @@ export const notificationChannelQueryOptions = {
 
 // Query options for alert rules
 export const alertRuleQueryOptions = {
+  // Get all alert rules
+  all: {
+    queryKey: alertRuleQueryKeys.lists(),
+    queryFn: alertRuleService.getAll,
+  },
+  
+  // Get alert rule by ID
+  byId: (id: string) => ({
+    queryKey: alertRuleQueryKeys.detail(id),
+    queryFn: () => alertRuleService.getById(id),
+  }),
+};
+
+// Suspense query options for notification channels
+export const notificationChannelSuspenseQueryOptions = {
+  // Get all notification channels
+  all: {
+    queryKey: notificationChannelQueryKeys.lists(),
+    queryFn: notificationChannelService.getAll,
+  },
+  
+  // Get notification channel by ID
+  byId: (id: string) => ({
+    queryKey: notificationChannelQueryKeys.detail(id),
+    queryFn: () => notificationChannelService.getById(id),
+  }),
+};
+
+// Suspense query options for alert rules
+export const alertRuleSuspenseQueryOptions = {
   // Get all alert rules
   all: {
     queryKey: alertRuleQueryKeys.lists(),
@@ -185,6 +215,23 @@ export const useAlertRules = () => {
 
 export const useAlertRule = (id: string) => {
   return useQuery(alertRuleQueryOptions.byId(id));
+};
+
+// Suspense hooks for deferred loading pattern
+export const useSuspenseNotificationChannels = () => {
+  return useSuspenseQuery(notificationChannelSuspenseQueryOptions.all);
+};
+
+export const useSuspenseNotificationChannel = (id: string) => {
+  return useSuspenseQuery(notificationChannelSuspenseQueryOptions.byId(id));
+};
+
+export const useSuspenseAlertRules = () => {
+  return useSuspenseQuery(alertRuleSuspenseQueryOptions.all);
+};
+
+export const useSuspenseAlertRule = (id: string) => {
+  return useSuspenseQuery(alertRuleSuspenseQueryOptions.byId(id));
 };
 
 export const useCreateAlertRule = () => {

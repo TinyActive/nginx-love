@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,15 +13,31 @@ import { Switch } from "@/components/ui/switch";
 import { Plus, Download, Upload, Trash2, Edit, Loader2, UserCog } from "lucide-react";
 import { ACLRule } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import aclService from "@/services/acl.service";
+import { SkeletonTable } from "@/components/ui/skeletons";
+import {
+  useSuspenseAclRules,
+  useCreateAclRule,
+  useUpdateAclRule,
+  useDeleteAclRule,
+  useToggleAclRule,
+  useApplyAclRules
+} from "@/queries";
 
-const ACL = () => {
+// Component for ACL rules table with suspense
+function AclRulesTable() {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const [rules, setRules] = useState<ACLRule[]>([]);
+  const { data: rules } = useSuspenseAclRules();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<ACLRule | null>(null);
   const [loading, setLoading] = useState(false);
+  const [applyingRules, setApplyingRules] = useState(false);
+
+  const createAclRule = useCreateAclRule();
+  const updateAclRule = useUpdateAclRule();
+  const deleteAclRule = useDeleteAclRule();
+  const toggleAclRule = useToggleAclRule();
+  const applyAclRules = useApplyAclRules();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -32,27 +49,6 @@ const ACL = () => {
     enabled: true
   });
 
-  // Load rules on mount
-  useEffect(() => {
-    loadRules();
-  }, []);
-
-  const loadRules = async () => {
-    try {
-      setLoading(true);
-      const data = await aclService.getAll();
-      setRules(data);
-    } catch (error: any) {
-      toast({
-        title: "Error loading ACL rules",
-        description: error.response?.data?.message || "Failed to load ACL rules",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleAddRule = async () => {
     try {
       setLoading(true);
@@ -61,18 +57,21 @@ const ACL = () => {
       const conditionField = formData.field.replace('-', '_') as any;
 
       if (editingRule) {
-        await aclService.update(editingRule.id, {
-          name: formData.name,
-          type: formData.type,
-          conditionField,
-          conditionOperator: formData.operator,
-          conditionValue: formData.value,
-          action: formData.action,
-          enabled: formData.enabled
+        await updateAclRule.mutateAsync({
+          id: editingRule.id,
+          data: {
+            name: formData.name,
+            type: formData.type,
+            conditionField,
+            conditionOperator: formData.operator,
+            conditionValue: formData.value,
+            action: formData.action,
+            enabled: formData.enabled
+          }
         });
         toast({ title: "Rule updated successfully" });
       } else {
-        await aclService.create({
+        await createAclRule.mutateAsync({
           name: formData.name,
           type: formData.type,
           conditionField,
@@ -84,7 +83,6 @@ const ACL = () => {
         toast({ title: "Rule added successfully" });
       }
 
-      await loadRules();
       setIsDialogOpen(false);
       setEditingRule(null);
       resetForm();
@@ -128,8 +126,7 @@ const ACL = () => {
   const handleDelete = async (id: string) => {
     try {
       setLoading(true);
-      await aclService.delete(id);
-      await loadRules();
+      await deleteAclRule.mutateAsync(id);
       toast({ title: "Rule deleted successfully" });
     } catch (error: any) {
       toast({
@@ -145,8 +142,7 @@ const ACL = () => {
   const handleToggle = async (id: string) => {
     try {
       setLoading(true);
-      await aclService.toggle(id);
-      await loadRules();
+      await toggleAclRule.mutateAsync(id);
     } catch (error: any) {
       toast({
         title: "Error toggling rule",
@@ -160,9 +156,9 @@ const ACL = () => {
 
   const handleApplyRules = async () => {
     try {
-      setLoading(true);
-      const result = await aclService.apply();
-      toast({ 
+      setApplyingRules(true);
+      const result = await applyAclRules.mutateAsync();
+      toast({
         title: result.success ? "Success" : "Error",
         description: result.message,
         variant: result.success ? "default" : "destructive"
@@ -174,7 +170,7 @@ const ACL = () => {
         variant: "destructive"
       });
     } finally {
-      setLoading(false);
+      setApplyingRules(false);
     }
   };
 
@@ -194,7 +190,7 @@ const ACL = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">
@@ -206,8 +202,8 @@ const ACL = () => {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={handleApplyRules} disabled={loading}>
-            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          <Button variant="secondary" size="sm" onClick={handleApplyRules} disabled={applyingRules}>
+            {applyingRules && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Apply Rules to Nginx
           </Button>
           <Button variant="outline" size="sm" onClick={handleImport}>
@@ -395,6 +391,17 @@ const ACL = () => {
           </div>
         </CardContent>
       </Card>
+    </>
+  );
+}
+
+// Main ACL component
+const ACL = () => {
+  return (
+    <div className="space-y-6">
+      <Suspense fallback={<SkeletonTable rows={8} columns={6} title="ACL Rules" />}>
+        <AclRulesTable />
+      </Suspense>
     </div>
   );
 };
