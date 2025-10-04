@@ -152,26 +152,6 @@ export default defineConfig({
     // Search configuration
     search: {
       provider: 'local',
-      options: {
-        locales: {
-          zh: {
-            translations: {
-              button: {
-                buttonText: '搜索文档',
-                buttonAriaLabel: '搜索文档'
-              },
-              modal: {
-                noResultsText: '无法找到相关结果',
-                resetButtonTitle: '清除查询条件',
-                footer: {
-                  selectText: '选择',
-                  navigateText: '切换'
-                }
-              }
-            }
-          }
-        }
-      }
     },
 
     // Edit link configuration
@@ -187,7 +167,7 @@ export default defineConfig({
 
     // Enhanced footer
     footer: {
-      message: 'Released under the MIT License.',
+      message: 'Released under the Apache 2.0 License.',
       copyright: `Copyright © 2025-${new Date().getFullYear()} nginx-love`
     },
 
