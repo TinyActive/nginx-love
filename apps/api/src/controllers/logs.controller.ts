@@ -21,8 +21,9 @@ export const getLogs = async (
     ); // Between 1 and 100
     const pageNum = Math.max(parseInt(page as string) || 1, 1); // At least 1
 
-    const logs = await getParsedLogs({
-      limit: limitNum,
+    // Get all logs first to calculate total
+    const allLogs = await getParsedLogs({
+      limit: 10000, // Get a large number to calculate total
       level: level as string,
       type: type as string,
       search: search as string,
@@ -30,11 +31,13 @@ export const getLogs = async (
     });
 
     // Calculate pagination info
-    const total = logs.length;
+    const total = allLogs.length;
     const totalPages = Math.ceil(total / limitNum);
     const startIndex = (pageNum - 1) * limitNum;
     const endIndex = startIndex + limitNum;
-    const paginatedLogs = logs.slice(startIndex, endIndex);
+    
+    // Get the paginated logs by slicing the allLogs array
+    const paginatedLogs = allLogs.slice(startIndex, endIndex);
 
     logger.info(
       `User ${req.user?.username} fetched ${
