@@ -83,8 +83,13 @@ export function SSLTable() {
       </CardHeader>
       <CardContent>
         {certificates.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            No SSL certificates found. Add one to get started.
+          <div className="text-center py-8">
+            <div className="text-muted-foreground mb-4">
+              No SSL certificates found. Add one to get started.
+            </div>
+            <div className="text-sm text-muted-foreground">
+              You can issue a free Let's Encrypt certificate or upload a manual certificate for your domains.
+            </div>
           </div>
         ) : (
           <div className="rounded-md border">
