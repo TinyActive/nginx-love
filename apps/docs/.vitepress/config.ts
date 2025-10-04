@@ -180,23 +180,15 @@ export default defineConfig({
       text: 'Edit this page on GitHub'
     },
 
-    // Carbon ads placeholder (for future use)
-    carbonAds: {
-      code: 'your-carbon-code',
-      placement: 'your-carbon-placement'
-    },
-
     // Enhanced social links
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/nginx-love/nginx-love' },
-      { icon: 'twitter', link: 'https://twitter.com/nginx_love' },
-      { icon: 'discord', link: 'https://discord.gg/nginx-love' }
+      { icon: 'github', link: 'https://github.com/TinyActive/nginx-love' },
     ],
 
     // Enhanced footer
     footer: {
       message: 'Released under the MIT License.',
-      copyright: `Copyright © 2023-${new Date().getFullYear()} nginx-love`
+      copyright: `Copyright © 2025-${new Date().getFullYear()} nginx-love`
     },
 
     // Custom theme colors
