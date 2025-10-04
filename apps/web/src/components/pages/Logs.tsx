@@ -70,7 +70,8 @@ import { SkeletonStatsCard, SkeletonTable } from "@/components/ui/skeletons";
 import {
   useSuspenseLogStatistics,
   useSuspenseAvailableDomains,
-  useSuspenseLogs
+  useSuspenseLogs,
+  useLogs
 } from "@/queries/logs.query-options";
 
 // Component for fast-loading statistics data
@@ -202,9 +203,10 @@ const LogEntries = ({
     params.search = search;
   }
 
-  const { data: logsResponse, refetch } = useSuspenseLogs(params);
-  const logs = logsResponse.data;
-  const pagination = logsResponse.pagination;
+  // Use regular query instead of suspense query for better control
+  const { data: logsResponse, refetch, isFetching, isLoading } = useLogs(params);
+  const logs = logsResponse?.data || [];
+  const pagination = logsResponse?.pagination || { total: 0, totalPages: 1 };
   
   // Get domains for filter
   const { data: domains } = useSuspenseAvailableDomains();
@@ -225,13 +227,10 @@ const LogEntries = ({
     return () => clearInterval(interval);
   }, [autoRefresh, refetch]);
 
-  // Refetch when URL params change
+  // Update page changing state based on isFetching
   useEffect(() => {
-    setIsPageChanging(true);
-    refetch().finally(() => {
-      setIsPageChanging(false);
-    });
-  }, [page, limit, search, level, type, domain, refetch]);
+    setIsPageChanging(isFetching && !isLoading); // Only show skeleton when refetching, not initial load
+  }, [isFetching, isLoading]);
 
   const getLevelColor = (
     level: string
@@ -545,9 +544,10 @@ const LogEntries = ({
                 </TableRow>
               ))}
             </TableHeader>
-            <Suspense fallback={
-              <TableBody>
-                {Array.from({ length: limit }).map((_, index) => (
+            <TableBody>
+              {(isLoading || isPageChanging) ? (
+                // Show skeleton rows for initial load or page changes
+                Array.from({ length: limit }).map((_, index) => (
                   <TableRow key={`skeleton-${index}`}>
                     <TableCell className="font-mono text-xs">
                       <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
@@ -574,107 +574,73 @@ const LogEntries = ({
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            }>
-              <TableBody>
-                {isPageChanging ? (
-                  // Show skeleton rows only when changing pages
-                  Array.from({ length: limit }).map((_, index) => (
-                    <TableRow key={`skeleton-${index}`}>
-                      <TableCell className="font-mono text-xs">
-                        <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="h-6 w-16 bg-gray-200 rounded animate-pulse"></div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="h-6 w-16 bg-gray-200 rounded animate-pulse"></div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="h-6 w-20 bg-gray-200 rounded animate-pulse"></div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="h-4 bg-gray-200 rounded animate-pulse w-full"></div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div className="h-3 bg-gray-200 rounded animate-pulse w-3/4"></div>
-                          <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2"></div>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : logs.length > 0 ? (
-                  logs.map((log, index) => (
-                    <TableRow
-                      key={log.id || index}
-                      data-state={
-                        rowSelection[String(log.id || index)] && "selected"
-                      }
-                    >
-                      <TableCell className="font-mono text-xs">
-                        {new Date(log.timestamp).toLocaleString()}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getLevelColor(log.level)}>
-                          {log.level}
+                ))
+              ) : logs.length > 0 ? (
+                logs.map((log, index) => (
+                  <TableRow
+                    key={log.id || index}
+                    data-state={
+                      rowSelection[String(log.id || index)] && "selected"
+                    }
+                  >
+                    <TableCell className="font-mono text-xs">
+                      {new Date(log.timestamp).toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={getLevelColor(log.level)}>
+                        {log.level}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={getTypeColor(log.type)}>
+                        {log.type}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {log.source}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {log.domain ? (
+                        <Badge variant="outline" className="font-mono">
+                          {log.domain}
                         </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getTypeColor(log.type)}>
-                          {log.type}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {log.source}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {log.domain ? (
-                          <Badge variant="outline" className="font-mono">
-                            {log.domain}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">
-                            -
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell
-                        className="max-w-md truncate"
-                        title={log.message}
-                      >
-                        {log.message}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {log.ip && <div>IP: {log.ip}</div>}
-                        {log.method && log.path && (
-                          <div>
-                            {log.method} {log.path}
-                          </div>
-                        )}
-                        {log.statusCode && <div>Status: {log.statusCode}</div>}
-                        {log.responseTime && (
-                          <div>RT: {log.responseTime}ms</div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">
+                          -
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell
-                      colSpan={columns.length}
-                      className="h-24 text-center"
+                      className="max-w-md truncate"
+                      title={log.message}
                     >
-                      No logs found.
+                      {log.message}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {log.ip && <div>IP: {log.ip}</div>}
+                      {log.method && log.path && (
+                        <div>
+                          {log.method} {log.path}
+                        </div>
+                      )}
+                      {log.statusCode && <div>Status: {log.statusCode}</div>}
+                      {log.responseTime && (
+                        <div>RT: {log.responseTime}ms</div>
+                      )}
                     </TableCell>
                   </TableRow>
-                )}
-              </TableBody>
-            </Suspense>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-24 text-center"
+                  >
+                    No logs found.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
           </Table>
         </div>
 
