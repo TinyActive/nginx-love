@@ -13,18 +13,12 @@ export const notificationChannelQueryOptions = {
   all: {
     queryKey: notificationChannelQueryKeys.lists(),
     queryFn: notificationChannelService.getAll,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 15 * 60 * 1000, // 15 minutes
-    retry: 2,
   },
   
   // Get notification channel by ID
   byId: (id: string) => ({
     queryKey: notificationChannelQueryKeys.detail(id),
     queryFn: () => notificationChannelService.getById(id),
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    retry: 2,
   }),
 };
 
@@ -34,18 +28,12 @@ export const alertRuleQueryOptions = {
   all: {
     queryKey: alertRuleQueryKeys.lists(),
     queryFn: alertRuleService.getAll,
-    staleTime: 3 * 60 * 1000, // 3 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    retry: 2,
   },
   
   // Get alert rule by ID
   byId: (id: string) => ({
     queryKey: alertRuleQueryKeys.detail(id),
     queryFn: () => alertRuleService.getById(id),
-    staleTime: 3 * 60 * 1000, // 3 minutes
-    gcTime: 5 * 60 * 1000, // 5 minutes
-    retry: 2,
   }),
 };
 

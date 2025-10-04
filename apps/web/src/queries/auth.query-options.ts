@@ -19,18 +19,12 @@ export const authQueryOptions = {
   profile: {
     queryKey: authQueryKeys.detail('profile'),
     queryFn: accountService.getProfile,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    retry: 1,
   },
   
   // Get activity logs
   activityLogs: (page: number = 1, limit: number = 10) => ({
     queryKey: authQueryKeys.list({ page, limit }),
     queryFn: () => accountService.getActivityLogs(page, limit),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    gcTime: 5 * 60 * 1000, // 5 minutes
-    retry: 1,
   }),
 };
 

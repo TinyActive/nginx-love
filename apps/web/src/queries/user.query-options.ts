@@ -16,27 +16,18 @@ export const userQueryOptions = {
   all: (params?: { role?: string; status?: string; search?: string }) => ({
     queryKey: userQueryKeys.list(params || {}),
     queryFn: () => userService.getAll(params),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    retry: 2,
   }),
   
   // Get user by ID
   byId: (id: string) => ({
     queryKey: userQueryKeys.detail(id),
     queryFn: () => userService.getById(id),
-    staleTime: 1 * 60 * 1000, // 1 minute
-    gcTime: 5 * 60 * 1000, // 5 minutes
-    retry: 2,
   }),
   
   // Get user statistics
   stats: {
     queryKey: userQueryKeys.detail('stats'),
     queryFn: userService.getStats,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 15 * 60 * 1000, // 15 minutes
-    retry: 2,
   },
 };
 

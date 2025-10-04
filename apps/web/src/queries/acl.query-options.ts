@@ -12,18 +12,12 @@ export const aclQueryOptions = {
   all: {
     queryKey: aclQueryKeys.lists(),
     queryFn: aclService.getAll,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    retry: 2,
   },
   
   // Get ACL rule by ID
   byId: (id: string) => ({
     queryKey: aclQueryKeys.detail(id),
     queryFn: () => aclService.getById(id),
-    staleTime: 1 * 60 * 1000, // 1 minute
-    gcTime: 5 * 60 * 1000, // 5 minutes
-    retry: 2,
   }),
 };
 

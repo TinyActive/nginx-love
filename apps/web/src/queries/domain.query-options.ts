@@ -13,27 +13,18 @@ export const domainQueryOptions = {
   all: {
     queryKey: domainQueryKeys.lists(),
     queryFn: domainService.getAll,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    retry: 2,
   },
   
   // Get domain by ID
   byId: (id: string) => ({
     queryKey: domainQueryKeys.detail(id),
     queryFn: () => domainService.getById(id),
-    staleTime: 1 * 60 * 1000, // 1 minute
-    gcTime: 5 * 60 * 1000, // 5 minutes
-    retry: 2,
   }),
   
   // Get installation status
   installationStatus: {
     queryKey: ['system', 'installation-status'],
     queryFn: domainService.getInstallationStatus,
-    staleTime: 30 * 1000, // 30 seconds
-    gcTime: 2 * 60 * 1000, // 2 minutes
-    retry: 3,
     refetchInterval: 30 * 1000, // Auto-refresh every 30 seconds
   },
 };

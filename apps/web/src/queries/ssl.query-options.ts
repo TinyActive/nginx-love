@@ -17,18 +17,12 @@ export const sslQueryOptions = {
   all: {
     queryKey: sslQueryKeys.lists(),
     queryFn: sslService.getAll,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    retry: 2,
   },
   
   // Get SSL certificate by ID
   byId: (id: string) => ({
     queryKey: sslQueryKeys.detail(id),
     queryFn: () => sslService.getById(id),
-    staleTime: 1 * 60 * 1000, // 1 minute
-    gcTime: 5 * 60 * 1000, // 5 minutes
-    retry: 2,
   }),
 };
 

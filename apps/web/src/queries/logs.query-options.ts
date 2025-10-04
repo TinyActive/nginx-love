@@ -12,9 +12,6 @@ export const logsQueryOptions = {
   all: (params?: GetLogsParams) => ({
     queryKey: logsQueryKeys.list(params || {}),
     queryFn: () => getLogs(params),
-    staleTime: 30 * 1000, // 30 seconds - logs change frequently
-    gcTime: 2 * 60 * 1000, // 2 minutes
-    retry: 2,
     refetchInterval: 30 * 1000, // Auto-refresh every 30 seconds
   }),
   
@@ -22,9 +19,6 @@ export const logsQueryOptions = {
   statistics: {
     queryKey: logsQueryKeys.detail('statistics'),
     queryFn: getLogStatistics,
-    staleTime: 60 * 1000, // 1 minute
-    gcTime: 5 * 60 * 1000, // 5 minutes
-    retry: 2,
     refetchInterval: 60 * 1000, // Auto-refresh every minute
   },
   
@@ -32,9 +26,6 @@ export const logsQueryOptions = {
   availableDomains: {
     queryKey: logsQueryKeys.detail('available-domains'),
     queryFn: getAvailableDomains,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 15 * 60 * 1000, // 15 minutes
-    retry: 1,
   },
 };
 

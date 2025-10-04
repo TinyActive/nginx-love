@@ -28,36 +28,24 @@ export const modsecQueryOptions = {
   crsRules: (domainId?: string) => ({
     queryKey: modsecQueryKeys.list({ type: 'crs', domainId }),
     queryFn: () => getCRSRules(domainId),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    retry: 2,
   }),
   
   // Get custom ModSecurity rules
   customRules: (domainId?: string) => ({
     queryKey: modsecQueryKeys.list({ type: 'custom', domainId }),
     queryFn: () => getModSecRules(domainId),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    retry: 2,
   }),
   
   // Get ModSecurity rule by ID
   customRule: (id: string) => ({
     queryKey: modsecQueryKeys.detail(id),
     queryFn: () => getModSecRule(id),
-    staleTime: 1 * 60 * 1000, // 1 minute
-    gcTime: 5 * 60 * 1000, // 5 minutes
-    retry: 2,
   }),
   
   // Get global ModSecurity settings
   globalSettings: {
     queryKey: modsecQueryKeys.detail('global-settings'),
     queryFn: getGlobalModSecSettings,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 15 * 60 * 1000, // 15 minutes
-    retry: 2,
   },
 };
 

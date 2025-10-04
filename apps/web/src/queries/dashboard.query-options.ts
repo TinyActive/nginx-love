@@ -12,9 +12,6 @@ export const dashboardQueryOptions = {
   stats: {
     queryKey: dashboardQueryKeys.detail('stats'),
     queryFn: dashboardService.getDashboardStats,
-    staleTime: 30 * 1000, // 30 seconds - dashboard stats change frequently
-    gcTime: 2 * 60 * 1000, // 2 minutes
-    retry: 2,
     refetchInterval: 30 * 1000, // Auto-refresh every 30 seconds
   },
   
@@ -22,9 +19,6 @@ export const dashboardQueryOptions = {
   systemMetrics: (period: '24h' | '7d' | '30d' = '24h') => ({
     queryKey: dashboardQueryKeys.list({ period }),
     queryFn: () => dashboardService.getSystemMetrics(period),
-    staleTime: 60 * 1000, // 1 minute - metrics change frequently
-    gcTime: 5 * 60 * 1000, // 5 minutes
-    retry: 2,
     refetchInterval: 60 * 1000, // Auto-refresh every minute
   }),
   
@@ -32,9 +26,6 @@ export const dashboardQueryOptions = {
   recentAlerts: (limit: number = 5) => ({
     queryKey: dashboardQueryKeys.list({ limit }),
     queryFn: () => dashboardService.getRecentAlerts(limit),
-    staleTime: 15 * 1000, // 15 seconds - alerts are time-sensitive
-    gcTime: 2 * 60 * 1000, // 2 minutes
-    retry: 3,
     refetchInterval: 15 * 1000, // Auto-refresh every 15 seconds
   }),
 };
