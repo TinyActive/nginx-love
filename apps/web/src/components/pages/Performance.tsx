@@ -231,8 +231,14 @@ const Performance = () => {
   useEffect(() => {
     const fetchDomains = async () => {
       try {
-        const domainsData = await domainService.getAll();
-        setDomains(domainsData);
+        const domainsResponse = await domainService.getAll();
+        console.log('[Performance] Domains response:', domainsResponse);
+        
+        // Extract the actual domains array from the response
+        const domainsArray = domainsResponse.data || [];
+        console.log('[Performance] Domains array:', domainsArray);
+        
+        setDomains(domainsArray);
         setNetworkError(null);
       } catch (error) {
         console.error('Failed to fetch domains:', error);
@@ -272,7 +278,7 @@ const Performance = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Domains</SelectItem>
-              {domains.map(domain => (
+              {Array.isArray(domains) && domains.map(domain => (
                 <SelectItem key={domain.id} value={domain.name}>{domain.name}</SelectItem>
               ))}
             </SelectContent>
