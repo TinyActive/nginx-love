@@ -163,7 +163,8 @@ const LogEntries = ({
   setRowSelection,
   autoRefresh,
   setAutoRefresh,
-  toast
+  toast,
+  onRefetch
 }: {
   page: number;
   limit: number;
@@ -184,6 +185,7 @@ const LogEntries = ({
   autoRefresh: boolean;
   setAutoRefresh: (refresh: boolean) => void;
   toast: any;
+  onRefetch: (refetch: () => Promise<any>) => void;
 }) => {
   // Build query parameters
   const params: any = {
@@ -210,6 +212,11 @@ const LogEntries = ({
   
   // Get domains for filter
   const { data: domains } = useSuspenseAvailableDomains();
+  
+  // Pass refetch function to parent component
+  useEffect(() => {
+    onRefetch(refetch);
+  }, [refetch, onRefetch]);
   
   // Auto refresh effect
   useEffect(() => {
@@ -692,6 +699,8 @@ const Logs = () => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [logsRefetch, setLogsRefetch] = useState<(() => Promise<any>) | null>(null);
+  const [isReloading, setIsReloading] = useState(false);
 
   // URL state management with nuqs
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1));
@@ -803,6 +812,23 @@ const Logs = () => {
           <Button
             variant="outline"
             size="sm"
+            onClick={async () => {
+              if (logsRefetch) {
+                setIsReloading(true);
+                try {
+                  await logsRefetch();
+                } finally {
+                  setIsReloading(false);
+                }
+              }
+            }}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isReloading ? "animate-spin" : ""}`} />
+            Reload
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleDownloadLogs}
           >
             <Download className="h-4 w-4 mr-2" />
@@ -855,6 +881,7 @@ const Logs = () => {
           autoRefresh={autoRefresh}
           setAutoRefresh={setAutoRefresh}
           toast={toast}
+          onRefetch={(refetch) => setLogsRefetch(() => refetch)}
         />
       </Suspense>
     </div>
