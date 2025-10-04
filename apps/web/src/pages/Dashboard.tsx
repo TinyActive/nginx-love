@@ -4,7 +4,6 @@ import {
   Globe,
   AlertTriangle,
   CheckCircle2,
-  RefreshCw,
 } from "lucide-react";
 import {
   Card,
@@ -14,7 +13,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   ChartContainer,
   ChartTooltip,
@@ -26,10 +24,8 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  ResponsiveContainer,
 } from "recharts";
 import { Suspense } from "react";
-import { toast } from "sonner";
 import {
   useSuspenseDashboardStats,
   useSuspenseSystemMetrics,
@@ -37,10 +33,9 @@ import {
 } from "@/queries";
 import type {
   DashboardStats,
-  SystemMetrics,
   DashboardAlert,
 } from "@/services/dashboard.service";
-import { SkeletonStatsCard, SkeletonChart, SkeletonTable, Skeleton } from "@/components/ui/skeletons";
+import { SkeletonStatsCard, SkeletonChart, SkeletonTable } from "@/components/ui/skeletons";
 
 // Component for fast-loading stats data
 function DashboardStats() {
