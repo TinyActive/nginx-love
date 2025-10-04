@@ -12,7 +12,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { useStore } from '@/store/useStore';
+import { useAddModSecRule } from '@/queries/modsec.query-options';
 
 interface CustomRuleDialogProps {
   open: boolean;
@@ -20,12 +20,11 @@ interface CustomRuleDialogProps {
 }
 
 export function CustomRuleDialog({ open, onOpenChange }: CustomRuleDialogProps) {
-  const { addCustomRule } = useStore();
+  const addCustomRuleMutation = useAddModSecRule();
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [ruleContent, setRuleContent] = useState('');
   const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,9 +34,8 @@ export function CustomRuleDialog({ open, onOpenChange }: CustomRuleDialogProps) 
       return;
     }
 
-    setLoading(true);
     try {
-      await addCustomRule({
+      await addCustomRuleMutation.mutateAsync({
         name: name.trim(),
         category: category.trim(),
         ruleContent: ruleContent.trim(),
@@ -55,8 +53,6 @@ export function CustomRuleDialog({ open, onOpenChange }: CustomRuleDialogProps) 
       setDescription('');
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to add custom rule');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -157,11 +153,11 @@ SecRule ARGS "@detectSQLi" \\
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={addCustomRuleMutation.isPending}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Adding...' : 'Add Rule'}
+            <Button type="submit" disabled={addCustomRuleMutation.isPending}>
+              {addCustomRuleMutation.isPending ? 'Adding...' : 'Add Rule'}
             </Button>
           </DialogFooter>
         </form>

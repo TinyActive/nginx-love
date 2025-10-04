@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Shield, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,49 +15,36 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { useStore } from '@/store/useStore';
 import { CustomRuleDialog } from '@/components/modsec/CustomRuleDialog';
 import { toast } from 'sonner';
+import {
+  useCrsRules,
+  useModSecRules,
+  useGlobalModSecSettings,
+  useToggleCrsRule,
+  useToggleModSecRule,
+  useSetGlobalModSec,
+} from '@/queries/modsec.query-options';
 
 export default function ModSecurity() {
   const { t } = useTranslation();
-  const { 
-    crsRules,
-    customRules,
-    loadCRSRules,
-    toggleCRSRule,
-    loadCustomRules,
-    toggleCustomRule,
-    globalModSecEnabled, 
-    loadGlobalModSecSettings,
-    setGlobalModSec 
-  } = useStore();
   const [customRuleDialogOpen, setCustomRuleDialogOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        await Promise.all([
-          loadCRSRules(),
-          loadCustomRules(),
-          loadGlobalModSecSettings()
-        ]);
-      } catch (error) {
-        console.error('Failed to load ModSecurity data:', error);
-        toast.error('Failed to load ModSecurity data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadData();
-  }, [loadCRSRules, loadCustomRules, loadGlobalModSecSettings]);
+  
+  // Queries
+  const { data: crsRules = [] } = useCrsRules();
+  const { data: customRules = [] } = useModSecRules();
+  const { data: globalSettings } = useGlobalModSecSettings();
+  
+  // Mutations
+  const toggleCrsRuleMutation = useToggleCrsRule();
+  const toggleCustomRuleMutation = useToggleModSecRule();
+  const setGlobalModSecMutation = useSetGlobalModSec();
+  
+  const globalModSecEnabled = globalSettings?.enabled ?? true;
 
   const handleGlobalToggle = async (enabled: boolean) => {
     try {
-      await setGlobalModSec(enabled);
+      await setGlobalModSecMutation.mutateAsync(enabled);
       toast.success(`ModSecurity globally ${enabled ? 'enabled' : 'disabled'}`);
     } catch (error) {
       toast.error('Failed to update global ModSecurity setting');
@@ -66,7 +53,7 @@ export default function ModSecurity() {
 
   const handleCRSRuleToggle = async (ruleFile: string, name: string, currentState: boolean) => {
     try {
-      await toggleCRSRule(ruleFile);
+      await toggleCrsRuleMutation.mutateAsync({ ruleFile });
       toast.success(`Rule "${name}" ${!currentState ? 'enabled' : 'disabled'}`);
     } catch (error) {
       toast.error('Failed to toggle rule');
@@ -75,7 +62,7 @@ export default function ModSecurity() {
 
   const handleCustomRuleToggle = async (id: string, name: string, currentState: boolean) => {
     try {
-      await toggleCustomRule(id);
+      await toggleCustomRuleMutation.mutateAsync(id);
       toast.success(`Rule "${name}" ${!currentState ? 'enabled' : 'disabled'}`);
     } catch (error) {
       toast.error('Failed to toggle rule');
