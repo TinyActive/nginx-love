@@ -70,6 +70,7 @@ log "Step 1/8: Checking prerequisites..."
 if ! command -v node &> /dev/null; then
     warn "Node.js not found. Installing Node.js 20.x..."
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >> "$LOG_FILE" 2>&1 || error "Failed to download Node.js setup script"
+    apt-get update >> "$LOG_FILE" 2>&1
     apt-get install -y nodejs >> "$LOG_FILE" 2>&1 || error "Failed to install Node.js"
     log "✓ Node.js $(node -v) installed successfully"
 else
@@ -77,6 +78,7 @@ else
     if [ "${NODE_VERSION}" -lt 18 ]; then
         warn "Node.js version too old ($(node -v)). Upgrading to 20.x..."
         curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >> "$LOG_FILE" 2>&1
+        apt-get update >> "$LOG_FILE" 2>&1
         apt-get install -y nodejs >> "$LOG_FILE" 2>&1 || error "Failed to upgrade Node.js"
         log "✓ Node.js upgraded to $(node -v)"
     else
@@ -84,10 +86,23 @@ else
     fi
 fi
 
-# Check npm (ensure it's installed)
+# Check npm (should be bundled with Node.js from NodeSource)
 if ! command -v npm &> /dev/null; then
-    warn "npm not found. Installing npm..."
-    apt-get install -y npm >> "$LOG_FILE" 2>&1 || error "Failed to install npm"
+    warn "npm not found. Reinstalling Node.js with npm included..."
+    # Remove old Node.js
+    apt-get remove -y nodejs npm 2>/dev/null || true
+    apt-get autoremove -y >> "$LOG_FILE" 2>&1 || true
+    
+    # Install fresh Node.js 20.x (includes npm)
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >> "$LOG_FILE" 2>&1 || error "Failed to download Node.js setup script"
+    apt-get update >> "$LOG_FILE" 2>&1
+    apt-get install -y nodejs >> "$LOG_FILE" 2>&1 || error "Failed to install Node.js"
+    
+    # Verify npm is now available
+    if ! command -v npm &> /dev/null; then
+        error "npm still not available after Node.js installation"
+    fi
+    
     log "✓ npm $(npm -v) installed successfully"
 else
     log "✓ npm $(npm -v) detected"
