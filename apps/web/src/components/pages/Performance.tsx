@@ -232,11 +232,9 @@ const Performance = () => {
     const fetchDomains = async () => {
       try {
         const domainsResponse = await domainService.getAll();
-        console.log('[Performance] Domains response:', domainsResponse);
         
         // Extract the actual domains array from the response
         const domainsArray = domainsResponse.data || [];
-        console.log('[Performance] Domains array:', domainsArray);
         
         setDomains(domainsArray);
         setNetworkError(null);
