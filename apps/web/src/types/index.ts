@@ -7,6 +7,7 @@ export interface Domain {
   modsecEnabled: boolean;
   upstreams: Upstream[];
   loadBalancer: LoadBalancerConfig;
+  sslCertificate?: SSLCertificate | null;
   createdAt: string;
   lastModified: string;
 }

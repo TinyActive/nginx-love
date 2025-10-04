@@ -9,11 +9,20 @@ export const domainQueryKeys = createQueryKeys('domains');
 
 // Query options for domains
 export const domainQueryOptions = {
-  // Get all domains
-  all: {
-    queryKey: domainQueryKeys.lists(),
-    queryFn: domainService.getAll,
-  },
+  // Get all domains with pagination and search
+  all: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    sslEnabled?: boolean;
+    modsecEnabled?: boolean;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }) => ({
+    queryKey: [...domainQueryKeys.lists(), params],
+    queryFn: () => domainService.getAll(params),
+  }),
   
   // Get domain by ID
   byId: (id: string) => ({
@@ -90,8 +99,17 @@ export const domainMutationOptions = {
 };
 
 // Custom hooks for domain operations
-export const useDomains = () => {
-  return useQuery(domainQueryOptions.all);
+export const useDomains = (params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  sslEnabled?: boolean;
+  modsecEnabled?: boolean;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}) => {
+  return useQuery(domainQueryOptions.all(params));
 };
 
 export const useDomain = (id: string) => {
@@ -103,8 +121,17 @@ export const useInstallationStatus = () => {
 };
 
 // Suspense hooks for deferred loading pattern
-export const useSuspenseDomains = () => {
-  return useSuspenseQuery(domainQueryOptions.all);
+export const useSuspenseDomains = (params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  sslEnabled?: boolean;
+  modsecEnabled?: boolean;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}) => {
+  return useSuspenseQuery(domainQueryOptions.all(params));
 };
 
 export const useSuspenseDomain = (id: string) => {
@@ -181,8 +208,17 @@ export const useReloadNginx = () => {
 export const usePreloadDomains = () => {
   const queryClient = useQueryClient();
   
-  return () => {
-    queryClient.prefetchQuery(domainQueryOptions.all);
+  return (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    sslEnabled?: boolean;
+    modsecEnabled?: boolean;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }) => {
+    queryClient.prefetchQuery(domainQueryOptions.all(params));
   };
 };
 
@@ -190,7 +226,16 @@ export const usePreloadDomains = () => {
 export const useEnsureDomains = () => {
   const queryClient = useQueryClient();
   
-  return () => {
-    return queryClient.ensureQueryData(domainQueryOptions.all);
+  return (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    sslEnabled?: boolean;
+    modsecEnabled?: boolean;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }) => {
+    return queryClient.ensureQueryData(domainQueryOptions.all(params));
   };
 };

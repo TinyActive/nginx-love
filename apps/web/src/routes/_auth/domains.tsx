@@ -7,8 +7,15 @@ export const Route = createFileRoute('/_auth/domains')({
   loader: async ({ context }) => {
     const { queryClient } = context
     
-    // Prefetch domains data but don't await it (allow it to load in background)
-    queryClient.prefetchQuery(domainQueryOptions.all)
+    // Prefetch domains data with default params but don't await it (allow it to load in background)
+    queryClient.prefetchQuery(domainQueryOptions.all({
+      page: 1,
+      limit: 10,
+      search: '',
+      status: '',
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    }))
     queryClient.prefetchQuery(domainQueryOptions.installationStatus)
     
     return {}

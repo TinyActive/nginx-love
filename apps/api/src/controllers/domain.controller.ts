@@ -123,14 +123,55 @@ async function autoReloadNginx(silent: boolean = false): Promise<boolean> {
 }
 
 /**
- * Get all domains
+ * Get all domains with search and pagination
  */
 export const getDomains = async (
   req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      status = "",
+      sslEnabled = "",
+      modsecEnabled = "",
+      sortBy = "createdAt",
+      sortOrder = "desc"
+    } = req.query;
+
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Build where clause for search
+    const where: any = {};
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search as string, mode: "insensitive" } },
+      ];
+    }
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (sslEnabled !== "") {
+      where.sslEnabled = sslEnabled === "true";
+    }
+
+    if (modsecEnabled !== "") {
+      where.modsecEnabled = modsecEnabled === "true";
+    }
+
+    // Get total count for pagination
+    const totalCount = await prisma.domain.count({ where });
+
+    // Get domains with pagination and filters
     const domains = await prisma.domain.findMany({
+      where,
       include: {
         upstreams: true,
         loadBalancer: true,
@@ -148,12 +189,27 @@ export const getDomains = async (
           select: { id: true, name: true, category: true },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { [sortBy as string]: sortOrder as "asc" | "desc" },
+      skip,
+      take: limitNum,
     });
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalCount / limitNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPreviousPage = pageNum > 1;
 
     res.json({
       success: true,
       data: domains,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalCount,
+        totalPages,
+        hasNextPage,
+        hasPreviousPage,
+      },
     });
   } catch (error) {
     logger.error("Get domains error:", error);

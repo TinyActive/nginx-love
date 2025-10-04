@@ -41,11 +41,20 @@ export interface UpdateDomainRequest {
 }
 
 /**
- * Get all domains
+ * Get all domains with search and pagination
  */
-export const getDomains = async (): Promise<Domain[]> => {
-  const response = await api.get('/domains');
-  return response.data.data;
+export const getDomains = async (params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  sslEnabled?: boolean;
+  modsecEnabled?: boolean;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}): Promise<{ data: Domain[]; pagination: any }> => {
+  const response = await api.get('/domains', { params });
+  return response.data;
 };
 
 /**
