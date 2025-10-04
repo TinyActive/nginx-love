@@ -4,6 +4,7 @@ export default defineConfig({
   title: 'nginx-love Documentation',
   description: 'Enterprise Nginx + ModSecurity Management Platform',
   lang: 'en-US',
+  base: '/nginx-love/',
   
   // Theme appearance
   appearance: 'dark',
