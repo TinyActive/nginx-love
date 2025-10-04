@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import React from "react";
 import {
   LayoutDashboard,
   Globe,
@@ -164,6 +165,7 @@ function DashboardCharts() {
               config={{
                 cpu: {
                   label: "CPU Usage",
+                  color: "var(--color-primary)",
                 },
               }}
               className="h-[200px] w-full"
@@ -203,7 +205,7 @@ function DashboardCharts() {
                 <Line
                   type="monotone"
                   dataKey="value"
-                  stroke="var(--color-primary-500)"
+                  stroke="var(--color-cpu)"
                   strokeWidth={2}
                   dot={false}
                   name="cpu"
@@ -251,6 +253,7 @@ function DashboardCharts() {
               config={{
                 memory: {
                   label: "Memory Usage",
+                  color: "var(--color-primary)",
                 },
               }}
               className="h-[200px] w-full"
@@ -290,7 +293,7 @@ function DashboardCharts() {
                 <Line
                   type="monotone"
                   dataKey="value"
-                  stroke="var(--color-success-500)"
+                  stroke="var(--color-memory)"
                   strokeWidth={2}
                   dot={false}
                   name="memory"
