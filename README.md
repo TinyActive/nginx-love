@@ -534,7 +534,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 - 🐛 **Bug Reports**: [GitHub Issues](https://github.com/TinyActive/nginx-love/issues)
 - 💡 **Feature Requests**: [GitHub Discussions](https://github.com/TinyActive/nginx-love/discussions)
 - 📚 **Documentation**: [Project Wiki](https://github.com/TinyActive/nginx-love/wiki)
-- 💬 **Community**: [Discord Server](#) (coming soon)
+- 💬 **Community**: [Telegram Support](https://t.me/nginxlove)
 
 ### Security Issues
 For security vulnerabilities, please email: security@tinyactive.net
