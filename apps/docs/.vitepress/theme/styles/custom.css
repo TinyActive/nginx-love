@@ -1,0 +1,289 @@
+/**
+ * Custom Styles for nginx-love Documentation
+ * Using design tokens from the web application
+ */
+
+/* Global Styles */
+body {
+    font-family: var(--enterprise-font-family);
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    letter-spacing: var(--tracking-normal, 0em);
+}
+
+/* Enhanced Typography */
+.VPDoc h1 {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 1.5rem;
+}
+
+.VPDoc h2 {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-top: 2.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--vp-c-border);
+}
+
+.VPDoc h3 {
+    font-weight: 600;
+    margin-top: 2rem;
+    margin-bottom: 0.75rem;
+}
+
+/* Enhanced Code Blocks */
+.vp-code-group .tabs {
+    border-radius: var(--enterprise-radius-lg) var(--enterprise-radius-lg) 0 0;
+    border: 1px solid var(--vp-c-border);
+    border-bottom: none;
+}
+
+div[class*='language-'] {
+    border-radius: 0 0 var(--enterprise-radius-lg) var(--enterprise-radius-lg);
+    border: 1px solid var(--vp-c-border);
+    border-top: none;
+    margin: 0;
+}
+
+/* Custom Badge Styles */
+.custom-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: var(--enterprise-radius-sm);
+    background-color: var(--enterprise-primary);
+    color: white;
+    margin-left: 0.5rem;
+}
+
+.custom-badge.success {
+    background-color: var(--enterprise-success);
+}
+
+.custom-badge.warning {
+    background-color: var(--enterprise-warning);
+    color: #000;
+}
+
+.custom-badge.danger {
+    background-color: var(--enterprise-danger);
+}
+
+.custom-badge.info {
+    background-color: var(--enterprise-info);
+}
+
+/* Enhanced Callout Styles */
+.vp-callout {
+    border-radius: var(--enterprise-radius-lg);
+    border-left: 4px solid;
+    margin: 1rem 0;
+    padding: 1rem 1.25rem;
+    background-color: var(--vp-c-bg-soft);
+}
+
+.vp-callout.info {
+    border-color: var(--enterprise-info);
+    background-color: oklch(0.6898 0.1581 290.4107 / 0.1);
+}
+
+.vp-callout.warning {
+    border-color: var(--enterprise-warning);
+    background-color: oklch(0.8816 0.0276 93.1280 / 0.1);
+}
+
+.vp-callout.danger {
+    border-color: var(--enterprise-danger);
+    background-color: oklch(0.1908 0.0020 106.5859 / 0.1);
+}
+
+.vp-callout.tip {
+    border-color: var(--enterprise-success);
+    background-color: oklch(0.5583 0.1276 42.9956 / 0.1);
+}
+
+/* Custom Card Styles */
+.custom-card {
+    border: 1px solid var(--vp-c-border);
+    border-radius: var(--enterprise-radius-lg);
+    padding: 1.5rem;
+    background-color: var(--vp-c-bg-elv);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s ease;
+}
+
+.custom-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.custom-card h3 {
+    margin-top: 0;
+    color: var(--enterprise-primary);
+}
+
+/* Enhanced Navigation */
+.VPNav {
+    border-bottom: 1px solid var(--vp-c-border);
+}
+
+.VPNavBarTitle {
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+.VPNavBarMenu .VPNavBarMenuLink {
+    font-weight: 500;
+    padding: 0 0.75rem;
+    transition: color 0.2s ease;
+}
+
+.VPNavBarMenu .VPNavBarMenuLink:hover {
+    color: var(--enterprise-primary);
+}
+
+/* Enhanced Sidebar */
+.VPSidebar {
+    border-right: 1px solid var(--vp-c-border);
+}
+
+.VPSidebarItem {
+    border-radius: var(--enterprise-radius-md);
+    margin: 0.25rem 0.5rem;
+    padding: 0.25rem 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.VPSidebarItem:hover {
+    background-color: var(--vp-c-bg-soft);
+}
+
+.VPSidebarItem.active {
+    background-color: oklch(0.6171 0.1375 39.0427 / 0.1);
+    color: var(--enterprise-primary);
+    font-weight: 500;
+}
+
+/* Custom Grid Layout */
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+/* Enhanced Buttons */
+.VPButton {
+    border-radius: var(--enterprise-radius-md);
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    transition: all 0.2s ease;
+}
+
+.VPButton.primary {
+    background-color: var(--enterprise-primary);
+    border-color: var(--enterprise-primary);
+}
+
+.VPButton.primary:hover {
+    background-color: var(--enterprise-primary-hover);
+    border-color: var(--enterprise-primary-hover);
+    transform: translateY(-1px);
+}
+
+/* Custom Table Styles */
+.VPDoc table {
+    border-radius: var(--enterprise-radius-lg);
+    overflow: hidden;
+    border: 1px solid var(--vp-c-border);
+    margin: 1.5rem 0;
+}
+
+.VPDoc table th {
+    background-color: var(--vp-c-bg-soft);
+    font-weight: 600;
+    padding: 0.75rem 1rem;
+    border-bottom: 2px solid var(--vp-c-border);
+}
+
+.VPDoc table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--vp-c-border-light);
+}
+
+.VPDoc table tr:last-child td {
+    border-bottom: none;
+}
+
+/* Enhanced Footer */
+.VPFooter {
+    border-top: 1px solid var(--vp-c-border);
+    background-color: var(--vp-c-bg-soft);
+}
+
+/* Custom Animations */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in-up {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .feature-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .card-grid {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    }
+}
+
+/* Dark Mode Specific Adjustments */
+.dark .custom-card {
+    box-shadow: var(--shadow-md);
+}
+
+.dark .custom-card:hover {
+    box-shadow: var(--shadow-lg);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--vp-c-bg-alt);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--vp-c-border);
+    border-radius: var(--enterprise-radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--vp-c-border-dark);
+}

@@ -1,0 +1,115 @@
+/**
+ * CSS Variables for nginx-love Documentation
+ * Using design tokens from the web application
+ */
+
+:root {
+    /* Brand Colors - Using web app primary color */
+    --vp-c-brand: oklch(0.6171 0.1375 39.0427);
+    --vp-c-brand-light: oklch(0.7171 0.1375 39.0427);
+    --vp-c-brand-lighter: oklch(0.8171 0.1375 39.0427);
+    --vp-c-brand-dark: oklch(0.5171 0.1375 39.0427);
+    --vp-c-brand-darker: oklch(0.4171 0.1375 39.0427);
+
+    /* Background Colors - Using web app background */
+    --vp-c-bg: oklch(0.9818 0.0054 95.0986);
+    --vp-c-bg-alt: oklch(0.9663 0.0080 98.8792);
+    --vp-c-bg-elv: oklch(0.9818 0.0054 95.0986);
+    --vp-c-bg-soft: oklch(0.9341 0.0153 90.2390);
+
+    /* Text Colors - Using web app foreground */
+    --vp-c-text-1: oklch(0.3438 0.0269 95.7226);
+    --vp-c-text-2: oklch(0.6059 0.0075 97.4233);
+    --vp-c-text-3: oklch(0.7621 0.0156 98.3528);
+    --vp-c-text-4: oklch(0.8847 0.0069 97.3627);
+
+    /* Border Colors - Using web app border */
+    --vp-c-border: oklch(0.8847 0.0069 97.3627);
+    --vp-c-border-light: oklch(0.9245 0.0138 92.9892);
+    --vp-c-border-lighter: oklch(0.9341 0.0153 90.2390);
+    --vp-c-border-dark: oklch(0.7621 0.0156 98.3528);
+
+    /* Shadow Colors - Using web app shadow */
+    --vp-c-shadow: oklch(0 0 0 / 0.1);
+    --vp-c-shadow-light: oklch(0 0 0 / 0.05);
+    --vp-c-shadow-lighter: oklch(0 0 0 / 0.03);
+
+    /* Custom Enterprise Colors - Using web app colors */
+    --enterprise-primary: oklch(0.6171 0.1375 39.0427);
+    --enterprise-primary-hover: oklch(0.5171 0.1375 39.0427);
+    --enterprise-primary-dark: oklch(0.2679 0.0036 106.6427);
+    --enterprise-secondary: oklch(0.9245 0.0138 92.9892);
+    --enterprise-success: oklch(0.5583 0.1276 42.9956);
+    --enterprise-warning: oklch(0.8816 0.0276 93.1280);
+    --enterprise-danger: oklch(0.1908 0.0020 106.5859);
+    --enterprise-info: oklch(0.6898 0.1581 290.4107);
+
+    /* Custom Spacing - Using web app spacing */
+    --enterprise-spacing-xs: calc(var(--spacing) * 1);
+    --enterprise-spacing-sm: calc(var(--spacing) * 2);
+    --enterprise-spacing-md: calc(var(--spacing) * 4);
+    --enterprise-spacing-lg: calc(var(--spacing) * 6);
+    --enterprise-spacing-xl: calc(var(--spacing) * 8);
+    --enterprise-spacing-xxl: calc(var(--spacing) * 12);
+
+    /* Custom Border Radius - Using web app radius */
+    --enterprise-radius-sm: var(--radius-sm);
+    --enterprise-radius-md: var(--radius-md);
+    --enterprise-radius-lg: var(--radius-lg);
+    --enterprise-radius-xl: var(--radius-xl);
+
+    /* Custom Typography - Using web app fonts */
+    --enterprise-font-family: var(--font-sans);
+    --enterprise-font-mono: var(--font-mono);
+    --enterprise-font-serif: var(--font-serif);
+
+    /* Web App Design Tokens */
+    --radius: 0.5rem;
+    --spacing: 0.25rem;
+    --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+/* Dark Theme Variables - Using web app dark theme */
+.dark {
+    /* Brand Colors */
+    --vp-c-brand: oklch(0.6724 0.1308 38.7559);
+    --vp-c-brand-light: oklch(0.7724 0.1308 38.7559);
+    --vp-c-brand-lighter: oklch(0.8724 0.1308 38.7559);
+    --vp-c-brand-dark: oklch(0.5724 0.1308 38.7559);
+    --vp-c-brand-darker: oklch(0.4724 0.1308 38.7559);
+
+    /* Background Colors */
+    --vp-c-bg: oklch(0.2679 0.0036 106.6427);
+    --vp-c-bg-alt: oklch(0.2357 0.0024 67.7077);
+    --vp-c-bg-elv: oklch(0.3085 0.0035 106.6039);
+    --vp-c-bg-soft: oklch(0.2213 0.0038 106.7070);
+
+    /* Text Colors */
+    --vp-c-text-1: oklch(0.8074 0.0142 93.0137);
+    --vp-c-text-2: oklch(0.7713 0.0169 99.0657);
+    --vp-c-text-3: oklch(0.4336 0.0113 100.2195);
+    --vp-c-text-4: oklch(0.3618 0.0101 106.8928);
+
+    /* Border Colors */
+    --vp-c-border: oklch(0.3618 0.0101 106.8928);
+    --vp-c-border-light: oklch(0.4336 0.0113 100.2195);
+    --vp-c-border-lighter: oklch(0.2213 0.0038 106.7070);
+    --vp-c-border-dark: oklch(0.4954 0.0125 106.8928);
+
+    /* Shadow Colors */
+    --vp-c-shadow: oklch(0 0 0 / 0.3);
+    --vp-c-shadow-light: oklch(0 0 0 / 0.2);
+    --vp-c-shadow-lighter: oklch(0 0 0 / 0.1);
+
+    /* Custom Enterprise Colors (Dark Theme) */
+    --enterprise-primary: oklch(0.6724 0.1308 38.7559);
+    --enterprise-primary-hover: oklch(0.5724 0.1308 38.7559);
+    --enterprise-primary-dark: oklch(0.3085 0.0035 106.6039);
+    --enterprise-secondary: oklch(0.9818 0.0054 95.0986);
+    --enterprise-success: oklch(0.5583 0.1276 42.9956);
+    --enterprise-warning: oklch(0.8816 0.0276 93.1280);
+    --enterprise-danger: oklch(0.6368 0.2078 25.3313);
+    --enterprise-info: oklch(0.6898 0.1581 290.4107);
+}

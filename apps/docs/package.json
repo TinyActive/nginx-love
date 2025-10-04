@@ -1,0 +1,19 @@
+{
+    "name": "nginx-love-docs",
+    "version": "1.0.0",
+    "description": "Documentation for nginx-love platform",
+    "scripts": {
+        "dev": "vitepress dev",
+        "build": "vitepress build",
+        "preview": "vitepress preview",
+        "serve": "vitepress serve"
+    },
+    "dependencies": {
+        "vue": "^3.3.4"
+    },
+    "devDependencies": {
+        "vitepress": "^2.0.0-alpha.12",
+        "typescript": "^5.2.2",
+        "vue-tsc": "^1.8.8"
+    }
+}
