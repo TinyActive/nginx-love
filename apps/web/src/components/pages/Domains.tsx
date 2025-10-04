@@ -211,7 +211,6 @@ export default function Domains() {
   const { t } = useTranslation();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDomain, setEditingDomain] = useState<any>(null);
-  const [reloading, setReloading] = useState(false);
   const [showInstallation, setShowInstallation] = useState(false);
   
   const createDomain = useCreateDomain();
@@ -264,13 +263,10 @@ export default function Domains() {
 
   const handleReloadNginx = async () => {
     try {
-      setReloading(true);
       await reloadNginx.mutateAsync();
       toast.success('Nginx configuration reloaded');
     } catch (error: any) {
       toast.error(error.message || 'Failed to reload nginx');
-    } finally {
-      setReloading(false);
     }
   };
 
@@ -303,9 +299,9 @@ export default function Domains() {
           <Button
             variant="outline"
             onClick={handleReloadNginx}
-            disabled={reloading}
+            disabled={reloadNginx.isPending}
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${reloading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 mr-2 ${reloadNginx.isPending ? 'animate-spin' : ''}`} />
             Reload Nginx
           </Button>
           <Button onClick={() => {

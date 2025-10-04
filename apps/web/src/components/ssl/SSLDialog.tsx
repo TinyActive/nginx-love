@@ -25,6 +25,7 @@ import { sslService } from '@/services/ssl.service';
 import { domainService } from '@/services/domain.service';
 import { Domain } from '@/types';
 import { toast } from 'sonner';
+import { useIssueAutoSSL, useUploadManualSSL } from '@/queries';
 
 interface SSLDialogProps {
   open: boolean;
@@ -36,7 +37,6 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
   const { t } = useTranslation();
   const [method, setMethod] = useState<'auto' | 'manual'>('auto');
   const [domains, setDomains] = useState<Domain[]>([]);
-  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     domainId: '',
     email: '',
@@ -45,6 +45,9 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
     privateKey: '',
     chain: '',
   });
+
+  const issueAutoSSL = useIssueAutoSSL();
+  const uploadManualSSL = useUploadManualSSL();
 
   useEffect(() => {
     if (open) {
@@ -79,17 +82,15 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
     }
 
     try {
-      setLoading(true);
-
       if (method === 'auto') {
-        await sslService.issueAuto({
+        await issueAutoSSL.mutateAsync({
           domainId: formData.domainId,
           email: formData.email || undefined,
           autoRenew: formData.autoRenew,
         });
         toast.success("Let's Encrypt certificate issued successfully");
       } else {
-        await sslService.uploadManual({
+        await uploadManualSSL.mutateAsync({
           domainId: formData.domainId,
           certificate: formData.certificate,
           privateKey: formData.privateKey,
@@ -112,8 +113,6 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
       });
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to add certificate');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -251,8 +250,8 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Adding...' : 'Add Certificate'}
+            <Button type="submit" disabled={issueAutoSSL.isPending || uploadManualSSL.isPending}>
+              {issueAutoSSL.isPending || uploadManualSSL.isPending ? 'Adding...' : 'Add Certificate'}
             </Button>
           </DialogFooter>
         </form>

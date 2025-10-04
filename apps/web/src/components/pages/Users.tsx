@@ -80,7 +80,6 @@ function UsersTable() {
   const { data: users } = useSuspenseUsers();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
 
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
@@ -102,26 +101,26 @@ function UsersTable() {
   const canViewUsers = currentUser?.role === 'admin' || currentUser?.role === 'moderator';
 
   const handleAddUser = async () => {
+    // Validation
+    if (!formData.username || !formData.email || !formData.fullName) {
+      toast({
+        title: "Validation error",
+        description: "Username, email, and full name are required",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!editingUser && !formData.password) {
+      toast({
+        title: "Validation error",
+        description: "Password is required for new users",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
-      // Validation
-      if (!formData.username || !formData.email || !formData.fullName) {
-        toast({
-          title: "Validation error",
-          description: "Username, email, and full name are required",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (!editingUser && !formData.password) {
-        toast({
-          title: "Validation error",
-          description: "Password is required for new users",
-          variant: "destructive"
-        });
-        return;
-      }
-
       if (editingUser) {
         // Update existing user
         await updateUser.mutateAsync({
@@ -147,7 +146,7 @@ function UsersTable() {
           status: formData.status as "active" | "inactive"
         });
 
-        toast({ 
+        toast({
           title: "User created successfully",
           description: "User has been invited to the system"
         });
@@ -370,7 +369,9 @@ function UsersTable() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleAddUser}>{editingUser ? "Update" : "Invite"} User</Button>
+                <Button onClick={handleAddUser} disabled={createUser.isPending || updateUser.isPending}>
+                  {createUser.isPending || updateUser.isPending ? "Processing..." : `${editingUser ? "Update" : "Invite"} User`}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

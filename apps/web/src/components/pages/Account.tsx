@@ -36,7 +36,6 @@ const Account = () => {
   const { t } = useTranslation();
   const { toast } = useToast();
   
-  const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
@@ -108,7 +107,6 @@ const Account = () => {
   };
 
   const handleProfileUpdate = async () => {
-    setLoading(true);
     try {
       const updatedProfile = await accountService.updateProfile(profileForm);
       setProfile(updatedProfile);
@@ -122,8 +120,6 @@ const Account = () => {
         description: error.response?.data?.message || "Failed to update profile",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -146,7 +142,6 @@ const Account = () => {
       return;
     }
 
-    setLoading(true);
     try {
       await accountService.changePassword(passwordForm);
       toast({
@@ -164,8 +159,6 @@ const Account = () => {
         description: error.response?.data?.message || "Failed to change password",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -175,7 +168,6 @@ const Account = () => {
       const password = prompt("Enter your password to disable 2FA:");
       if (!password) return;
 
-      setLoading(true);
       try {
         await accountService.disable2FA(password);
         setTwoFactorEnabled(false);
@@ -190,12 +182,9 @@ const Account = () => {
           description: error.response?.data?.message || "Failed to disable 2FA",
           variant: "destructive"
         });
-      } finally {
-        setLoading(false);
       }
     } else {
       // Setup 2FA - get QR code
-      setLoading(true);
       try {
         const setup = await accountService.setup2FA();
         setTwoFactorSetup(setup);
@@ -209,8 +198,6 @@ const Account = () => {
           description: error.response?.data?.message || "Failed to setup 2FA",
           variant: "destructive"
         });
-      } finally {
-        setLoading(false);
       }
     }
   };
@@ -225,7 +212,6 @@ const Account = () => {
       return;
     }
 
-    setLoading(true);
     try {
       await accountService.enable2FA(verificationToken);
       setTwoFactorEnabled(true);
@@ -242,8 +228,6 @@ const Account = () => {
         description: error.response?.data?.message || "Invalid verification code",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -397,8 +381,8 @@ const Account = () => {
                       <p>Account created: {new Date(profile.createdAt).toLocaleDateString()}</p>
                       <p>Last login: {new Date(profile.lastLogin).toLocaleString()}</p>
                     </div>
-                    <Button onClick={handleProfileUpdate} disabled={loading}>
-                      {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                    <Button onClick={handleProfileUpdate}>
+                      <Save className="h-4 w-4 mr-2" />
                       Save Changes
                     </Button>
                   </div>
@@ -514,7 +498,6 @@ const Account = () => {
                 <Switch
                   checked={twoFactorEnabled}
                   onCheckedChange={handleEnable2FA}
-                  disabled={loading}
                 />
               </div>
 
@@ -557,8 +540,8 @@ const Account = () => {
                           onChange={(e) => setVerificationToken(e.target.value)}
                           maxLength={6}
                         />
-                        <Button onClick={handleVerify2FA} disabled={loading}>
-                          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify"}
+                        <Button onClick={handleVerify2FA}>
+                          Verify
                         </Button>
                       </div>
                     </div>

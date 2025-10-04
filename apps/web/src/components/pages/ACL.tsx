@@ -30,8 +30,6 @@ function AclRulesTable() {
   const { data: rules } = useSuspenseAclRules();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<ACLRule | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [applyingRules, setApplyingRules] = useState(false);
 
   const createAclRule = useCreateAclRule();
   const updateAclRule = useUpdateAclRule();
@@ -50,12 +48,10 @@ function AclRulesTable() {
   });
 
   const handleAddRule = async () => {
+    // Transform field format: user-agent -> user_agent for backend
+    const conditionField = formData.field.replace('-', '_') as any;
+
     try {
-      setLoading(true);
-
-      // Transform field format: user-agent -> user_agent for backend
-      const conditionField = formData.field.replace('-', '_') as any;
-
       if (editingRule) {
         await updateAclRule.mutateAsync({
           id: editingRule.id,
@@ -92,8 +88,6 @@ function AclRulesTable() {
         description: error.response?.data?.message || "Operation failed",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -125,7 +119,6 @@ function AclRulesTable() {
 
   const handleDelete = async (id: string) => {
     try {
-      setLoading(true);
       await deleteAclRule.mutateAsync(id);
       toast({ title: "Rule deleted successfully" });
     } catch (error: any) {
@@ -134,14 +127,11 @@ function AclRulesTable() {
         description: error.response?.data?.message || "Failed to delete rule",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleToggle = async (id: string) => {
     try {
-      setLoading(true);
       await toggleAclRule.mutateAsync(id);
     } catch (error: any) {
       toast({
@@ -149,14 +139,11 @@ function AclRulesTable() {
         description: error.response?.data?.message || "Failed to toggle rule",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleApplyRules = async () => {
     try {
-      setApplyingRules(true);
       const result = await applyAclRules.mutateAsync();
       toast({
         title: result.success ? "Success" : "Error",
@@ -169,8 +156,6 @@ function AclRulesTable() {
         description: error.response?.data?.message || "Failed to apply ACL rules to Nginx",
         variant: "destructive"
       });
-    } finally {
-      setApplyingRules(false);
     }
   };
 
@@ -202,8 +187,8 @@ function AclRulesTable() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={handleApplyRules} disabled={applyingRules}>
-            {applyingRules && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          <Button variant="secondary" size="sm" onClick={handleApplyRules} disabled={applyAclRules.isPending}>
+            {applyAclRules.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Apply Rules to Nginx
           </Button>
           <Button variant="outline" size="sm" onClick={handleImport}>
@@ -321,9 +306,9 @@ function AclRulesTable() {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={loading}>Cancel</Button>
-                <Button onClick={handleAddRule} disabled={loading}>
-                  {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={createAclRule.isPending || updateAclRule.isPending}>Cancel</Button>
+                <Button onClick={handleAddRule} disabled={createAclRule.isPending || updateAclRule.isPending}>
+                  {(createAclRule.isPending || updateAclRule.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   {editingRule ? "Update" : "Add"} Rule
                 </Button>
               </DialogFooter>

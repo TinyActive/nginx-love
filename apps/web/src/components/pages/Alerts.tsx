@@ -33,7 +33,6 @@ function NotificationChannelsTab() {
   const { toast } = useToast();
   const { data: channels } = useSuspenseNotificationChannels();
   const [isChannelDialogOpen, setIsChannelDialogOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   const createNotificationChannel = useCreateNotificationChannel();
   const updateNotificationChannel = useUpdateNotificationChannel();
@@ -50,12 +49,11 @@ function NotificationChannelsTab() {
   });
 
   const handleAddChannel = async () => {
-    try {
-      setLoading(true);
-      const config = channelForm.type === 'email' 
-        ? { email: channelForm.email }
-        : { chatId: channelForm.chatId, botToken: channelForm.botToken };
+    const config = channelForm.type === 'email'
+      ? { email: channelForm.email }
+      : { chatId: channelForm.chatId, botToken: channelForm.botToken };
 
+    try {
       await createNotificationChannel.mutateAsync({
         name: channelForm.name,
         type: channelForm.type,
@@ -72,8 +70,6 @@ function NotificationChannelsTab() {
         description: error.response?.data?.message || "Failed to add channel",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -91,9 +87,8 @@ function NotificationChannelsTab() {
   const handleTestNotification = async (channelId: string) => {
     try {
       const channel = channels.find(c => c.id === channelId);
-      setLoading(true);
       const result = await testNotificationChannel.mutateAsync(channelId);
-      toast({ 
+      toast({
         title: "Test notification sent",
         description: result.message || `Test message sent to ${channel?.name}`
       });
@@ -103,14 +98,11 @@ function NotificationChannelsTab() {
         description: error.response?.data?.message || "Failed to send test notification",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleDeleteChannel = async (id: string) => {
     try {
-      setLoading(true);
       await deleteNotificationChannel.mutateAsync(id);
       toast({ title: "Channel deleted successfully" });
     } catch (error: any) {
@@ -119,8 +111,6 @@ function NotificationChannelsTab() {
         description: error.response?.data?.message || "Failed to delete channel",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -129,10 +119,9 @@ function NotificationChannelsTab() {
       const channel = channels.find(c => c.id === id);
       if (!channel) return;
 
-      setLoading(true);
-      await updateNotificationChannel.mutateAsync({ 
-        id, 
-        data: { enabled: !channel.enabled } 
+      await updateNotificationChannel.mutateAsync({
+        id,
+        data: { enabled: !channel.enabled }
       });
     } catch (error: any) {
       toast({
@@ -140,8 +129,6 @@ function NotificationChannelsTab() {
         description: error.response?.data?.message || "Failed to toggle channel",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -232,9 +219,9 @@ function NotificationChannelsTab() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsChannelDialogOpen(false)} disabled={loading}>Cancel</Button>
-              <Button onClick={handleAddChannel} disabled={loading}>
-                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <Button variant="outline" onClick={() => setIsChannelDialogOpen(false)} disabled={createNotificationChannel.isPending}>Cancel</Button>
+              <Button onClick={handleAddChannel} disabled={createNotificationChannel.isPending}>
+                {createNotificationChannel.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Add Channel
               </Button>
             </DialogFooter>
@@ -297,7 +284,6 @@ function AlertRulesTab() {
   const { data: channels } = useSuspenseNotificationChannels();
   const { data: alertRules } = useSuspenseAlertRules();
   const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   const createAlertRule = useCreateAlertRule();
   const updateAlertRule = useUpdateAlertRule();
@@ -334,7 +320,6 @@ function AlertRulesTab() {
 
   const handleAddRule = async () => {
     try {
-      setLoading(true);
       await createAlertRule.mutateAsync(ruleForm);
       setIsRuleDialogOpen(false);
       resetRuleForm();
@@ -345,8 +330,6 @@ function AlertRulesTab() {
         description: error.response?.data?.message || "Failed to add rule",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -409,7 +392,6 @@ function AlertRulesTab() {
 
   const handleDeleteRule = async (id: string) => {
     try {
-      setLoading(true);
       await deleteAlertRule.mutateAsync(id);
       toast({ title: "Rule deleted successfully" });
     } catch (error: any) {
@@ -418,8 +400,6 @@ function AlertRulesTab() {
         description: error.response?.data?.message || "Failed to delete rule",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -428,10 +408,9 @@ function AlertRulesTab() {
       const rule = alertRules.find(r => r.id === id);
       if (!rule) return;
 
-      setLoading(true);
-      await updateAlertRule.mutateAsync({ 
-        id, 
-        data: { enabled: !rule.enabled } 
+      await updateAlertRule.mutateAsync({
+        id,
+        data: { enabled: !rule.enabled }
       });
     } catch (error: any) {
       toast({
@@ -439,8 +418,6 @@ function AlertRulesTab() {
         description: error.response?.data?.message || "Failed to toggle rule",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -591,9 +568,9 @@ function AlertRulesTab() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsRuleDialogOpen(false)} disabled={loading}>Cancel</Button>
-              <Button onClick={handleAddRule} disabled={loading}>
-                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <Button variant="outline" onClick={() => setIsRuleDialogOpen(false)} disabled={createAlertRule.isPending}>Cancel</Button>
+              <Button onClick={handleAddRule} disabled={createAlertRule.isPending}>
+                {createAlertRule.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Add Rule
               </Button>
             </DialogFooter>
