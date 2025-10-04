@@ -1,6 +1,7 @@
 {
     "name": "nginx-love-docs",
     "version": "1.0.0",
+    "type": "module",
     "description": "Documentation for nginx-love platform",
     "scripts": {
         "dev": "vitepress dev",
