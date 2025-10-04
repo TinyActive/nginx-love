@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { domainService } from '@/services/domain.service';
 import { createQueryKeys } from '@/lib/query-client';
 import type { CreateDomainRequest, UpdateDomainRequest } from '@/services/domain.service';
@@ -100,6 +100,19 @@ export const useDomain = (id: string) => {
 
 export const useInstallationStatus = () => {
   return useQuery(domainQueryOptions.installationStatus);
+};
+
+// Suspense hooks for deferred loading pattern
+export const useSuspenseDomains = () => {
+  return useSuspenseQuery(domainQueryOptions.all);
+};
+
+export const useSuspenseDomain = (id: string) => {
+  return useSuspenseQuery(domainQueryOptions.byId(id));
+};
+
+export const useSuspenseInstallationStatus = () => {
+  return useSuspenseQuery(domainQueryOptions.installationStatus);
 };
 
 export const useCreateDomain = () => {

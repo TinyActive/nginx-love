@@ -98,18 +98,16 @@ export const reloadNginx = async (): Promise<void> => {
  * Get installation status
  */
 export const getInstallationStatus = async (): Promise<any> => {
-  const response = await fetch('/api/system/installation-status', {
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem('token')}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to get installation status');
+  try {
+    console.log('[DOMAIN SERVICE] Fetching installation status...');
+    const response = await api.get('/system/installation-status');
+    console.log('[DOMAIN SERVICE] Installation status response:', response.data);
+    console.log('[DOMAIN SERVICE] Returning data:', response.data.data);
+    return response.data.data;
+  } catch (error: any) {
+    console.error('[DOMAIN SERVICE] Error fetching installation status:', error);
+    throw error;
   }
-
-  const result = await response.json();
-  return result.data;
 };
 
 // Export as object for easier import
