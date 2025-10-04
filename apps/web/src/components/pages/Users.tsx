@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { UserPlus, Mail, Key, Trash2, Edit, Shield, Loader2 } from "lucide-react";
+import { UserPlus, Mail, Key, Trash2, Edit, Shield, Loader2, Users as UsersIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import userService, { User } from "@/services/user.service";
 import { useStore } from "@/store/useStore";
@@ -32,7 +32,7 @@ const Users = () => {
     password: "",
     fullName: "",
     role: "viewer" as "admin" | "moderator" | "viewer",
-    status: "active" as "active" | "inactive"
+    status: "active" as "active" | "inactive" | "suspended"
   });
 
   // Check permissions
@@ -107,7 +107,7 @@ const Users = () => {
           email: formData.email,
           fullName: formData.fullName,
           role: formData.role,
-          status: formData.status
+          status: formData.status as "active" | "inactive" | "suspended"
         });
 
         if (response.success) {
@@ -284,10 +284,15 @@ const Users = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
-          <p className="text-muted-foreground">Manage users and role-based access control</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <UsersIcon className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
+            <p className="text-muted-foreground">Manage users and role-based access control</p>
+          </div>
         </div>
         {canManageUsers && (
           <Dialog open={isDialogOpen} onOpenChange={(open) => {

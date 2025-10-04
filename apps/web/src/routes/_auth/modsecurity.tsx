@@ -1,4 +1,4 @@
-import ModSecurity from '@/pages/ModSecurity'
+import ModSecurity from '@/components/pages/ModSecurity'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_auth/modsecurity')({

@@ -1,4 +1,4 @@
-import Domains from '@/pages/Domains'
+import Domains from '@/components/pages/Domains'
 import { createFileRoute } from '@tanstack/react-router'
 import { domainQueryOptions } from '@/queries/domain.query-options'
 

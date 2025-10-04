@@ -23,6 +23,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  FileText,
 } from "lucide-react";
 import {
   useQueryState,
@@ -777,11 +778,16 @@ const Logs = () => {
     <div className="space-y-6">
       {/* Header with action buttons */}
       <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Logs</h1>
-          <p className="text-muted-foreground">
-            View and analyze nginx access and error logs
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <FileText className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Logs</h1>
+            <p className="text-muted-foreground">
+              View and analyze nginx access and error logs
+            </p>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Search, Edit, Trash2, RefreshCw, Shield, ShieldOff } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, RefreshCw, Shield, ShieldOff, Globe } from 'lucide-react';
 import { Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -290,9 +290,14 @@ export default function Domains() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t('domains.title')}</h1>
-          <p className="text-muted-foreground">Manage your domains and virtual hosts</p>
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <Globe className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">{t('domains.title')}</h1>
+            <p className="text-muted-foreground">Manage your domains and virtual hosts</p>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button

@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Download, Upload, Play, Trash2, Calendar, FileArchive } from "lucide-react";
+import { Download, Upload, Play, Trash2, Calendar, FileArchive, Database } from "lucide-react";
 import { mockBackups } from "@/mocks/data";
 import { BackupConfig } from "@/types";
 import { useToast } from "@/hooks/use-toast";
@@ -91,7 +91,7 @@ const Backup = () => {
     switch (status) {
       case 'success': return 'default';
       case 'failed': return 'destructive';
-      case 'running': return 'warning';
+      case 'running': return 'secondary';
       case 'pending': return 'secondary';
       default: return 'outline';
     }
@@ -99,10 +99,15 @@ const Backup = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Backup & Restore</h1>
-          <p className="text-muted-foreground">Manage configuration backups and restore points</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <Database className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Backup & Restore</h1>
+            <p className="text-muted-foreground">Manage configuration backups and restore points</p>
+          </div>
         </div>
       </div>
 

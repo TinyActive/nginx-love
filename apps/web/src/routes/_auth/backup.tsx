@@ -1,4 +1,4 @@
-import Backup from '@/pages/Backup'
+import Backup from '@/components/pages/Backup'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_auth/backup')({

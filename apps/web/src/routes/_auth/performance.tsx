@@ -1,4 +1,4 @@
-import Performance from '@/pages/Performance'
+import Performance from '@/components/pages/Performance'
 import { createFileRoute } from '@tanstack/react-router'
 import { ensurePerformanceData } from '@/lib/route-loaders'
 

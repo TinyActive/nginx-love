@@ -255,10 +255,15 @@ const Performance = () => {
         </Card>
       )}
       
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Performance Monitoring</h1>
-          <p className="text-muted-foreground">Real-time performance metrics and analytics</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <Activity className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Performance Monitoring</h1>
+            <p className="text-muted-foreground">Real-time performance metrics and analytics</p>
+          </div>
         </div>
         <div className="flex gap-2">
           <Select value={selectedDomain} onValueChange={setSelectedDomain}>

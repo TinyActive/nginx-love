@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Download, Upload, Trash2, Edit, Loader2 } from "lucide-react";
+import { Plus, Download, Upload, Trash2, Edit, Loader2, UserCog } from "lucide-react";
 import { ACLRule } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import aclService from "@/services/acl.service";
@@ -195,10 +195,15 @@ const ACL = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Access Control List (ACL)</h1>
-          <p className="text-muted-foreground">Manage IP whitelists, blacklists, and access rules</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <UserCog className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Access Control List (ACL)</h1>
+            <p className="text-muted-foreground">Manage IP whitelists, blacklists, and access rules</p>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" onClick={handleApplyRules} disabled={loading}>
@@ -363,8 +368,8 @@ const ACL = () => {
                     </TableCell>
                     <TableCell>
                       <Badge variant={
-                        rule.action === 'allow' ? 'default' : 
-                        rule.action === 'deny' ? 'destructive' : 'warning'
+                        rule.action === 'allow' ? 'default' :
+                        rule.action === 'deny' ? 'destructive' : 'secondary'
                       }>
                         {rule.action}
                       </Badge>

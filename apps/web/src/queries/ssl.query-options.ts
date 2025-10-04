@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { sslService } from '@/services/ssl.service';
 import { createQueryKeys } from '@/lib/query-client';
 import type {
@@ -181,4 +181,13 @@ export const useEnsureSSLCertificates = () => {
   return () => {
     return queryClient.ensureQueryData(sslQueryOptions.all);
   };
+};
+
+// Suspense query hooks for SSL operations
+export const useSuspenseSSLCertificates = () => {
+  return useSuspenseQuery(sslQueryOptions.all);
+};
+
+export const useSuspenseSSLCertificate = (id: string) => {
+  return useSuspenseQuery(sslQueryOptions.byId(id));
 };

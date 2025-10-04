@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import {
-  Activity,
+  LayoutDashboard,
   Globe,
   AlertTriangle,
   CheckCircle2,
@@ -61,7 +61,7 @@ function DashboardStats() {
       title: t("dashboard.traffic"),
       value: stats?.traffic.requestsPerDay || "0",
       description: "Requests/day",
-      icon: Activity,
+      icon: LayoutDashboard,
       color: "text-success",
     },
     {
@@ -365,11 +365,16 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            {t("dashboard.title")}
-          </h1>
-          <p className="text-muted-foreground">{t("dashboard.overview")}</p>
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <LayoutDashboard className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {t("dashboard.title")}
+            </h1>
+            <p className="text-muted-foreground">{t("dashboard.overview")}</p>
+          </div>
         </div>
       </div>
 

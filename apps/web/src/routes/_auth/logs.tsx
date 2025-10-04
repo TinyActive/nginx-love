@@ -1,4 +1,4 @@
-import Logs from '@/pages/Logs'
+import Logs from '@/components/pages/Logs'
 import { createFileRoute } from '@tanstack/react-router'
 import { ensureLogsData } from '@/lib/route-loaders'
 

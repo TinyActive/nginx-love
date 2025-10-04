@@ -1,4 +1,4 @@
-import Dashboard from '@/pages/Dashboard'
+import Dashboard from '@/components/pages/Dashboard'
 import { createFileRoute } from '@tanstack/react-router'
 import { dashboardQueryOptions } from '@/queries/dashboard.query-options'
 
