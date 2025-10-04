@@ -1,5 +1,5 @@
 import api from './api';
-import {  Domain, Upstream, LoadBalancerConfig } from '@/types';
+import {  Domain, Upstream, LoadBalancerConfig, Pagination, ApiResponse } from '@/types';
 
 export interface CreateDomainRequest {
   name: string;
@@ -52,33 +52,49 @@ export const getDomains = async (params?: {
   modsecEnabled?: boolean;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
-}): Promise<{ data: Domain[]; pagination: any }> => {
-  const response = await api.get('/domains', { params });
-  return response.data;
+}): Promise<{ data: Domain[]; pagination: Pagination }> => {
+  const response = await api.get<{ success: boolean; data: Domain[]; pagination: Pagination }>('/domains', { params });
+  
+  // Extract the actual data from the API response
+  const { data, pagination } = response.data;
+  
+  return { data, pagination };
 };
 
 /**
  * Get domain by ID
  */
 export const getDomainById = async (id: string): Promise<Domain> => {
-  const response = await api.get(`/domains/${id}`);
-  return response.data.data;
+  const response = await api.get<{ success: boolean; data: Domain }>(`/domains/${id}`);
+  
+  // Extract the actual data from the API response
+  const domain = response.data.data;
+  
+  return domain;
 };
 
 /**
  * Create new domain
  */
 export const createDomain = async (data: CreateDomainRequest): Promise<Domain> => {
-  const response = await api.post('/domains', data);
-  return response.data.data;
+  const response = await api.post<{ success: boolean; message: string; data: Domain }>('/domains', data);
+  
+  // Extract the actual data from the API response
+  const domain = response.data.data;
+  
+  return domain;
 };
 
 /**
  * Update domain
  */
 export const updateDomain = async (id: string, data: UpdateDomainRequest): Promise<Domain> => {
-  const response = await api.put(`/domains/${id}`, data);
-  return response.data.data;
+  const response = await api.put<{ success: boolean; message: string; data: Domain }>(`/domains/${id}`, data);
+  
+  // Extract the actual data from the API response
+  const domain = response.data.data;
+  
+  return domain;
 };
 
 /**
@@ -92,8 +108,12 @@ export const deleteDomain = async (id: string): Promise<void> => {
  * Toggle SSL for domain
  */
 export const toggleSSL = async (id: string, sslEnabled: boolean): Promise<Domain> => {
-  const response = await api.post(`/domains/${id}/toggle-ssl`, { sslEnabled });
-  return response.data.data;
+  const response = await api.post<{ success: boolean; message: string; data: Domain }>(`/domains/${id}/toggle-ssl`, { sslEnabled });
+  
+  // Extract the actual data from the API response
+  const domain = response.data.data;
+  
+  return domain;
 };
 
 /**
@@ -108,13 +128,9 @@ export const reloadNginx = async (): Promise<void> => {
  */
 export const getInstallationStatus = async (): Promise<any> => {
   try {
-    console.log('[DOMAIN SERVICE] Fetching installation status...');
     const response = await api.get('/system/installation-status');
-    console.log('[DOMAIN SERVICE] Installation status response:', response.data);
-    console.log('[DOMAIN SERVICE] Returning data:', response.data.data);
     return response.data.data;
   } catch (error: any) {
-    console.error('[DOMAIN SERVICE] Error fetching installation status:', error);
     throw error;
   }
 };

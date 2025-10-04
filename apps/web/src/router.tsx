@@ -1,16 +1,5 @@
-import { createRouter, createRootRouteWithContext } from '@tanstack/react-router'
+import { createRouter } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
-import { useStore } from './store/useStore'
-import { QueryClient } from '@tanstack/react-query'
-
-// Define the router context type
-interface RouterContext {
-  auth: {
-    isAuthenticated: boolean
-    currentUser: any
-  }
-  queryClient: QueryClient
-}
 
 const router = createRouter({
   routeTree,
