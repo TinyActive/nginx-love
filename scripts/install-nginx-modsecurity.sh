@@ -25,7 +25,7 @@ NC='\033[0m' # No Color
 
 # Logging function
 log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$INSTALL_LOG"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "${INSTALL_LOG}"
 }
 
 # Update status file
@@ -33,7 +33,7 @@ update_status() {
     local step=$1
     local status=$2
     local message=$3
-    echo "{\"step\":\"$step\",\"status\":\"$status\",\"message\":\"$message\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > "$INSTALL_STATUS_FILE"
+    echo "{\"step\":\"${step}\",\"status\":\"${status}\",\"message\":\"${message}\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > "${INSTALL_STATUS_FILE}"
 }
 
 # Error handler
@@ -44,7 +44,7 @@ error_exit() {
 }
 
 # Check if running as root
-if [[ $EUID -ne 0 ]]; then
+if [[ "${EUID}" -ne 0 ]]; then
    error_exit "This script must be run as root"
 fi
 
@@ -56,7 +56,7 @@ log "================================================"
 log "Step 1/8: Installing dependencies..."
 update_status "dependencies" "running" "Installing required packages..."
 
-apt-get update >> "$INSTALL_LOG" 2>&1 || error_exit "Failed to update package list"
+apt-get update >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to update package list"
 
 apt-get install -y \
     build-essential \
@@ -77,7 +77,7 @@ apt-get install -y \
     autoconf \
     git \
     wget \
-    >> "$INSTALL_LOG" 2>&1 || error_exit "Failed to install dependencies"
+    >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to install dependencies"
 
 log "Dependencies installed successfully"
 update_status "dependencies" "completed" "All dependencies installed"
@@ -88,7 +88,7 @@ update_status "modsecurity_download" "running" "Downloading ModSecurity..."
 
 cd /usr/local/src
 if [ ! -d "ModSecurity" ]; then
-    git clone --depth 1 -b v${MODSECURITY_VERSION} --single-branch https://github.com/SpiderLabs/ModSecurity >> "$INSTALL_LOG" 2>&1 || error_exit "Failed to clone ModSecurity"
+    git clone --depth 1 -b v${MODSECURITY_VERSION} --single-branch https://github.com/SpiderLabs/ModSecurity >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to clone ModSecurity"
 fi
 
 log "ModSecurity downloaded successfully"
@@ -99,12 +99,12 @@ log "Step 3/8: Building ModSecurity..."
 update_status "modsecurity_build" "running" "Compiling ModSecurity (this may take 10-15 minutes)..."
 
 cd ModSecurity
-git submodule init >> "$INSTALL_LOG" 2>&1
-git submodule update >> "$INSTALL_LOG" 2>&1
-./build.sh >> "$INSTALL_LOG" 2>&1 || error_exit "Failed to build ModSecurity"
-./configure >> "$INSTALL_LOG" 2>&1 || error_exit "Failed to configure ModSecurity"
-make -j$(nproc) >> "$INSTALL_LOG" 2>&1 || error_exit "Failed to compile ModSecurity"
-make install >> "$INSTALL_LOG" 2>&1 || error_exit "Failed to install ModSecurity"
+git submodule init >> "${INSTALL_LOG}" 2>&1
+git submodule update >> "${INSTALL_LOG}" 2>&1
+./build.sh >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to build ModSecurity"
+./configure >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to configure ModSecurity"
+make -j$(nproc) >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to compile ModSecurity"
+make install >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to install ModSecurity"
 
 log "ModSecurity built and installed successfully"
 update_status "modsecurity_build" "completed" "ModSecurity compiled and installed"
@@ -115,7 +115,7 @@ update_status "connector_download" "running" "Downloading ModSecurity-nginx conn
 
 cd /usr/local/src
 if [ ! -d "ModSecurity-nginx" ]; then
-    git clone --depth 1 https://github.com/SpiderLabs/ModSecurity-nginx.git >> "$INSTALL_LOG" 2>&1 || error_exit "Failed to clone ModSecurity-nginx"
+    git clone --depth 1 https://github.com/SpiderLabs/ModSecurity-nginx.git >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to clone ModSecurity-nginx"
 fi
 
 log "ModSecurity-nginx connector downloaded"
@@ -127,8 +127,8 @@ update_status "nginx_download" "running" "Downloading Nginx..."
 
 cd /usr/local/src
 if [ ! -f "nginx-${NGINX_VERSION}.tar.gz" ]; then
-    wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz >> "$INSTALL_LOG" 2>&1 || error_exit "Failed to download Nginx"
-    tar -xzf nginx-${NGINX_VERSION}.tar.gz >> "$INSTALL_LOG" 2>&1 || error_exit "Failed to extract Nginx"
+    wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to download Nginx"
+    tar -xzf nginx-${NGINX_VERSION}.tar.gz >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to extract Nginx"
 fi
 
 log "Nginx downloaded successfully"
@@ -173,10 +173,10 @@ cd nginx-${NGINX_VERSION}
     --with-http_slice_module \
     --with-file-aio \
     --add-dynamic-module=/usr/local/src/ModSecurity-nginx \
-    >> "$INSTALL_LOG" 2>&1 || error_exit "Failed to configure Nginx"
+    >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to configure Nginx"
 
-make -j$(nproc) >> "$INSTALL_LOG" 2>&1 || error_exit "Failed to compile Nginx"
-make install >> "$INSTALL_LOG" 2>&1 || error_exit "Failed to install Nginx"
+make -j$(nproc) >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to compile Nginx"
+make install >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to install Nginx"
 
 # Copy ModSecurity dynamic module to nginx modules directory
 mkdir -p /usr/lib/nginx/modules
@@ -191,26 +191,26 @@ log "Step 7/8: Configuring ModSecurity..."
 update_status "modsecurity_config" "running" "Setting up ModSecurity configuration..."
 
 # Create ModSecurity directories
-mkdir -p "$MODSECURITY_CONFIG_DIR"
+mkdir -p "${MODSECURITY_CONFIG_DIR}"
 mkdir -p /var/log/modsec
 
 # Copy ModSecurity configuration
-cp /usr/local/src/ModSecurity/modsecurity.conf-recommended "$MODSECURITY_CONFIG_DIR/modsecurity.conf"
-cp /usr/local/src/ModSecurity/unicode.mapping "$MODSECURITY_CONFIG_DIR/"
+cp /usr/local/src/ModSecurity/modsecurity.conf-recommended "${MODSECURITY_CONFIG_DIR}/modsecurity.conf"
+cp /usr/local/src/ModSecurity/unicode.mapping "${MODSECURITY_CONFIG_DIR}/"
 
 # Enable ModSecurity
-sed -i 's/SecRuleEngine DetectionOnly/SecRuleEngine On/' "$MODSECURITY_CONFIG_DIR/modsecurity.conf"
+sed -i 's/SecRuleEngine DetectionOnly/SecRuleEngine On/' "${MODSECURITY_CONFIG_DIR}/modsecurity.conf"
 
 # Download OWASP Core Rule Set
-cd "$MODSECURITY_CONFIG_DIR"
+cd "${MODSECURITY_CONFIG_DIR}"
 if [ ! -d "coreruleset" ]; then
-    git clone https://github.com/coreruleset/coreruleset.git >> "$INSTALL_LOG" 2>&1
+    git clone https://github.com/coreruleset/coreruleset.git >> "${INSTALL_LOG}" 2>&1
     cd coreruleset
     mv crs-setup.conf.example crs-setup.conf
 fi
 
 # Create main ModSecurity configuration
-cat > "$MODSECURITY_CONFIG_DIR/main.conf" << 'EOF'
+cat > "${MODSECURITY_CONFIG_DIR}/main.conf" << 'EOF'
 Include /etc/nginx/modsec/modsecurity.conf
 Include /etc/nginx/modsec/coreruleset/crs-setup.conf
 Include /etc/nginx/modsec/coreruleset/rules/*.conf
@@ -370,11 +370,11 @@ EOF
 
 # Enable and start nginx
 systemctl daemon-reload
-systemctl enable nginx >> "$INSTALL_LOG" 2>&1
-systemctl start nginx >> "$INSTALL_LOG" 2>&1
+systemctl enable nginx >> "${INSTALL_LOG}" 2>&1
+systemctl start nginx >> "${INSTALL_LOG}" 2>&1
 
 # Test nginx
-if nginx -t >> "$INSTALL_LOG" 2>&1; then
+if nginx -t >> "${INSTALL_LOG}" 2>&1; then
     log "Nginx configuration test passed"
 else
     error_exit "Nginx configuration test failed"

@@ -51,7 +51,7 @@ info() {
 }
 
 # Check root
-if [[ $EUID -ne 0 ]]; then
+if [[ "${EUID}" -ne 0 ]]; then
    error "This script must be run as root (use sudo)"
 fi
 
@@ -74,7 +74,7 @@ if ! command -v node &> /dev/null; then
     log "✓ Node.js $(node -v) installed successfully"
 else
     NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
-    if [ "$NODE_VERSION" -lt 18 ]; then
+    if [ "${NODE_VERSION}" -lt 18 ]; then
         warn "Node.js version too old ($(node -v)). Upgrading to 20.x..."
         curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >> "$LOG_FILE" 2>&1
         apt-get install -y nodejs >> "$LOG_FILE" 2>&1 || error "Failed to upgrade Node.js"
@@ -100,7 +100,7 @@ if ! command -v pnpm &> /dev/null; then
     log "✓ pnpm $(pnpm -v) installed successfully"
 else
     PNPM_VERSION=$(pnpm -v | cut -d'.' -f1)
-    if [ "$PNPM_VERSION" -lt 8 ]; then
+    if [ "${PNPM_VERSION}" -lt 8 ]; then
         warn "pnpm version too old ($(pnpm -v)). Upgrading to 8.15.0..."
         npm install -g pnpm@8.15.0 >> "$LOG_FILE" 2>&1 || error "Failed to upgrade pnpm"
         log "✓ pnpm upgraded to $(pnpm -v)"
@@ -154,16 +154,16 @@ fi
 
 # Use pnpm for monorepo
 PKG_MANAGER="pnpm"
-log "✓ Package manager: $PKG_MANAGER"
+log "✓ Package manager: ${PKG_MANAGER}"
 
 # Step 2: Setup PostgreSQL with Docker
 log "Step 2/8: Setting up PostgreSQL with Docker..."
 
 # Stop and remove existing container if exists
-if docker ps -a | grep -q $DB_CONTAINER_NAME; then
+if docker ps -a | grep -q "${DB_CONTAINER_NAME}"; then
     log "Removing existing PostgreSQL container..."
-    docker stop $DB_CONTAINER_NAME 2>/dev/null || true
-    docker rm $DB_CONTAINER_NAME 2>/dev/null || true
+    docker stop "${DB_CONTAINER_NAME}" 2>/dev/null || true
+    docker rm "${DB_CONTAINER_NAME}" 2>/dev/null || true
 fi
 
 # Remove old volume to ensure clean installation
@@ -181,41 +181,41 @@ fi
 # Start PostgreSQL container
 log "Starting PostgreSQL container..."
 docker run -d \
-    --name $DB_CONTAINER_NAME \
+    --name "${DB_CONTAINER_NAME}" \
     --network nginx-love-network \
-    -e POSTGRES_DB=$DB_NAME \
-    -e POSTGRES_USER=$DB_USER \
-    -e POSTGRES_PASSWORD=$DB_PASSWORD \
-    -p 127.0.0.1:$DB_PORT:5432 \
+    -e POSTGRES_DB="${DB_NAME}" \
+    -e POSTGRES_USER="${DB_USER}" \
+    -e POSTGRES_PASSWORD="${DB_PASSWORD}" \
+    -p 127.0.0.1:"${DB_PORT}":5432 \
     -v nginx-love-postgres-data:/var/lib/postgresql/data \
     --restart unless-stopped \
-    postgres:15-alpine >> "$LOG_FILE" 2>&1 || error "Failed to start PostgreSQL container"
+    postgres:15-alpine >> "${LOG_FILE}" 2>&1 || error "Failed to start PostgreSQL container"
 
 # Wait for PostgreSQL to be ready
 log "Waiting for PostgreSQL to be ready..."
 sleep 5
 for i in {1..30}; do
-    if docker exec $DB_CONTAINER_NAME pg_isready -U $DB_USER > /dev/null 2>&1; then
+    if docker exec "${DB_CONTAINER_NAME}" pg_isready -U "${DB_USER}" > /dev/null 2>&1; then
         log "✓ PostgreSQL is ready"
         break
     fi
-    if [ $i -eq 30 ]; then
+    if [ "${i}" -eq 30 ]; then
         error "PostgreSQL failed to start"
     fi
     sleep 1
 done
 
 log "✓ PostgreSQL container started successfully"
-log "  • Database: $DB_NAME"
-log "  • User: $DB_USER"
-log "  • Port: $DB_PORT"
+log "  • Database: ${DB_NAME}"
+log "  • User: ${DB_USER}"
+log "  • Port: ${DB_PORT}"
 
 # Step 3: Install Nginx + ModSecurity
 log "Step 3/8: Installing Nginx + ModSecurity..."
 
 if ! command -v nginx &> /dev/null; then
     info "Nginx not found. Installing..."
-    bash "$PROJECT_DIR/scripts/install-nginx-modsecurity.sh" || error "Failed to install Nginx + ModSecurity"
+    bash "${PROJECT_DIR}/scripts/install-nginx-modsecurity.sh" || error "Failed to install Nginx + ModSecurity"
     log "✓ Nginx + ModSecurity installed"
 else
     log "✓ Nginx already installed ($(nginx -v 2>&1 | cut -d'/' -f2))"
@@ -225,40 +225,40 @@ fi
 log "Step 4/8: Setting up Backend..."
 
 # Install root dependencies first (for monorepo)
-cd "$PROJECT_DIR"
+cd "${PROJECT_DIR}"
 if [ ! -d "node_modules" ]; then
     log "Installing monorepo dependencies..."
-    $PKG_MANAGER install >> "$LOG_FILE" 2>&1 || error "Failed to install monorepo dependencies"
+    "${PKG_MANAGER}" install >> "${LOG_FILE}" 2>&1 || error "Failed to install monorepo dependencies"
 else
     log "✓ Monorepo dependencies already installed"
 fi
 
-cd "$BACKEND_DIR"
+cd "${BACKEND_DIR}"
 
 # Create backend .env from .env.example (always create fresh)
 log "Creating fresh backend .env from .env.example..."
 cat > ".env" <<EOF
 # Database Configuration
-DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@localhost:$DB_PORT/$DB_NAME?schema=public"
+DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}?schema=public"
 
 # Server Configuration
 PORT=3001
 NODE_ENV="production"
 
 # JWT Configuration
-JWT_ACCESS_SECRET="$JWT_ACCESS_SECRET"
-JWT_REFRESH_SECRET="$JWT_REFRESH_SECRET"
+JWT_ACCESS_SECRET="${JWT_ACCESS_SECRET}"
+JWT_REFRESH_SECRET="${JWT_REFRESH_SECRET}"
 JWT_ACCESS_EXPIRES_IN=15m
 JWT_REFRESH_EXPIRES_IN=7d
 
 # CORS Configuration (comma-separated origins)
-CORS_ORIGIN="http://$PUBLIC_IP:8080,http://localhost:8080,http://localhost:5173,http://$PUBLIC_IP,http://localhost"
+CORS_ORIGIN="http://${PUBLIC_IP}:8080,http://localhost:8080,http://localhost:5173,http://${PUBLIC_IP},http://localhost"
 
 # Security
 BCRYPT_ROUNDS=10
 
 # Session
-SESSION_SECRET="$SESSION_SECRET"
+SESSION_SECRET="${SESSION_SECRET}"
 
 # 2FA
 TWO_FACTOR_APP_NAME="Nginx Love UI"
@@ -278,7 +278,7 @@ log "✅ Created fresh backend .env"
 
 log "✓ Backend .env configured with:"
 log "  • Database: PostgreSQL (Docker)"
-log "  • CORS Origins: $PUBLIC_IP, localhost"
+log "  • CORS Origins: ${PUBLIC_IP}, localhost"
 log "  • JWT Secrets: Generated (64 chars each)"
 
 # Generate Prisma Client
@@ -299,24 +299,24 @@ log "✓ Backend setup completed"
 
 # Step 5: Build Backend
 log "Step 5/8: Building Backend..."
-cd "$PROJECT_DIR"
-pnpm --filter @nginx-love/api build >> "$LOG_FILE" 2>&1 || error "Failed to build backend"
+cd "${PROJECT_DIR}"
+pnpm --filter @nginx-love/api build >> "${LOG_FILE}" 2>&1 || error "Failed to build backend"
 log "✓ Backend built successfully"
 
 # Step 6: Setup Frontend
 log "Step 6/8: Setting up Frontend..."
 
-cd "$FRONTEND_DIR"
+cd "${FRONTEND_DIR}"
 
 # Create frontend .env from .env.example (always create fresh)
 log "Creating fresh frontend .env from .env.example..."
 cat > ".env" <<EOF
-VITE_API_URL=http://$PUBLIC_IP:3001/api
+VITE_API_URL=http://${PUBLIC_IP}:3001/api
 EOF
 
 log "✅ Created fresh frontend .env"
 
-log "✓ Frontend .env configured with API: http://$PUBLIC_IP:3001/api"
+log "✓ Frontend .env configured with API: http://${PUBLIC_IP}:3001/api"
 
 # Clean previous build
 if [ -d "dist" ]; then
@@ -326,16 +326,16 @@ fi
 
 # Build frontend
 log "Building frontend..."
-cd "$PROJECT_DIR"
-pnpm --filter @nginx-love/web build >> "$LOG_FILE" 2>&1 || error "Failed to build frontend"
+cd "${PROJECT_DIR}"
+pnpm --filter @nginx-love/web build >> "${LOG_FILE}" 2>&1 || error "Failed to build frontend"
 
 # Update CSP in built index.html to use public IP
 log "Updating Content Security Policy with public IP..."
-sed -i "s|__API_URL__|http://$PUBLIC_IP:3001 http://localhost:3001|g" "$FRONTEND_DIR/dist/index.html"
-sed -i "s|__WS_URL__|ws://$PUBLIC_IP:* ws://localhost:*|g" "$FRONTEND_DIR/dist/index.html"
+sed -i "s|__API_URL__|http://${PUBLIC_IP}:3001 http://localhost:3001|g" "${FRONTEND_DIR}/dist/index.html"
+sed -i "s|__WS_URL__|ws://${PUBLIC_IP}:* ws://localhost:*|g" "${FRONTEND_DIR}/dist/index.html"
 
 log "✓ Frontend built successfully"
-log "✓ CSP configured for: http://$PUBLIC_IP:3001, http://localhost:3001"
+log "✓ CSP configured for: http://${PUBLIC_IP}:3001, http://localhost:3001"
 
 # Step 7: Setup Nginx Configuration
 log "Step 7/8: Configuring Nginx..."
@@ -377,7 +377,7 @@ After=network.target postgresql.service
 [Service]
 Type=simple
 User=root
-WorkingDirectory=$BACKEND_DIR
+WorkingDirectory=${BACKEND_DIR}
 Environment=NODE_ENV=production
 ExecStart=$(which node) dist/index.js
 Restart=always
@@ -398,7 +398,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=$FRONTEND_DIR
+WorkingDirectory=${FRONTEND_DIR}
 Environment=NODE_ENV=production
 ExecStart=$(which pnpm) preview --host 0.0.0.0 --port 8080
 Restart=always
@@ -460,31 +460,31 @@ log "Deployment Completed Successfully!"
 log "=================================="
 log ""
 log "📋 Service Status:"
-log "  • PostgreSQL: Docker container '$DB_CONTAINER_NAME'"
-log "  • Backend API: http://$PUBLIC_IP:3001"
-log "  • Frontend UI: http://$PUBLIC_IP:8080"
+log "  • PostgreSQL: Docker container '${DB_CONTAINER_NAME}'"
+log "  • Backend API: http://${PUBLIC_IP}:3001"
+log "  • Frontend UI: http://${PUBLIC_IP}:8080"
 log "  • Nginx: Port 80/443"
 log ""
 log "🔐 Database Credentials:"
 log "  • Host: localhost"
-log "  • Port: $DB_PORT"
-log "  • Database: $DB_NAME"
-log "  • Username: $DB_USER"
-log "  • Password: $DB_PASSWORD"
+log "  • Port: ${DB_PORT}"
+log "  • Database: ${DB_NAME}"
+log "  • Username: ${DB_USER}"
+log "  • Password: ${DB_PASSWORD}"
 log ""
 log "🔑 Security Keys:"
-log "  • JWT Access Secret: $JWT_ACCESS_SECRET"
-log "  • JWT Refresh Secret: $JWT_REFRESH_SECRET"
-log "  • Session Secret: $SESSION_SECRET"
+log "  • JWT Access Secret: ${JWT_ACCESS_SECRET}"
+log "  • JWT Refresh Secret: ${JWT_REFRESH_SECRET}"
+log "  • Session Secret: ${SESSION_SECRET}"
 log ""
 log "📝 Manage Services:"
-log "  PostgreSQL: docker start|stop|restart $DB_CONTAINER_NAME"
+log "  PostgreSQL: docker start|stop|restart ${DB_CONTAINER_NAME}"
 log "  Backend:    systemctl {start|stop|restart|status} nginx-love-backend"
 log "  Frontend:   systemctl {start|stop|restart|status} nginx-love-frontend"
 log "  Nginx:      systemctl {start|stop|restart|status} nginx"
 log ""
 log "📊 View Logs:"
-log "  PostgreSQL: docker logs -f $DB_CONTAINER_NAME"
+log "  PostgreSQL: docker logs -f ${DB_CONTAINER_NAME}"
 log "  Backend:    tail -f /var/log/nginx-love-backend.log"
 log "  Frontend:   tail -f /var/log/nginx-love-frontend.log"
 log "  Nginx:      tail -f /var/log/nginx/error.log"
@@ -493,7 +493,7 @@ log "🔐 Default Credentials:"
 log "  Username: admin"
 log "  Password: admin123"
 log ""
-log "🌐 Access the portal at: http://$PUBLIC_IP:8080"
+log "🌐 Access the portal at: http://${PUBLIC_IP}:8080"
 log ""
 
 # Save credentials to file
@@ -502,31 +502,31 @@ cat > /root/.nginx-love-credentials <<EOF
 # Generated: $(date)
 
 ## Public Access
-Frontend: http://$PUBLIC_IP:8080
-Backend:  http://$PUBLIC_IP:3001
+Frontend: http://${PUBLIC_IP}:8080
+Backend:  http://${PUBLIC_IP}:3001
 
 ## Database (Docker)
-Container: $DB_CONTAINER_NAME
+Container: ${DB_CONTAINER_NAME}
 Host: localhost
-Port: $DB_PORT
-Database: $DB_NAME
-Username: $DB_USER
-Password: $DB_PASSWORD
+Port: ${DB_PORT}
+Database: ${DB_NAME}
+Username: ${DB_USER}
+Password: ${DB_PASSWORD}
 
 ## Security Keys
-JWT_ACCESS_SECRET=$JWT_ACCESS_SECRET
-JWT_REFRESH_SECRET=$JWT_REFRESH_SECRET
-SESSION_SECRET=$SESSION_SECRET
+JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
+JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+SESSION_SECRET=${SESSION_SECRET}
 
 ## Default Login
 Username: admin
 Password: admin123
 
 ## Docker Commands
-Start:   docker start $DB_CONTAINER_NAME
-Stop:    docker stop $DB_CONTAINER_NAME
-Logs:    docker logs -f $DB_CONTAINER_NAME
-Connect: docker exec -it $DB_CONTAINER_NAME psql -U $DB_USER -d $DB_NAME
+Start:   docker start ${DB_CONTAINER_NAME}
+Stop:    docker stop ${DB_CONTAINER_NAME}
+Logs:    docker logs -f ${DB_CONTAINER_NAME}
+Connect: docker exec -it ${DB_CONTAINER_NAME} psql -U ${DB_USER} -d ${DB_NAME}
 EOF
 
 chmod 600 /root/.nginx-love-credentials
@@ -547,5 +547,5 @@ else
 fi
 
 log ""
-log "Deployment log saved to: $LOG_FILE"
+log "Deployment log saved to: ${LOG_FILE}"
 log "=================================="

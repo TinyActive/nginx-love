@@ -34,7 +34,7 @@ git clone https://github.com/TinyActive/nginx-love.git
 cd nginx-love
 
 # Run deployment script (requires root)
-sudo ./scripts/deploy.sh
+bash scripts/deploy.sh
 ```
 
 **Minimum Requirements:**

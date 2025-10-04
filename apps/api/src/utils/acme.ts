@@ -36,11 +36,36 @@ export async function isAcmeInstalled(): Promise<boolean> {
 }
 
 /**
+ * Validate email format to prevent command injection
+ */
+function validateEmail(email: string): boolean {
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return emailRegex.test(email);
+}
+
+/**
+ * Sanitize input to prevent command injection
+ */
+function sanitizeInput(input: string): string {
+  // Remove potentially dangerous characters
+  return input.replace(/[;&|`$(){}[\]<>'"\\]/g, '');
+}
+
+/**
  * Install acme.sh
  */
 export async function installAcme(email?: string): Promise<void> {
   try {
     logger.info('Installing acme.sh...');
+    
+    // Validate and sanitize email if provided
+    if (email) {
+      if (!validateEmail(email)) {
+        throw new Error('Invalid email format');
+      }
+      // Additional sanitization as defense in depth
+      email = sanitizeInput(email);
+    }
     
     const installCmd = email 
       ? `curl https://get.acme.sh | sh -s email=${email}`

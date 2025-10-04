@@ -14,6 +14,68 @@ const execAsync = promisify(exec);
 const SSL_CERTS_PATH = '/etc/nginx/ssl';
 
 /**
+ * Validate email format to prevent injection attacks
+ */
+function validateEmail(email: string): boolean {
+  // RFC 5322 compliant email regex (simplified but secure)
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  
+  // Additional checks
+  if (email.length > 254) return false; // Max email length per RFC
+  if (email.includes('..')) return false; // No consecutive dots
+  if (email.startsWith('.') || email.endsWith('.')) return false; // No leading/trailing dots
+  
+  const parts = email.split('@');
+  if (parts.length !== 2) return false;
+  
+  const [localPart, domain] = parts;
+  if (localPart.length > 64) return false; // Max local part length
+  if (domain.length > 253) return false; // Max domain length
+  
+  return emailRegex.test(email);
+}
+
+/**
+ * Sanitize email input to prevent command injection
+ * Removes potentially dangerous characters while preserving valid email format
+ */
+function sanitizeEmail(email: string): string {
+  // Remove any characters that could be used for command injection
+  // Keep only characters valid in email addresses
+  return email.replace(/[;&|`$(){}[\]<>'"\\!*#?~\s]/g, '');
+}
+
+/**
+ * Validate and sanitize email with comprehensive security checks
+ */
+function secureEmail(email: string | undefined): string | undefined {
+  if (!email) return undefined;
+  
+  // Trim whitespace
+  email = email.trim();
+  
+  // Check length before validation
+  if (email.length === 0 || email.length > 254) {
+    throw new Error('Invalid email format: length must be between 1 and 254 characters');
+  }
+  
+  // Validate format
+  if (!validateEmail(email)) {
+    throw new Error('Invalid email format');
+  }
+  
+  // Sanitize as additional security layer (defense in depth)
+  const sanitized = sanitizeEmail(email);
+  
+  // Verify sanitization didn't break the email
+  if (!validateEmail(sanitized)) {
+    throw new Error('Email contains invalid characters');
+  }
+  
+  return sanitized;
+}
+
+/**
  * Get all SSL certificates
  */
 export const getSSLCertificates = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -124,6 +186,18 @@ export const issueAutoSSL = async (req: AuthRequest, res: Response): Promise<voi
 
     const { domainId, email, autoRenew = true } = req.body;
 
+    // Validate and sanitize email input
+    let secureEmailAddress: string | undefined;
+    try {
+      secureEmailAddress = secureEmail(email);
+    } catch (emailError: any) {
+      res.status(400).json({
+        success: false,
+        message: emailError.message || 'Invalid email address',
+      });
+      return;
+    }
+
     // Check if domain exists
     const domain = await prisma.domain.findUnique({
       where: { id: domainId },
@@ -156,7 +230,7 @@ export const issueAutoSSL = async (req: AuthRequest, res: Response): Promise<voi
       // Issue certificate using acme.sh with ZeroSSL
       const certFiles = await issueCertificate({
         domain: domain.name,
-        email,
+        email: secureEmailAddress, // Use validated and sanitized email
         webroot: '/var/www/html',
         standalone: false,
       });
