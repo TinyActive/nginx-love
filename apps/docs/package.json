@@ -12,8 +12,9 @@
         "vue": "^3.3.4"
     },
     "devDependencies": {
-        "vitepress": "^2.0.0-alpha.12",
+        "terser": "^5.44.0",
         "typescript": "^5.2.2",
+        "vitepress": "^2.0.0-alpha.12",
         "vue-tsc": "^1.8.8"
     }
 }

@@ -390,7 +390,7 @@ Congratulations! You've successfully set up your first domain with the Nginx WAF
 - [**ModSecurity Rules**](/guide/modsecurity): Create custom WAF rules
 - [**Performance Optimization**](/guide/performance): Advanced monitoring and optimization
 - [**Log Analysis**](/guide/logs): Deep dive into log analysis and troubleshooting
-- [**API Integration**](/api/): Integrate with external systems via REST API
+- [**API Integration**](/api/auth): Integrate with external systems via REST API
 
 ### Maintenance and Monitoring
 
@@ -405,7 +405,7 @@ If you encounter any issues or have questions:
 
 - Check our [troubleshooting guide](/reference/troubleshooting)
 - Review the [FAQ](/reference/faq)
-- Browse our [API documentation](/api/)
+- Browse our [API documentation](/api/auth)
 - Contact support for assistance
 
 ## Installation Complete

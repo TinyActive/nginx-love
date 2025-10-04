@@ -40,4 +40,3 @@ nginx-love collects and displays performance metrics for your Nginx servers, hel
 
 - [Installation Guide](/guide/installation) - Learn how to install nginx-love
 - [Quick Start](/guide/quick-start) - Get up and running quickly
-- [Features](/guide/features) - Explore all available features

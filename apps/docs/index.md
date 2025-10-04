@@ -32,6 +32,6 @@ To get started with nginx-love, follow our [installation guide](/guide/installat
 
 ## Documentation
 
-- [Guide](/guide/) - Learn how to use nginx-love
-- [API Reference](/api/) - Explore the REST API
-- [Reference](/reference/) - Find configuration options and troubleshooting tips
+- [Guide](/guide/introduction) - Learn how to use nginx-love
+- [API Reference](/api/auth) - Explore the REST API
+- [Reference](/reference/configuration) - Find configuration options and troubleshooting tips
