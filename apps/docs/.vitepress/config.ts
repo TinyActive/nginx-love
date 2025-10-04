@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  title: 'nginx-love Documentation',
+  title: 'Nginx WAF Documentation',
   description: 'Enterprise Nginx + ModSecurity Management Platform',
   lang: 'en-US',
   base: '/nginx-love/',
