@@ -11,6 +11,7 @@ import { Server, RefreshCw, Send, Trash2, CheckCircle2, XCircle, Clock } from "l
 import { mockSlaveNodes } from "@/mocks/data";
 import { SlaveNode } from "@/types";
 import { useToast } from "@/hooks/use-toast";
+import { UnderConstructionBanner } from "@/components/ui/under-construction-banner";
 
 const SlaveNodes = () => {
   const { t } = useTranslation();
@@ -106,6 +107,7 @@ const SlaveNodes = () => {
 
   return (
     <div className="space-y-6">
+      <UnderConstructionBanner />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">

@@ -12,6 +12,7 @@ import { Download, Upload, Play, Trash2, Calendar, FileArchive, Database } from 
 import { mockBackups } from "@/mocks/data";
 import { BackupConfig } from "@/types";
 import { useToast } from "@/hooks/use-toast";
+import { UnderConstructionBanner } from "@/components/ui/under-construction-banner";
 
 const Backup = () => {
   const { t } = useTranslation();
@@ -99,6 +100,7 @@ const Backup = () => {
 
   return (
     <div className="space-y-6">
+      <UnderConstructionBanner />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">
