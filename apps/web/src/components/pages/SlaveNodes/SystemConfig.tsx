@@ -243,12 +243,31 @@ const SystemConfig = ({ systemConfig, isLoading }: SystemConfigProps) => {
             <span>
               {isMasterMode ? 'This node can register and manage slave nodes' : 'This node is connected to a master node'}
             </span>
-            {isSlaveMode && systemConfig?.connected && (
-              <Badge variant="default" className="bg-green-600">
-                <CheckCircle2 className="h-3 w-3 mr-1" />
-                Connected to Master
-              </Badge>
-            )}
+            <div className="flex items-center gap-2">
+              {isSlaveMode && systemConfig?.connected && (
+                <Badge variant="default" className="bg-green-600">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Connected to Master
+                </Badge>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleModeChange(isMasterMode ? 'slave' : 'master')}
+                disabled={updateNodeModeMutation.isPending}
+              >
+                {updateNodeModeMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  isMasterMode ? (
+                    <LinkIcon className="h-4 w-4 mr-2" />
+                  ) : (
+                    <Server className="h-4 w-4 mr-2" />
+                  )
+                )}
+                Switch to {isMasterMode ? 'Slave' : 'Master'} Mode
+              </Button>
+            </div>
           </AlertDescription>
         </Alert>
       )}
