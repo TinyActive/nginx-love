@@ -8,7 +8,7 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json-summary', 'json'],
       exclude: [
         'node_modules/',
         'dist/',
@@ -20,8 +20,6 @@ export default defineConfig({
     },
     testTimeout: 10000,
     hookTimeout: 10000,
-    // Run tests sequentially to avoid database conflicts
-    threads: false,
   },
   resolve: {
     alias: {

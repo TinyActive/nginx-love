@@ -19,6 +19,10 @@ jobs:
     name: Run API Tests
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      pull-requests: write
+
     services:
       postgres:
         image: postgres:16-alpine
@@ -86,10 +90,8 @@ jobs:
           SSL_DIR: ./test-ssl
           PORT: 3001
 
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: apps/api/coverage/
-          retention-days: 30
+      - name: 'Report Coverage'
+        # Set if: always() to also generate the report if tests are failing
+        # Only works if you set `reportOnFailure: true` in your vite config as specified above
+        if: always() 
+        uses:  davelosert/vitest-coverage-report-action@v2
