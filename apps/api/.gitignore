@@ -8,3 +8,4 @@ dist/
 coverage/
 .vscode/
 .idea/
+!src/domains/logs/

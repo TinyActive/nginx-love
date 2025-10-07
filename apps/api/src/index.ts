@@ -8,9 +8,9 @@ import routes from './routes';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import logger from './utils/logger';
 import { initializeNginxForSSL } from './utils/nginx-setup';
-import { initializeModSecurityConfig } from './utils/modsec-setup';
-import { startAlertMonitoring, stopAlertMonitoring } from './utils/alert-monitoring.service';
-import { startSlaveNodeStatusCheck, stopSlaveNodeStatusCheck } from './utils/slave-status-checker';
+import { modSecSetupService } from './domains/modsec/services/modsec-setup.service';
+import { startAlertMonitoring, stopAlertMonitoring } from './domains/alerts/services/alert-monitoring.service';
+import { startSlaveNodeStatusCheck, stopSlaveNodeStatusCheck } from './domains/cluster/services/slave-status-checker.service';
 
 const app: Application = express();
 let monitoringTimer: NodeJS.Timeout | null = null;
@@ -55,7 +55,7 @@ initializeNginxForSSL().catch((error) => {
 });
 
 // Initialize ModSecurity configuration for CRS management
-initializeModSecurityConfig().catch((error) => {
+modSecSetupService.initializeModSecurityConfig().catch((error) => {
   logger.warn(`Failed to initialize ModSecurity config: ${error.message}`);
   logger.warn('CRS rule management features may not work properly.');
 });

@@ -1,0 +1,99 @@
+name: API Tests
+
+on:
+  push:
+    branches: [main, develop, beta_developer]
+    paths:
+      - 'apps/api/**'
+      - '.github/workflows/api-test.yml'
+      - 'pnpm-lock.yaml'
+  pull_request:
+    branches: [main, develop, beta_developer]
+    paths:
+      - 'apps/api/**'
+      - '.github/workflows/api-test.yml'
+      - 'pnpm-lock.yaml'
+
+jobs:
+  test:
+    name: Run API Tests
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nginx_waf_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup test environment
+        working-directory: apps/api
+        run: |
+          cp .env.test .env
+          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/nginx_waf_test?schema=public" >> .env
+
+      - name: Generate Prisma Client
+        working-directory: apps/api
+        run: pnpm prisma generate
+
+      - name: Run database migrations
+        working-directory: apps/api
+        run: pnpm prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/nginx_waf_test?schema=public
+
+      - name: Run tests
+        working-directory: apps/api
+        run: pnpm test:coverage
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/nginx_waf_test?schema=public
+          NODE_ENV: test
+          JWT_ACCESS_SECRET: test-access-secret-key-12345
+          JWT_REFRESH_SECRET: test-refresh-secret-key-12345
+          JWT_ACCESS_EXPIRES_IN: 15m
+          JWT_REFRESH_EXPIRES_IN: 7d
+          SESSION_SECRET: test-session-secret-12345
+          CORS_ORIGIN: http://localhost:5173,http://localhost:3000
+          BCRYPT_ROUNDS: 4
+          TWO_FACTOR_APP_NAME: Nginx WAF Admin Test
+          BACKUP_DIR: ./test-backups
+          SSL_DIR: ./test-ssl
+          PORT: 3001
+
+      - name: 'Report Coverage'
+        # Set if: always() to also generate the report if tests are failing
+        # Only works if you set `reportOnFailure: true` in your vite config as specified above
+        if: always() 
+        uses:  davelosert/vitest-coverage-report-action@v2
+        with:
+          working-directory: apps/api

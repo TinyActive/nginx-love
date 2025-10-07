@@ -7,6 +7,10 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
     "clean": "rm -rf dist node_modules",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -16,7 +20,12 @@
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
   },
-  "keywords": ["nginx", "waf", "modsecurity", "admin"],
+  "keywords": [
+    "nginx",
+    "waf",
+    "modsecurity",
+    "admin"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
@@ -32,8 +41,8 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "nodemailer": "^6.9.14",
-    "speakeasy": "^2.0.0",
     "qrcode": "^1.5.4",
+    "speakeasy": "^2.0.0",
     "winston": "^3.13.1"
   },
   "devDependencies": {
@@ -47,9 +56,15 @@
     "@types/nodemailer": "^6.4.15",
     "@types/qrcode": "^1.5.5",
     "@types/speakeasy": "^2.0.10",
+    "@types/supertest": "^6.0.3",
+    "@vitest/coverage-v8": "3.2.4",
+    "@vitest/ui": "^3.2.4",
     "prisma": "^5.18.0",
+    "supertest": "^7.1.4",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "vitest": "^3.2.4",
+    "zod": "^4.1.11"
   }
 }
