@@ -70,7 +70,7 @@ jobs:
 
       - name: Run tests
         working-directory: apps/api
-        run: pnpm test
+        run: pnpm test:coverage
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/nginx_waf_test?schema=public
           NODE_ENV: test
