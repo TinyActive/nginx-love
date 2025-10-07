@@ -10,6 +10,8 @@ CREATE TABLE "system_configs" (
     "masterHost" TEXT,
     "masterPort" INTEGER,
     "masterApiKey" TEXT,
+    "syncInterval" INTEGER NOT NULL DEFAULT 60,
+    "lastSyncHash" TEXT,
     "connected" BOOLEAN NOT NULL DEFAULT false,
     "lastConnectedAt" TIMESTAMP(3),
     "connectionError" TEXT,
