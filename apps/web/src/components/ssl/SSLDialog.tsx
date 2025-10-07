@@ -111,7 +111,7 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>Add SSL Certificate</DialogTitle>
           <DialogDescription>
@@ -208,7 +208,7 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
                   value={formData.certificate}
                   onChange={(e) => setFormData({ ...formData, certificate: e.target.value })}
                   rows={6}
-                  className="font-mono text-xs"
+                  className="font-mono text-xs break-all whitespace-pre-wrap"
                   required={method === 'manual'}
                 />
               </div>
@@ -221,7 +221,7 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
                   value={formData.privateKey}
                   onChange={(e) => setFormData({ ...formData, privateKey: e.target.value })}
                   rows={6}
-                  className="font-mono text-xs"
+                  className="font-mono text-xs break-all whitespace-pre-wrap"
                   required={method === 'manual'}
                 />
               </div>
@@ -234,7 +234,7 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
                   value={formData.chain}
                   onChange={(e) => setFormData({ ...formData, chain: e.target.value })}
                   rows={4}
-                  className="font-mono text-xs"
+                  className="font-mono text-xs break-all whitespace-pre-wrap"
                 />
               </div>
             </TabsContent>
