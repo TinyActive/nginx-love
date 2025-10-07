@@ -1,4 +1,3 @@
-import Cookies from 'js-cookie';
 import { UserProfile } from '@/types';
 
 // Auth storage keys - centralized constants
@@ -8,60 +7,44 @@ export const AUTH_KEYS = {
   USER: 'user',
 } as const;
 
-// Cookie options
-const COOKIE_OPTIONS: Cookies.CookieAttributes = {
-  path: '/',
-  sameSite: 'strict',
-  secure: import.meta.env.PROD, // Only secure in production
-};
-
-const ACCESS_TOKEN_EXPIRY = 7; // 7 days
-const REFRESH_TOKEN_EXPIRY = 30; // 30 days
-
 /**
- * Token storage utilities using cookies
+ * Token storage utilities using localStorage
  */
 export const tokenStorage = {
   // Get access token
   getAccessToken: (): string | null => {
-    return Cookies.get(AUTH_KEYS.ACCESS_TOKEN) || null;
+    return localStorage.getItem(AUTH_KEYS.ACCESS_TOKEN);
   },
 
   // Set access token
   setAccessToken: (token: string): void => {
-    Cookies.set(AUTH_KEYS.ACCESS_TOKEN, token, {
-      ...COOKIE_OPTIONS,
-      expires: ACCESS_TOKEN_EXPIRY,
-    });
+    localStorage.setItem(AUTH_KEYS.ACCESS_TOKEN, token);
   },
 
   // Remove access token
   removeAccessToken: (): void => {
-    Cookies.remove(AUTH_KEYS.ACCESS_TOKEN, { path: '/' });
+    localStorage.removeItem(AUTH_KEYS.ACCESS_TOKEN);
   },
 
   // Get refresh token
   getRefreshToken: (): string | null => {
-    return Cookies.get(AUTH_KEYS.REFRESH_TOKEN) || null;
+    return localStorage.getItem(AUTH_KEYS.REFRESH_TOKEN);
   },
 
   // Set refresh token
   setRefreshToken: (token: string): void => {
-    Cookies.set(AUTH_KEYS.REFRESH_TOKEN, token, {
-      ...COOKIE_OPTIONS,
-      expires: REFRESH_TOKEN_EXPIRY,
-    });
+    localStorage.setItem(AUTH_KEYS.REFRESH_TOKEN, token);
   },
 
   // Remove refresh token
   removeRefreshToken: (): void => {
-    Cookies.remove(AUTH_KEYS.REFRESH_TOKEN, { path: '/' });
+    localStorage.removeItem(AUTH_KEYS.REFRESH_TOKEN);
   },
 
   // Get user profile
   getUser: (): UserProfile | null => {
     try {
-      const userStr = Cookies.get(AUTH_KEYS.USER);
+      const userStr = localStorage.getItem(AUTH_KEYS.USER);
       return userStr ? JSON.parse(userStr) : null;
     } catch {
       return null;
@@ -70,15 +53,12 @@ export const tokenStorage = {
 
   // Set user profile
   setUser: (user: UserProfile): void => {
-    Cookies.set(AUTH_KEYS.USER, JSON.stringify(user), {
-      ...COOKIE_OPTIONS,
-      expires: ACCESS_TOKEN_EXPIRY,
-    });
+    localStorage.setItem(AUTH_KEYS.USER, JSON.stringify(user));
   },
 
   // Remove user profile
   removeUser: (): void => {
-    Cookies.remove(AUTH_KEYS.USER, { path: '/' });
+    localStorage.removeItem(AUTH_KEYS.USER);
   },
 
   // Set all auth data
