@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { UserProfile } from '@/types'
 import { authService } from '@/services/auth.service'
+import { useAuthStorage } from '@/hooks/useAuthStorage'
 
 export interface AuthContext {
   isAuthenticated: boolean
@@ -20,42 +21,9 @@ export interface LoginResponse {
 
 const AuthContext = React.createContext<AuthContext | null>(null)
 
-const accessTokenKey = 'accessToken'
-const refreshTokenKey = 'refreshToken'
-const userKey = 'user'
-
-function getStoredUser(): UserProfile | null {
-  try {
-    const userStr = localStorage.getItem(userKey)
-    return userStr ? JSON.parse(userStr) : null
-  } catch {
-    return null
-  }
-}
-
-function getStoredTokens() {
-  return {
-    accessToken: localStorage.getItem(accessTokenKey),
-    refreshToken: localStorage.getItem(refreshTokenKey),
-  }
-}
-
-function setStoredAuth(user: UserProfile | null, accessToken: string | null, refreshToken: string | null) {
-  if (user && accessToken && refreshToken) {
-    localStorage.setItem(userKey, JSON.stringify(user))
-    localStorage.setItem(accessTokenKey, accessToken)
-    localStorage.setItem(refreshTokenKey, refreshToken)
-  } else {
-    localStorage.removeItem(userKey)
-    localStorage.removeItem(accessTokenKey)
-    localStorage.removeItem(refreshTokenKey)
-  }
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = React.useState<UserProfile | null>(getStoredUser())
+  const { user, isAuthenticated, setAuth, clearAuth } = useAuthStorage()
   const [isLoading, setIsLoading] = React.useState(false)
-  const isAuthenticated = !!user && !!getStoredTokens().accessToken
 
   const logout = React.useCallback(async () => {
     try {
@@ -63,55 +31,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Logout error:', error)
     } finally {
-      setStoredAuth(null, null, null)
-      setUser(null)
+      clearAuth()
     }
-  }, [])
+  }, [clearAuth])
 
   const login = React.useCallback(async (username: string, password: string): Promise<LoginResponse> => {
     setIsLoading(true)
     try {
       const response = await authService.login({ username, password })
-      
+
       if (response.requires2FA) {
         // Don't set user yet if 2FA is required
         return response
       } else {
         // Set user and tokens if login is complete
-        setStoredAuth(response.user, response.accessToken, response.refreshToken)
-        setUser(response.user)
+        setAuth(response.user, response.accessToken, response.refreshToken)
         return response
       }
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [setAuth])
 
   const loginWith2FA = React.useCallback(async (userId: string, token: string): Promise<LoginResponse> => {
     setIsLoading(true)
     try {
       const response = await authService.verify2FA({ userId, token })
-      setStoredAuth(response.user, response.accessToken, response.refreshToken)
-      setUser(response.user)
+      setAuth(response.user, response.accessToken, response.refreshToken)
       return response
     } finally {
       setIsLoading(false)
     }
-  }, [])
-
-  // Check for stored auth on mount
-  React.useEffect(() => {
-    const storedUser = getStoredUser()
-    const tokens = getStoredTokens()
-    
-    if (storedUser && tokens.accessToken) {
-      setUser(storedUser)
-    } else {
-      // Clear any inconsistent state
-      setStoredAuth(null, null, null)
-      setUser(null)
-    }
-  }, [])
+  }, [setAuth])
 
   const value = React.useMemo(() => ({
     isAuthenticated,

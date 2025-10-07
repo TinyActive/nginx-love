@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { tokenStorage } from '@/lib/auth-storage';
 import { Domain, ModSecurityCRSRule, ModSecurityCustomRule, SSLCertificate, Alert, User, ACLRule, UserProfile } from '@/types';
 import { mockDomains, mockSSLCerts, mockAlerts, mockUsers, mockACLRules } from '@/mocks/data';
 import * as modsecService from '@/services/modsec.service';
@@ -54,16 +55,21 @@ interface StoreState {
 
 export const useStore = create<StoreState>((set) => ({
   // Auth
-  isAuthenticated: !!localStorage.getItem('accessToken'),
-  currentUser: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null,
+  isAuthenticated: tokenStorage.isAuthenticated(),
+  currentUser: tokenStorage.getUser(),
   setUser: (user) => {
+    if (user) {
+      tokenStorage.setUser(user);
+    } else {
+      tokenStorage.removeUser();
+    }
     set({ isAuthenticated: !!user, currentUser: user });
+    window.dispatchEvent(new CustomEvent('auth:change'));
   },
   logout: () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
+    tokenStorage.clearAuth();
     set({ isAuthenticated: false, currentUser: null });
+    window.dispatchEvent(new CustomEvent('auth:logout'));
   },
 
   // Domains

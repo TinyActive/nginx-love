@@ -577,8 +577,6 @@ model SystemConfig {
   masterHost      String? // IP of master node
   masterPort      Int? // Port of master node
   masterApiKey    String? // API key to connect to master
-  syncInterval    Int     @default(60) // Sync interval in seconds (for slave mode)
-  lastSyncHash    String? // Hash of last synced config (for change detection)
 
   // Connection status (for slave mode)
   connected       Boolean   @default(false)

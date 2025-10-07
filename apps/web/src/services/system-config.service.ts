@@ -1,24 +1,12 @@
-import axios from 'axios';
+import api from './api';
 import { SystemConfig, ApiResponse } from '@/types';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
-
-const getHeaders = () => {
-  const token = localStorage.getItem('accessToken');
-  return {
-    'Content-Type': 'application/json',
-    Authorization: token ? `Bearer ${token}` : '',
-  };
-};
 
 export const systemConfigService = {
   /**
    * Get system configuration
    */
   getConfig: async (): Promise<ApiResponse<SystemConfig>> => {
-    const response = await axios.get(`${API_URL}/system-config`, {
-      headers: getHeaders(),
-    });
+    const response = await api.get('/system-config');
     return response.data;
   },
 
@@ -26,13 +14,7 @@ export const systemConfigService = {
    * Update node mode (master or slave)
    */
   updateNodeMode: async (nodeMode: 'master' | 'slave'): Promise<ApiResponse<SystemConfig>> => {
-    const response = await axios.put(
-      `${API_URL}/system-config/node-mode`,
-      { nodeMode },
-      {
-        headers: getHeaders(),
-      }
-    );
+    const response = await api.put('/system-config/node-mode', { nodeMode });
     return response.data;
   },
 
@@ -45,13 +27,7 @@ export const systemConfigService = {
     masterApiKey: string;
     syncInterval?: number;
   }): Promise<ApiResponse<SystemConfig>> => {
-    const response = await axios.post(
-      `${API_URL}/system-config/connect-master`,
-      params,
-      {
-        headers: getHeaders(),
-      }
-    );
+    const response = await api.post('/system-config/connect-master', params);
     return response.data;
   },
 
@@ -59,13 +35,7 @@ export const systemConfigService = {
    * Disconnect from master node
    */
   disconnectFromMaster: async (): Promise<ApiResponse<SystemConfig>> => {
-    const response = await axios.post(
-      `${API_URL}/system-config/disconnect-master`,
-      {},
-      {
-        headers: getHeaders(),
-      }
-    );
+    const response = await api.post('/system-config/disconnect-master', {});
     return response.data;
   },
 
@@ -77,13 +47,7 @@ export const systemConfigService = {
     masterVersion: string;
     masterStatus: string;
   }>> => {
-    const response = await axios.post(
-      `${API_URL}/system-config/test-master-connection`,
-      {},
-      {
-        headers: getHeaders(),
-      }
-    );
+    const response = await api.post('/system-config/test-master-connection', {});
     return response.data;
   },
 
@@ -94,13 +58,7 @@ export const systemConfigService = {
     changesApplied: number;
     lastSyncAt: string;
   }>> => {
-    const response = await axios.post(
-      `${API_URL}/system-config/sync`,
-      {},
-      {
-        headers: getHeaders(),
-      }
-    );
+    const response = await api.post('/system-config/sync', {});
     return response.data;
   },
 };

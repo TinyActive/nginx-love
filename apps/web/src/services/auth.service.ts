@@ -1,4 +1,5 @@
 import api from './api';
+import { tokenStorage } from '@/lib/auth-storage';
 import { UserProfile, ActivityLog, TwoFactorAuth } from '@/types';
 
 export interface LoginRequest {
@@ -49,9 +50,7 @@ export const authService = {
   // Logout
   logout: async (): Promise<void> => {
     await api.post('/auth/logout');
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
+    tokenStorage.clearAuth();
   },
 
   // Refresh token

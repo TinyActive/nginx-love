@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { authService, accountService } from '@/services/auth.service';
+import { tokenStorage } from '@/lib/auth-storage';
 import { createQueryKeys } from '@/lib/query-client';
 import type {
   LoginRequest,
@@ -34,54 +35,51 @@ export const authMutationOptions = {
   login: {
     mutationFn: authService.login,
     onSuccess: (data: LoginResponse) => {
-      // Store tokens and user data in localStorage
-      localStorage.setItem('accessToken', data.accessToken);
-      localStorage.setItem('refreshToken', data.refreshToken);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      // Store tokens and user data in cookies
+      tokenStorage.setAuth(data.user, data.accessToken, data.refreshToken);
+      window.dispatchEvent(new CustomEvent('auth:change'));
     },
     onError: (error: any) => {
       console.error('Login failed:', error);
     },
   },
-  
+
   // Verify 2FA mutation
   verify2FA: {
     mutationFn: authService.verify2FA,
     onSuccess: (data: LoginResponse) => {
-      // Store tokens and user data in localStorage
-      localStorage.setItem('accessToken', data.accessToken);
-      localStorage.setItem('refreshToken', data.refreshToken);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      // Store tokens and user data in cookies
+      tokenStorage.setAuth(data.user, data.accessToken, data.refreshToken);
+      window.dispatchEvent(new CustomEvent('auth:change'));
     },
     onError: (error: any) => {
       console.error('2FA verification failed:', error);
     },
   },
-  
+
   // Logout mutation
   logout: {
     mutationFn: authService.logout,
     onSuccess: () => {
-      // Clear all auth data from localStorage
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
+      // Clear all auth data from cookies
+      tokenStorage.clearAuth();
+      window.dispatchEvent(new CustomEvent('auth:logout'));
     },
     onError: (error: any) => {
       console.error('Logout failed:', error);
       // Still clear local data even if API call fails
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
+      tokenStorage.clearAuth();
+      window.dispatchEvent(new CustomEvent('auth:logout'));
     },
   },
-  
+
   // Update profile mutation
   updateProfile: {
     mutationFn: (data: UpdateProfileRequest) => accountService.updateProfile(data),
     onSuccess: (updatedProfile: UserProfile) => {
-      // Update user data in localStorage
-      localStorage.setItem('user', JSON.stringify(updatedProfile));
+      // Update user data in cookies
+      tokenStorage.setUser(updatedProfile);
+      window.dispatchEvent(new CustomEvent('auth:change'));
     },
     onError: (error: any) => {
       console.error('Profile update failed:', error);
