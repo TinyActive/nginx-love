@@ -90,9 +90,9 @@ model TwoFactorAuth {
 }
 
 model ActivityLog {
-  id     String @id @default(cuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   action    String
   type      ActivityType

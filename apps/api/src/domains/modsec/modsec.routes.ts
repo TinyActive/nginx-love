@@ -1,36 +1,29 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { body } from 'express-validator';
-import { authenticate, authorize } from '../middleware/auth';
-import {
-  getCRSRules,
-  toggleCRSRule,
-  getModSecRules,
-  getModSecRule,
-  toggleModSecRule,
-  addCustomRule,
-  updateModSecRule,
-  deleteModSecRule,
-  getGlobalModSecSettings,
-  setGlobalModSec,
-} from '../controllers/modsec.controller';
+import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
+import { modSecController } from './modsec.controller';
 
-const router = Router();
+const router: Router = Router();
 
 // All routes require authentication
 router.use(authenticate);
 
 // CRS Rules (OWASP Core Rule Set)
-router.get('/crs/rules', getCRSRules);
-router.patch('/crs/rules/:ruleFile/toggle', authorize('admin', 'moderator'), toggleCRSRule);
+router.get('/crs/rules', (req, res) => modSecController.getCRSRules(req, res));
+router.patch('/crs/rules/:ruleFile/toggle', authorize('admin', 'moderator'), (req, res) =>
+  modSecController.toggleCRSRule(req, res)
+);
 
 // Custom Rules
-router.get('/rules', getModSecRules);
+router.get('/rules', (req, res) => modSecController.getModSecRules(req, res));
 
 // Get single rule
-router.get('/rules/:id', getModSecRule);
+router.get('/rules/:id', (req, res) => modSecController.getModSecRule(req, res));
 
 // Toggle rule enabled/disabled
-router.patch('/rules/:id/toggle', authorize('admin', 'moderator'), toggleModSecRule);
+router.patch('/rules/:id/toggle', authorize('admin', 'moderator'), (req, res) =>
+  modSecController.toggleModSecRule(req, res)
+);
 
 // Add custom rule
 router.post(
@@ -44,7 +37,7 @@ router.post(
     body('domainId').optional().isString(),
     body('enabled').optional().isBoolean(),
   ],
-  addCustomRule
+  (req: AuthRequest, res: Response) => modSecController.addCustomRule(req, res)
 );
 
 // Update rule
@@ -58,21 +51,23 @@ router.put(
     body('description').optional().isString(),
     body('enabled').optional().isBoolean(),
   ],
-  updateModSecRule
+  (req: AuthRequest, res: Response) => modSecController.updateModSecRule(req, res)
 );
 
 // Delete rule
-router.delete('/rules/:id', authorize('admin', 'moderator'), deleteModSecRule);
+router.delete('/rules/:id', authorize('admin', 'moderator'), (req, res) =>
+  modSecController.deleteModSecRule(req, res)
+);
 
 // Get global ModSecurity settings
-router.get('/global', getGlobalModSecSettings);
+router.get('/global', (req, res) => modSecController.getGlobalModSecSettings(req, res));
 
 // Set global ModSecurity enabled/disabled
 router.post(
   '/global',
   authorize('admin', 'moderator'),
   [body('enabled').isBoolean().withMessage('Enabled must be a boolean')],
-  setGlobalModSec
+  (req: AuthRequest, res: Response) => modSecController.setGlobalModSec(req, res)
 );
 
 export default router;

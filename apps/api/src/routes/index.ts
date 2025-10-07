@@ -1,20 +1,20 @@
 import { Router } from 'express';
-import authRoutes from './auth.routes';
-import accountRoutes from './account.routes';
-import domainRoutes from './domain.routes';
-import systemRoutes from './system.routes';
-import sslRoutes from './ssl.routes';
-import modsecRoutes from './modsec.routes';
-import logsRoutes from './logs.routes';
-import alertsRoutes from './alerts.routes';
-import aclRoutes from './acl.routes';
-import performanceRoutes from './performance.routes';
-import userRoutes from './user.routes';
-import dashboardRoutes from './dashboard.routes';
-import backupRoutes from './backup.routes';
-import slaveRoutes from './slave.routes';
-import systemConfigRoutes from './system-config.routes';
-import nodeSyncRoutes from './node-sync.routes';
+import authRoutes from '../domains/auth/auth.routes';
+import accountRoutes from '../domains/account/account.routes';
+import domainRoutes from '../domains/domains/domains.routes';
+import systemRoutes from '../domains/system/system.routes';
+import systemConfigRoutes from '../domains/system/system-config.routes';
+import sslRoutes from '../domains/ssl/ssl.routes';
+import modsecRoutes from '../domains/modsec/modsec.routes';
+import logsRoutes from '../domains/logs/logs.routes';
+import alertsRoutes from '../domains/alerts/alerts.routes';
+import aclRoutes from '../domains/acl/acl.routes';
+import performanceRoutes from '../domains/performance/performance.routes';
+import userRoutes from '../domains/users/users.routes';
+import dashboardRoutes from '../domains/dashboard/dashboard.routes';
+import backupRoutes from '../domains/backup/backup.routes';
+import slaveRoutes from '../domains/cluster/cluster.routes';
+import nodeSyncRoutes from '../domains/cluster/node-sync.routes';
 
 const router = Router();
 
