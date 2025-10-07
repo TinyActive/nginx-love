@@ -14,15 +14,14 @@ on:
       - '.github/workflows/api-test.yml'
       - 'pnpm-lock.yaml'
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   test:
     name: Run API Tests
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      pull-requests: write
-
     services:
       postgres:
         image: postgres:16-alpine
