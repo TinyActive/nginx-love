@@ -49,6 +49,7 @@ bash scripts/deploy.sh
 ```bash
 # Run Upgrade script (requires root)
 cd nginx-love
+git pull
 bash scripts/update.sh
 ```
 
