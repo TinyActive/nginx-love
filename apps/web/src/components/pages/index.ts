@@ -10,7 +10,6 @@ export { default as Logs } from './Logs';
 export { default as ModSecurity } from './ModSecurity';
 export { default as NotFound } from './NotFound';
 export { default as Performance } from './Performance';
-export { default as SlaveNodes } from './SlaveNodes';
 export { default as SSL } from './SSL';
 export { SSLStats } from './SSLStats';
 export { SSLTable } from './SSLTable';
