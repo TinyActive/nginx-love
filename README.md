@@ -35,7 +35,7 @@ This project began as a private service built for a company. Later, my client an
 
 | Use Case | Port | Description |
 |----------|--------|-------------|
-| **Front-end** | 8080 | Nginx WAF - Advanced Nginx Management Platform Front-end User required|
+| **Front-end** | 8080 | Nginx WAF - Advanced Nginx Management Platform Front-end. User required |
 | **Backend** | 3001 |  Nginx WAF - Advanced Nginx Management Platform Backend port required |
 | **Website** | 80 | Website needs to be protected |
 | **Website** | 443 | Website needs to be protected |
