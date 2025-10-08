@@ -208,7 +208,7 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
                   value={formData.certificate}
                   onChange={(e) => setFormData({ ...formData, certificate: e.target.value })}
                   rows={6}
-                  className="font-mono text-xs break-all whitespace-pre-wrap"
+                  className="font-mono text-xs break-all whitespace-pre-wrap max-h-[100px]"
                   required={method === 'manual'}
                 />
               </div>
@@ -221,7 +221,7 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
                   value={formData.privateKey}
                   onChange={(e) => setFormData({ ...formData, privateKey: e.target.value })}
                   rows={6}
-                  className="font-mono text-xs break-all whitespace-pre-wrap"
+                  className="font-mono text-xs break-all whitespace-pre-wrap max-h-[100px]"
                   required={method === 'manual'}
                 />
               </div>
@@ -234,7 +234,7 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
                   value={formData.chain}
                   onChange={(e) => setFormData({ ...formData, chain: e.target.value })}
                   rows={4}
-                  className="font-mono text-xs break-all whitespace-pre-wrap"
+                  className="font-mono text-xs break-all whitespace-pre-wrap max-h-[150px]"
                 />
               </div>
             </TabsContent>
