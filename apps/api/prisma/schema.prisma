@@ -32,20 +32,21 @@ enum ActivityType {
 }
 
 model User {
-  id        String     @id @default(cuid())
-  username  String     @unique
-  email     String     @unique
-  password  String
-  fullName  String
-  role      UserRole   @default(viewer)
-  status    UserStatus @default(active)
-  avatar    String?
-  phone     String?
-  timezone  String     @default("Asia/Ho_Chi_Minh")
-  language  String     @default("en")
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  lastLogin DateTime?
+  id           String     @id @default(cuid())
+  username     String     @unique
+  email        String     @unique
+  password     String
+  fullName     String
+  role         UserRole   @default(viewer)
+  status       UserStatus @default(active)
+  avatar       String?
+  phone        String?
+  timezone     String     @default("Asia/Ho_Chi_Minh")
+  language     String     @default("en")
+  isFirstLogin Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  lastLogin    DateTime?
 
   // Relations
   profile       UserProfile?

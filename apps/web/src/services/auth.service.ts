@@ -12,6 +12,16 @@ export interface LoginResponse {
   accessToken: string;
   refreshToken: string;
   requires2FA: boolean;
+  requirePasswordChange?: boolean;
+  require2FASetup?: boolean;
+  userId?: string;
+  tempToken?: string;
+}
+
+export interface FirstLoginPasswordChangeRequest {
+  userId: string;
+  tempToken: string;
+  newPassword: string;
 }
 
 export interface ChangePasswordRequest {
@@ -56,6 +66,12 @@ export const authService = {
   // Refresh token
   refreshToken: async (refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> => {
     const response = await api.post('/auth/refresh', { refreshToken });
+    return response.data.data;
+  },
+
+  // Change password on first login
+  changePasswordFirstLogin: async (data: FirstLoginPasswordChangeRequest): Promise<LoginResponse & { require2FASetup: boolean }> => {
+    const response = await api.post('/auth/first-login/change-password', data);
     return response.data.data;
   },
 

@@ -2,8 +2,8 @@ import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
 import { AuthService } from './auth.service';
 import { AuthRepository } from './auth.repository';
-import { LoginDto, LogoutDto, RefreshTokenDto, Verify2FADto } from './dto';
-import { RequestMetadata } from './auth.types';
+import { LoginDto, LogoutDto, RefreshTokenDto, Verify2FADto, FirstLoginPasswordDto } from './dto';
+import { RequestMetadata, LoginFirstTimeResult, Login2FARequiredResult } from './auth.types';
 import logger from '../../utils/logger';
 import { AppError } from '../../shared/errors/app-error';
 
@@ -45,30 +45,49 @@ export class AuthController {
       // Call service
       const result = await this.authService.login(dto, metadata);
 
-      // Check if 2FA is required
-      if ('requires2FA' in result) {
+      // Check if password change is required (first login)
+      if ('requirePasswordChange' in result && result.requirePasswordChange) {
+        const firstLoginResult = result as LoginFirstTimeResult;
         res.json({
           success: true,
-          message: '2FA verification required',
+          message: 'Password change required',
           data: {
-            requires2FA: result.requires2FA,
-            userId: result.userId,
-            user: result.user,
+            requirePasswordChange: true,
+            userId: firstLoginResult.userId,
+            tempToken: firstLoginResult.tempToken,
+            user: firstLoginResult.user,
           },
         });
         return;
       }
 
-      // Return successful login response
-      res.json({
-        success: true,
-        message: 'Login successful',
-        data: {
-          user: result.user,
-          accessToken: result.accessToken,
-          refreshToken: result.refreshToken,
-        },
-      });
+      // Check if 2FA is required
+      if ('requires2FA' in result && result.requires2FA) {
+        const twoFAResult = result as Login2FARequiredResult;
+        res.json({
+          success: true,
+          message: '2FA verification required',
+          data: {
+            requires2FA: true,
+            userId: twoFAResult.userId,
+            user: twoFAResult.user,
+          },
+        });
+        return;
+      }
+
+      // Return successful login response (LoginResult type)
+      if ('accessToken' in result && 'refreshToken' in result) {
+        res.json({
+          success: true,
+          message: 'Login successful',
+          data: {
+            user: result.user,
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken,
+          },
+        });
+      }
     } catch (error) {
       this.handleError(error, res);
     }
@@ -173,6 +192,49 @@ export class AuthController {
         message: 'Token refreshed successfully',
         data: {
           accessToken: result.accessToken,
+        },
+      });
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  };
+
+  /**
+   * Change password on first login
+   * POST /api/auth/first-login/change-password
+   */
+  changePasswordFirstLogin = async (req: Request, res: Response): Promise<void> => {
+    try {
+      // Validate request
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array(),
+        });
+        return;
+      }
+
+      const dto: FirstLoginPasswordDto = req.body;
+
+      // Extract request metadata
+      const metadata: RequestMetadata = {
+        ip: req.ip || 'unknown',
+        userAgent: req.headers['user-agent'] || 'unknown',
+      };
+
+      // Call service
+      const result = await this.authService.changePasswordFirstLogin(dto, metadata);
+
+      // Return success response with tokens
+      res.json({
+        success: true,
+        message: 'Password changed successfully',
+        data: {
+          user: result.user,
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+          require2FASetup: result.require2FASetup,
         },
       });
     } catch (error) {

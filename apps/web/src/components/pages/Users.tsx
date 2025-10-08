@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { Suspense } from "react";
-import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { UserPlus, Mail, Key, Trash2, Edit, Shield, Loader2, Users as UsersIcon } from "lucide-react";
+import { UserPlus, Key, Trash2, Edit, Shield, Loader2, Users as UsersIcon, Copy, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useStore } from "@/store/useStore";
 import { SkeletonStatsCard, SkeletonTable } from "@/components/ui/skeletons";
@@ -74,12 +74,13 @@ function UserStatsCards() {
 
 // Component for users table with suspense
 function UsersTable() {
-  const { t } = useTranslation();
   const { toast } = useToast();
   const currentUser = useStore(state => state.currentUser);
   const { data: users } = useSuspenseUsers();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
+  const [resetPasswordDialog, setResetPasswordDialog] = useState<{ isOpen: boolean; userId: string; username: string; newPassword?: string; }>({ isOpen: false, userId: '', username: '' });
+  const [passwordCopied, setPasswordCopied] = useState(false);
 
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
@@ -221,24 +222,152 @@ function UsersTable() {
     }
   };
 
-  const handleResetPassword = async (userId: string) => {
-    if (!confirm("Are you sure you want to reset this user's password?")) return;
+  const handleResetPassword = async (userId: string, username: string) => {
+    // Open confirmation dialog
+    setResetPasswordDialog({ isOpen: true, userId, username });
+  };
+
+  const confirmResetPassword = async () => {
+    if (!resetPasswordDialog.userId) return;
 
     try {
-      const result = await resetUserPassword.mutateAsync(userId);
-      toast({ 
-        title: "Password reset successfully",
-        description: result.data?.temporaryPassword 
-          ? `Temporary password: ${result.data.temporaryPassword}` 
-          : "Password reset email sent to user"
-      });
+      const result = await resetUserPassword.mutateAsync(resetPasswordDialog.userId);
+      
+      // Backend returns: { success, message, data: { temporaryPassword, note } }
+      const newPassword = result?.data?.temporaryPassword;
+      
+      if (!newPassword) {
+        throw new Error('Failed to get temporary password from response');
+      }
+      
+      // Force re-render: close and reopen dialog with password
+      const currentUserId = resetPasswordDialog.userId;
+      const currentUsername = resetPasswordDialog.username;
+      
+      // Close dialog first
+      setResetPasswordDialog({ isOpen: false, userId: '', username: '' });
+      
+      // Then reopen with password after a tiny delay
+      setTimeout(() => {
+        setResetPasswordDialog({ 
+          isOpen: true, 
+          userId: currentUserId, 
+          username: currentUsername,
+          newPassword: newPassword
+        });
+        setPasswordCopied(false);
+      }, 100);
+      
     } catch (error: any) {
       toast({
         title: "Error resetting password",
-        description: error.response?.data?.message || "Failed to reset password",
+        description: error.response?.data?.message || error.message || "Failed to reset password",
         variant: "destructive"
       });
+      // Close dialog on error
+      setResetPasswordDialog({ isOpen: false, userId: '', username: '' });
     }
+  };
+
+  const handleCopyPassword = async () => {
+    if (!resetPasswordDialog.newPassword) {
+      toast({
+        title: "No password to copy",
+        description: "Password is empty",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const password = resetPasswordDialog.newPassword;
+    let copySuccess = false;
+    let copyMethod = '';
+
+    try {
+      // Method 1: Modern Clipboard API (requires HTTPS or localhost)
+      if (navigator.clipboard && window.isSecureContext) {
+        try {
+          await navigator.clipboard.writeText(password);
+          copySuccess = true;
+          copyMethod = 'clipboard API';
+        } catch (clipboardError) {
+          // Clipboard API failed, will try fallback
+        }
+      }
+      
+      // Method 2: execCommand with proper event handling and delay
+      if (!copySuccess) {
+        try {
+          const textArea = document.createElement('textarea');
+          textArea.value = password;
+          
+          // Make it visible but off-screen to ensure it works
+          textArea.style.position = 'fixed';
+          textArea.style.top = '0';
+          textArea.style.left = '-9999px';
+          textArea.style.opacity = '0';
+          textArea.setAttribute('readonly', '');
+          textArea.contentEditable = 'true';
+          
+          document.body.appendChild(textArea);
+          
+          // iOS Safari needs this
+          if (navigator.userAgent.match(/ipad|iphone/i)) {
+            const range = document.createRange();
+            range.selectNodeContents(textArea);
+            const selection = window.getSelection();
+            selection?.removeAllRanges();
+            selection?.addRange(range);
+            textArea.setSelectionRange(0, password.length);
+          } else {
+            textArea.focus();
+            textArea.select();
+            textArea.setSelectionRange(0, password.length);
+          }
+          
+          // Small delay before executing copy
+          await new Promise(resolve => setTimeout(resolve, 50));
+          
+          const successful = document.execCommand('copy');
+          
+          if (successful) {
+            copySuccess = true;
+            copyMethod = 'execCommand';
+            
+            // Keep element for a bit to ensure clipboard is populated
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          
+          document.body.removeChild(textArea);
+        } catch (execError) {
+          // execCommand failed
+        }
+      }
+      
+      if (copySuccess) {
+        setPasswordCopied(true);
+        toast({ 
+          title: "Password copied!",
+          description: `Password copied using ${copyMethod}. Try pasting now (Ctrl+V or Cmd+V).`,
+          duration: 5000
+        });
+      } else {
+        throw new Error('All copy methods failed');
+      }
+      
+    } catch (error) {
+      toast({
+        title: "Automatic copy failed",
+        description: "Please click the password text to select it, then press Ctrl+C (or Cmd+C) to copy manually",
+        variant: "destructive",
+        duration: 7000
+      });
+    }
+  };
+
+  const closeResetPasswordDialog = () => {
+    setResetPasswordDialog({ isOpen: false, userId: '', username: '' });
+    setPasswordCopied(false);
   };
 
   if (!canViewUsers) {
@@ -262,7 +391,7 @@ function UsersTable() {
     }
   };
 
-  const getRoleIcon = (role: string) => {
+  const getRoleIcon = (_role: string) => {
     return <Shield className="h-3 w-3 mr-1" />;
   };
 
@@ -378,6 +507,110 @@ function UsersTable() {
         )}
       </div>
 
+      {/* Password Reset Confirmation/Result Dialog */}
+      <AlertDialog open={resetPasswordDialog.isOpen} onOpenChange={(open) => !open && closeResetPasswordDialog()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {resetPasswordDialog.newPassword ? (
+                <>
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  Password Reset Successful
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="h-5 w-5 text-amber-600" />
+                  Reset Password Confirmation
+                </>
+              )}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              {!resetPasswordDialog.newPassword ? (
+                <>
+                  <p>Are you sure you want to reset the password for user <strong>{resetPasswordDialog.username}</strong>?</p>
+                  <p className="text-sm text-muted-foreground">
+                    A new secure password will be generated. The user will need to use this temporary password to log in.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm">
+                    Password has been reset for user <strong>{resetPasswordDialog.username}</strong>.
+                  </p>
+                  <div className="bg-muted p-4 rounded-lg border space-y-2">
+                    <Label className="text-xs text-muted-foreground">Temporary Password</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="text"
+                        value={resetPasswordDialog.newPassword}
+                        readOnly
+                        className="flex-1 font-mono text-sm"
+                        onClick={(e) => e.currentTarget.select()}
+                        onFocus={(e) => e.currentTarget.select()}
+                      />
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleCopyPassword}
+                        className="shrink-0"
+                      >
+                        {passwordCopied ? (
+                          <>
+                            <CheckCircle2 className="h-4 w-4 mr-1" />
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-4 w-4 mr-1" />
+                            Copy
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      💡 Tip: Click the password field to select all, then press Ctrl+C (or Cmd+C on Mac) to copy
+                    </p>
+                  </div>
+                  <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3 rounded-lg">
+                    <p className="text-sm text-amber-800 dark:text-amber-200 font-medium flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                      <span>
+                        Please save this password securely. For security reasons, it cannot be displayed again. 
+                        Share it with the user through a secure channel.
+                      </span>
+                    </p>
+                  </div>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            {!resetPasswordDialog.newPassword ? (
+              <>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={confirmResetPassword}
+                  disabled={resetUserPassword.isPending}
+                >
+                  {resetUserPassword.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Resetting...
+                    </>
+                  ) : (
+                    'Reset Password'
+                  )}
+                </AlertDialogAction>
+              </>
+            ) : (
+              <AlertDialogAction onClick={closeResetPasswordDialog}>
+                Close
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Suspense fallback={<SkeletonStatsCard />}>
         <UserStatsCards />
       </Suspense>
@@ -427,7 +660,7 @@ function UsersTable() {
                           <Button variant="ghost" size="sm" onClick={() => handleEdit(user)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleResetPassword(user.id)}>
+                          <Button variant="ghost" size="sm" onClick={() => handleResetPassword(user.id, user.username)}>
                             <Key className="h-4 w-4" />
                           </Button>
                           <Button variant="ghost" size="sm" onClick={() => handleDelete(user.id)}>

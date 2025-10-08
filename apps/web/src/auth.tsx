@@ -17,6 +17,10 @@ export interface LoginResponse {
   accessToken: string
   refreshToken: string
   requires2FA: boolean
+  requirePasswordChange?: boolean
+  require2FASetup?: boolean
+  userId?: string
+  tempToken?: string
 }
 
 const AuthContext = React.createContext<AuthContext | null>(null)

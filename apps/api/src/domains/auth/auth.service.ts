@@ -1,5 +1,5 @@
-import { comparePassword } from '../../utils/password';
-import { generateAccessToken, generateRefreshToken } from '../../utils/jwt';
+import { comparePassword, hashPassword } from '../../utils/password';
+import { generateAccessToken, generateRefreshToken, generateTempToken, verifyTempToken } from '../../utils/jwt';
 import { verify2FAToken } from '../../utils/twoFactor';
 import logger from '../../utils/logger';
 import { AuthRepository } from './auth.repository';
@@ -8,11 +8,13 @@ import {
   RefreshTokenDto,
   Verify2FADto,
   LogoutDto,
+  FirstLoginPasswordDto,
 } from './dto';
 import {
   LoginResponse,
   LoginResult,
   Login2FARequiredResult,
+  LoginFirstTimeResult,
   RefreshTokenResult,
   RequestMetadata,
   TokenPayload,
@@ -79,6 +81,23 @@ export class AuthService {
       );
 
       throw new AuthenticationError('Invalid credentials');
+    }
+
+    // Check if this is first login
+    if (user.isFirstLogin) {
+      logger.info(`User ${username} is logging in for the first time`);
+
+      const userData = this.mapUserData(user);
+      const tempToken = generateTempToken(user.id);
+      
+      const result: LoginFirstTimeResult = {
+        requirePasswordChange: true,
+        userId: user.id,
+        tempToken,
+        user: userData,
+      };
+
+      return result;
     }
 
     // Check if 2FA is enabled
@@ -195,6 +214,64 @@ export class AuthService {
     const accessToken = generateAccessToken(tokenPayload);
 
     return { accessToken };
+  }
+
+  /**
+   * Change password on first login
+   */
+  async changePasswordFirstLogin(
+    dto: FirstLoginPasswordDto,
+    metadata: RequestMetadata
+  ): Promise<LoginResult> {
+    const { userId, tempToken, newPassword } = dto;
+
+    // Verify temp token
+    try {
+      const payload = verifyTempToken(tempToken);
+      if (payload.userId !== userId) {
+        throw new AuthenticationError('Invalid token');
+      }
+    } catch (error) {
+      throw new AuthenticationError('Invalid or expired token');
+    }
+
+    // Find user
+    const user = await this.authRepository.findUserById(userId);
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    // Check if user is still in first login state
+    if (!user.isFirstLogin) {
+      throw new ValidationError('Password has already been changed');
+    }
+
+    // Hash new password
+    const hashedPassword = await hashPassword(newPassword);
+
+    // Update password and set isFirstLogin to false
+    await this.authRepository.updateUserPassword(userId, hashedPassword);
+    await this.authRepository.updateUserFirstLoginStatus(userId, false);
+
+    // Log activity
+    await this.authRepository.createActivityLog(
+      userId,
+      'Changed password on first login',
+      'security',
+      metadata,
+      true
+    );
+
+    logger.info(`User ${user.username} changed password on first login`);
+
+    // Generate tokens and complete login (no need to login again)
+    const result = await this.completeLogin(user, metadata, false);
+    
+    // Add flag to indicate if 2FA setup is needed
+    return {
+      ...result,
+      require2FASetup: !user.twoFactor?.enabled,
+    };
   }
 
   /**

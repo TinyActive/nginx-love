@@ -134,4 +134,24 @@ export class AuthRepository {
     }
     return true;
   }
+
+  /**
+   * Update user password
+   */
+  async updateUserPassword(userId: string, hashedPassword: string): Promise<void> {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+  }
+
+  /**
+   * Update user first login status
+   */
+  async updateUserFirstLoginStatus(userId: string, isFirstLogin: boolean): Promise<void> {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isFirstLogin },
+    });
+  }
 }

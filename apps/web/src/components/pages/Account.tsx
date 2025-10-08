@@ -125,9 +125,16 @@ const Account = () => {
       return;
     }
 
-    if (passwordForm.newPassword.length < 8) {
+    // Validate password strength
+    const hasMinLength = passwordForm.newPassword.length >= 8;
+    const hasUpperCase = /[A-Z]/.test(passwordForm.newPassword);
+    const hasLowerCase = /[a-z]/.test(passwordForm.newPassword);
+    const hasNumber = /\d/.test(passwordForm.newPassword);
+    const hasSpecialChar = /[@$!%*?&]/.test(passwordForm.newPassword);
+
+    if (!hasMinLength || !hasUpperCase || !hasLowerCase || !hasNumber || !hasSpecialChar) {
       toast.error("Weak password", {
-        description: "Password must be at least 8 characters long"
+        description: "Password must be at least 8 characters and contain uppercase, lowercase, number, and special character (@$!%*?&)"
       });
       return;
     }

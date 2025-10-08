@@ -3,7 +3,7 @@ import { User, UserWithProfile, UserStatistics } from './users.types';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto, SelfUpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto';
-import { hashPassword } from '../../utils/password';
+import { hashPassword, generateSecurePassword } from '../../utils/password';
 import { ValidationError, NotFoundError, ConflictError } from '../../shared/errors/app-error';
 import { UserStatus, UserRole } from '../../shared/types/common.types';
 import prisma from '../../config/database';
@@ -238,9 +238,8 @@ export class UsersService {
       throw new NotFoundError('User not found');
     }
 
-    // Generate temporary password (16 characters, alphanumeric)
-    const tempPassword =
-      Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8).toUpperCase();
+    // Generate secure temporary password (16 characters with all required types)
+    const tempPassword = generateSecurePassword(16);
     const hashedPassword = await hashPassword(tempPassword);
 
     // Update user password

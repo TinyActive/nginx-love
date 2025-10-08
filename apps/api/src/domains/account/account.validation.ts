@@ -41,8 +41,8 @@ export const changePasswordValidation: ValidationChain[] = [
     .withMessage('New password is required')
     .isLength({ min: 8 })
     .withMessage('New password must be at least 8 characters')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-    .withMessage('Password must contain uppercase, lowercase, and number'),
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/)
+    .withMessage('Password must contain uppercase, lowercase, number, and special character (@$!%*?&)'),
   body('confirmPassword')
     .notEmpty()
     .withMessage('Confirm password is required')
