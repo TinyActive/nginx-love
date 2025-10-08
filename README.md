@@ -33,10 +33,10 @@ This project began as a private service built for a company. Later, my client an
 | **Development/Testing** | `./scripts/quickstart.sh` | Quick run in dev mode (no Nginx installation, no root required) |
 | **Upgrade New Version** | `./scripts/update.sh` | Full update to new version |
 
-| Use Case | Porrt | Description |
+| Use Case | Port | Description |
 |----------|--------|-------------|
-| **Front-end** | 8080 | Front-end Front-end User |
-| **Backend** | 3001 |  Backend port required |
+| **Front-end** | 8080 | Nginx WAF - Advanced Nginx Management Platform Front-end. User required |
+| **Backend** | 3001 |  Nginx WAF - Advanced Nginx Management Platform Backend port required |
 | **Website** | 80 | Website needs to be protected |
 | **Website** | 443 | Website needs to be protected |
 
