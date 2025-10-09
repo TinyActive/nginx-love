@@ -7,8 +7,8 @@ interface ActivityTrackerOptions {
 }
 
 /**
- * Hook để track hoạt động của người dùng
- * Phát hiện các sự kiện: mouse move, click, keypress, scroll, touch
+ * Hook to track user activity.
+ * Detects events: mouse move, click, keypress, scroll, touch.
  */
 export function useActivityTracker({
   onActivity,
@@ -36,8 +36,8 @@ export function useActivityTracker({
     const now = Date.now();
     const timeSinceLastActivity = now - lastActivityRef.current;
 
-    // Chỉ trigger nếu đã qua ít nhất 1 phút kể từ lần cuối
-    // Tránh gọi quá nhiều lần
+    // Only trigger if at least 1 minute has passed since the last time
+    // Prevent calling too many times
     if (timeSinceLastActivity > 60000) { // 1 phút
       lastActivityRef.current = now;
       onActivity();
@@ -48,7 +48,7 @@ export function useActivityTracker({
   }, [onActivity, resetInactivityTimer]);
 
   useEffect(() => {
-    // Các sự kiện để track hoạt động
+    // Events to track user activity
     const events = [
       'mousedown',
       'mousemove',
@@ -58,14 +58,14 @@ export function useActivityTracker({
       'click',
     ];
 
-    // Throttle để tránh gọi quá nhiều
+    // Throttle to avoid calling too frequently
     let throttleTimeout: NodeJS.Timeout | null = null;
     const throttledHandler = () => {
       if (!throttleTimeout) {
         throttleTimeout = setTimeout(() => {
           handleActivity();
           throttleTimeout = null;
-        }, 1000); // Throttle 1 giây
+        }, 1000); // Throttle 1 second
       }
     };
 

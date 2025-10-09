@@ -3,13 +3,13 @@ import { tokenStorage } from '@/lib/auth-storage';
 import { authService } from '@/services/auth.service';
 import { useActivityTracker } from './useActivityTracker';
 
-const TOKEN_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 phút (refresh trước khi token hết hạn 15 phút)
-const INACTIVITY_TIMEOUT = 15 * 60 * 1000; // 15 phút không hoạt động
+const TOKEN_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes (refresh before token expires in 15 minutes)
+const INACTIVITY_TIMEOUT = 15 * 60 * 1000; // 15 minutes of inactivity
 
 /**
- * Hook để tự động refresh token khi user đang hoạt động
- * - Refresh token mỗi 10 phút nếu user đang hoạt động
- * - Logout tự động sau 15 phút không hoạt động
+ * Hook to automatically refresh token when user is active
+ * - Refresh token every 10 minutes if user is active
+ * - Automatically logout after 15 minutes of inactivity
  */
 export function useAutoTokenRefresh() {
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -36,14 +36,15 @@ export function useAutoTokenRefresh() {
       tokenStorage.setAccessToken(result.accessToken);
       tokenStorage.setRefreshToken(result.refreshToken);
 
-      // Dispatch event để các component khác biết token đã được refresh
+    // Dispatch event so other components know the token has been refreshed
       window.dispatchEvent(new CustomEvent('auth:token-refreshed'));
       
       console.log('[Auto Refresh] Token refreshed successfully');
     } catch (error) {
       console.error('[Auto Refresh] Failed to refresh token:', error);
       
-      // Nếu refresh thất bại, logout user
+    // If refresh fails, logout user
+
       tokenStorage.clearAuth();
       window.dispatchEvent(new CustomEvent('auth:logout'));
       window.location.href = '/login';
