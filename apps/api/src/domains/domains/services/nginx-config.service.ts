@@ -237,6 +237,7 @@ ${realIpBlock}
           lines.push(`    set_real_ip_from ${ip};`);
         });
       } catch (error) {
+        logger.error('Failed to get Cloudflare IPs, skipping Real IP config', error);
         logger.error('Failed to fetch Cloudflare IPs for Real IP configuration, disabling Real IP for this domain', error);
         return '';
       }
