@@ -43,7 +43,7 @@ export function useActivityTracker({
       onActivity();
     }
 
-    // Reset inactivity timer mỗi khi có hoạt động
+    // Reset inactivity timer every time there is activity
     resetInactivityTimer();
   }, [onActivity, resetInactivityTimer]);
 
