@@ -38,7 +38,7 @@ export function useActivityTracker({
 
     // Only trigger if at least 1 minute has passed since the last time
     // Prevent calling too many times
-    if (timeSinceLastActivity > 60000) { // 1 phút
+    if (timeSinceLastActivity > 60000) { // 1 minute
       lastActivityRef.current = now;
       onActivity();
     }
