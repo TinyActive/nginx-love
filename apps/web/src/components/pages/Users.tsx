@@ -14,6 +14,7 @@ import { UserPlus, Key, Trash2, Edit, Shield, Loader2, Users as UsersIcon, Copy,
 import { useToast } from "@/hooks/use-toast";
 import { useStore } from "@/store/useStore";
 import { SkeletonStatsCard, SkeletonTable } from "@/components/ui/skeletons";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   useSuspenseUsers,
   useSuspenseUserStats,
@@ -81,6 +82,11 @@ function UsersTable() {
   const [editingUser, setEditingUser] = useState<any>(null);
   const [resetPasswordDialog, setResetPasswordDialog] = useState<{ isOpen: boolean; userId: string; username: string; newPassword?: string; }>({ isOpen: false, userId: '', username: '' });
   const [passwordCopied, setPasswordCopied] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; userId: string; username: string }>({ 
+    isOpen: false, 
+    userId: '', 
+    username: '' 
+  });
 
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
@@ -190,10 +196,16 @@ function UsersTable() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this user?")) return;
+    const user = users.data.find(u => u.id === id);
+    if (!user) return;
+    
+    setDeleteConfirm({ isOpen: true, userId: id, username: user.username });
+  };
 
+  const confirmDelete = async () => {
     try {
-      await deleteUser.mutateAsync(id);
+      await deleteUser.mutateAsync(deleteConfirm.userId);
+      setDeleteConfirm({ isOpen: false, userId: '', username: '' });
       toast({ title: "User deleted successfully" });
     } catch (error: any) {
       toast({
@@ -713,6 +725,26 @@ function UsersTable() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Delete User Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteConfirm.isOpen}
+        onOpenChange={(open) => !open && setDeleteConfirm({ isOpen: false, userId: '', username: '' })}
+        title="Delete User"
+        description={
+          <div className="space-y-2">
+            <p>Are you sure you want to delete user <strong>{deleteConfirm.username}</strong>?</p>
+            <p className="text-sm text-muted-foreground">
+              This action cannot be undone. All data associated with this user will be permanently removed.
+            </p>
+          </div>
+        }
+        confirmText="Delete User"
+        cancelText="Cancel"
+        onConfirm={confirmDelete}
+        isLoading={deleteUser.isPending}
+        variant="destructive"
+      />
     </>
   );
 }

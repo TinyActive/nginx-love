@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Suspense } from "react";
-import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +13,7 @@ import { Plus, Download, Upload, Trash2, Edit, Loader2, UserCog } from "lucide-r
 import { ACLRule } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { SkeletonTable } from "@/components/ui/skeletons";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   useSuspenseAclRules,
   useCreateAclRule,
@@ -25,11 +25,11 @@ import {
 
 // Component for ACL rules table with suspense
 function AclRulesTable() {
-  const { t } = useTranslation();
   const { toast } = useToast();
   const { data: rules } = useSuspenseAclRules();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<ACLRule | null>(null);
+  const [ruleToDelete, setRuleToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const createAclRule = useCreateAclRule();
   const updateAclRule = useUpdateAclRule();
@@ -117,10 +117,13 @@ function AclRulesTable() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async () => {
+    if (!ruleToDelete) return;
+
     try {
-      await deleteAclRule.mutateAsync(id);
+      await deleteAclRule.mutateAsync(ruleToDelete.id);
       toast({ title: "Rule deleted successfully" });
+      setRuleToDelete(null);
     } catch (error: any) {
       toast({
         title: "Error deleting rule",
@@ -365,7 +368,11 @@ function AclRulesTable() {
                       <Button variant="ghost" size="sm" onClick={() => handleEdit(rule)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(rule.id)}>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setRuleToDelete({ id: rule.id, name: rule.name })}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </TableCell>
@@ -376,6 +383,24 @@ function AclRulesTable() {
           </div>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={!!ruleToDelete}
+        onOpenChange={(open) => !open && setRuleToDelete(null)}
+        title="Delete ACL Rule"
+        description={
+          <>
+            Are you sure you want to delete the rule <strong>{ruleToDelete?.name}</strong>?
+            <br />
+            This action cannot be undone and may affect access control to your domains.
+          </>
+        }
+        confirmText="Delete Rule"
+        cancelText="Cancel"
+        onConfirm={handleDelete}
+        isLoading={deleteAclRule.isPending}
+        variant="destructive"
+      />
     </>
   );
 }

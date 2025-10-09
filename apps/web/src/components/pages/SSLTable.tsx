@@ -14,13 +14,26 @@ import {
 } from '@/components/ui/table';
 import { AlertTriangle, CheckCircle2, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { SSLCertificate } from '@/types';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 export function SSLTable() {
   const [renewingId, setRenewingId] = useState<string | null>(null);
   const { data: certificates } = useSuspenseSSLCertificates();
   const renewMutation = useRenewSSLCertificate();
   const deleteMutation = useDeleteSSLCertificate();
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+    certificateId: string;
+  }>({
+    open: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+    certificateId: '',
+  });
 
   const handleRenew = async (id: string) => {
     try {
@@ -34,15 +47,22 @@ export function SSLTable() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this certificate?')) return;
-
-    try {
-      await deleteMutation.mutateAsync(id);
-      toast.success('Certificate deleted successfully');
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to delete certificate');
-    }
+  const handleDelete = (id: string, domainName: string) => {
+    setConfirmDialog({
+      open: true,
+      title: 'Delete SSL Certificate',
+      description: `Are you sure you want to delete the SSL certificate for ${domainName}? This action cannot be undone.`,
+      certificateId: id,
+      onConfirm: async () => {
+        try {
+          await deleteMutation.mutateAsync(id);
+          toast.success('Certificate deleted successfully');
+          setConfirmDialog(prev => ({ ...prev, open: false }));
+        } catch (error: any) {
+          toast.error(error.response?.data?.message || 'Failed to delete certificate');
+        }
+      },
+    });
   };
 
   const getStatusIcon = (status: string) => {
@@ -145,7 +165,7 @@ export function SSLTable() {
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={() => handleDelete(cert.id)}
+                          onClick={() => handleDelete(cert.id, cert.domain?.name || cert.commonName)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -158,6 +178,16 @@ export function SSLTable() {
           </div>
         )}
       </CardContent>
+      
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        onConfirm={confirmDialog.onConfirm}
+        confirmText="Delete"
+        isLoading={deleteMutation.isPending}
+      />
     </Card>
   );
 }

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Suspense } from "react";
-import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,10 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Send, Edit, Trash2, Mail, MessageSquare, Loader2, Bell } from "lucide-react";
-import { NotificationChannel, AlertRule } from "@/types";
+import { Plus, Send, Trash2, Mail, MessageSquare, Loader2, Bell } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SkeletonTable } from "@/components/ui/skeletons";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   useSuspenseNotificationChannels,
   useSuspenseAlertRules,
@@ -29,10 +28,10 @@ import {
 
 // Component for notification channels with suspense
 function NotificationChannelsTab() {
-  const { t } = useTranslation();
   const { toast } = useToast();
   const { data: channels } = useSuspenseNotificationChannels();
   const [isChannelDialogOpen, setIsChannelDialogOpen] = useState(false);
+  const [channelToDelete, setChannelToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const createNotificationChannel = useCreateNotificationChannel();
   const updateNotificationChannel = useUpdateNotificationChannel();
@@ -101,10 +100,13 @@ function NotificationChannelsTab() {
     }
   };
 
-  const handleDeleteChannel = async (id: string) => {
+  const handleDeleteChannel = async () => {
+    if (!channelToDelete) return;
+
     try {
-      await deleteNotificationChannel.mutateAsync(id);
+      await deleteNotificationChannel.mutateAsync(channelToDelete.id);
       toast({ title: "Channel deleted successfully" });
+      setChannelToDelete(null);
     } catch (error: any) {
       toast({
         title: "Error deleting channel",
@@ -263,7 +265,11 @@ function NotificationChannelsTab() {
                     <Button variant="ghost" size="sm" onClick={() => handleTestNotification(channel.id)}>
                       <Send className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDeleteChannel(channel.id)}>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setChannelToDelete({ id: channel.id, name: channel.name })}
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </TableCell>
@@ -272,6 +278,24 @@ function NotificationChannelsTab() {
             </TableBody>
           </Table>
         </div>
+
+        <ConfirmDialog
+          open={!!channelToDelete}
+          onOpenChange={(open) => !open && setChannelToDelete(null)}
+          title="Delete Notification Channel"
+          description={
+            <>
+              Are you sure you want to delete the channel <strong>{channelToDelete?.name}</strong>?
+              <br />
+              This action cannot be undone and all associated alert rules will be affected.
+            </>
+          }
+          confirmText="Delete Channel"
+          cancelText="Cancel"
+          onConfirm={handleDeleteChannel}
+          isLoading={deleteNotificationChannel.isPending}
+          variant="destructive"
+        />
       </CardContent>
     </Card>
   );
@@ -279,11 +303,11 @@ function NotificationChannelsTab() {
 
 // Component for alert rules with suspense
 function AlertRulesTab() {
-  const { t } = useTranslation();
   const { toast } = useToast();
   const { data: channels } = useSuspenseNotificationChannels();
   const { data: alertRules } = useSuspenseAlertRules();
   const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
+  const [ruleToDelete, setRuleToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const createAlertRule = useCreateAlertRule();
   const updateAlertRule = useUpdateAlertRule();
@@ -390,10 +414,13 @@ function AlertRulesTab() {
     });
   };
 
-  const handleDeleteRule = async (id: string) => {
+  const handleDeleteRule = async () => {
+    if (!ruleToDelete) return;
+
     try {
-      await deleteAlertRule.mutateAsync(id);
+      await deleteAlertRule.mutateAsync(ruleToDelete.id);
       toast({ title: "Rule deleted successfully" });
+      setRuleToDelete(null);
     } catch (error: any) {
       toast({
         title: "Error deleting rule",
@@ -624,7 +651,11 @@ function AlertRulesTab() {
                     />
                   </TableCell>
                   <TableCell className="text-right space-x-2">
-                    <Button variant="ghost" size="sm" onClick={() => handleDeleteRule(rule.id)}>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setRuleToDelete({ id: rule.id, name: rule.name })}
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </TableCell>
@@ -633,6 +664,24 @@ function AlertRulesTab() {
             </TableBody>
           </Table>
         </div>
+
+        <ConfirmDialog
+          open={!!ruleToDelete}
+          onOpenChange={(open) => !open && setRuleToDelete(null)}
+          title="Delete Alert Rule"
+          description={
+            <>
+              Are you sure you want to delete the rule <strong>{ruleToDelete?.name}</strong>?
+              <br />
+              This action cannot be undone and you will stop receiving alerts for this condition.
+            </>
+          }
+          confirmText="Delete Rule"
+          cancelText="Cancel"
+          onConfirm={handleDeleteRule}
+          isLoading={deleteAlertRule.isPending}
+          variant="destructive"
+        />
       </CardContent>
     </Card>
   );
