@@ -54,6 +54,7 @@ export type LoginResponse = LoginResult | Login2FARequiredResult | LoginFirstTim
 
 export interface RefreshTokenResult {
   accessToken: string;
+  refreshToken: string;
 }
 
 export interface RequestMetadata {

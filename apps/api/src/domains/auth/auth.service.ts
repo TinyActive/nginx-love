@@ -209,11 +209,21 @@ export class AuthService {
       throw new AuthenticationError('Refresh token expired');
     }
 
-    // Generate new access token
+    // Generate new tokens (rotate refresh token for better security)
     const tokenPayload = this.createTokenPayload(tokenRecord.user);
     const accessToken = generateAccessToken(tokenPayload);
+    const newRefreshToken = generateRefreshToken(tokenPayload);
 
-    return { accessToken };
+    // Revoke old refresh token
+    await this.authRepository.revokeRefreshToken(refreshToken);
+
+    // Save new refresh token
+    const expiresAt = new Date(
+      Date.now() + this.REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000
+    );
+    await this.authRepository.saveRefreshToken(tokenRecord.user.id, newRefreshToken, expiresAt);
+
+    return { accessToken, refreshToken: newRefreshToken };
   }
 
   /**

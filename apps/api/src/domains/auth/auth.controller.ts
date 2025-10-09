@@ -192,6 +192,7 @@ export class AuthController {
         message: 'Token refreshed successfully',
         data: {
           accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
         },
       });
     } catch (error) {

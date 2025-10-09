@@ -2,6 +2,7 @@ import * as React from 'react'
 import { UserProfile } from '@/types'
 import { authService } from '@/services/auth.service'
 import { useAuthStorage } from '@/hooks/useAuthStorage'
+import { useAutoTokenRefresh } from '@/hooks/useAutoTokenRefresh'
 
 export interface AuthContext {
   isAuthenticated: boolean
@@ -28,6 +29,9 @@ const AuthContext = React.createContext<AuthContext | null>(null)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, setAuth, clearAuth } = useAuthStorage()
   const [isLoading, setIsLoading] = React.useState(false)
+
+  // Auto refresh token khi user đang hoạt động
+  useAutoTokenRefresh()
 
   const logout = React.useCallback(async () => {
     try {
