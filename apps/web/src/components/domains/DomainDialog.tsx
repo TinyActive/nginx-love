@@ -83,8 +83,8 @@ export function DomainDialog({ open, onOpenChange, domain, onSave }: DomainDialo
           healthCheckPath: domain.loadBalancer?.healthCheckPath || '/health',
           healthCheckInterval: domain.loadBalancer?.healthCheckInterval || 30,
           healthCheckTimeout: domain.loadBalancer?.healthCheckTimeout || 5,
-          realIpEnabled: (domain as any).realIpEnabled || false,
-          realIpCloudflare: (domain as any).realIpCloudflare || false,
+          // realIpEnabled: (domain as any).realIpEnabled || false,
+          // realIpCloudflare: (domain as any).realIpCloudflare || false,
           realIpEnabled: domain?.realIpEnabled || false,
           realIpCloudflare: domain?.realIpCloudflare || false,
         });
