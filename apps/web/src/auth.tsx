@@ -30,7 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, setAuth, clearAuth } = useAuthStorage()
   const [isLoading, setIsLoading] = React.useState(false)
 
-  // Auto refresh token khi user đang hoạt động
+  // Auto refresh token when user is active
   useAutoTokenRefresh()
 
   const logout = React.useCallback(async () => {
