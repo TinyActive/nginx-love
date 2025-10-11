@@ -196,6 +196,37 @@ if ! systemctl is-active --quiet nginx-love-frontend.service; then
 fi
 log "✓ Frontend service started"
 
+# Update nginx configuration
+#backup existing nginx config
+ORIGINAL_FILE_NGINX="/etc/nginx/nginx.conf"
+BACKUP_FILE="${ORIGINAL_FILE_NGINX}.bak-$(date +%Y%m%d%H%M%S)"
+if [ -f /etc/nginx/nginx.conf ]; then
+    mv /etc/nginx/nginx.conf "${BACKUP_FILE}" || warn "Failed to backup existing nginx config"
+    log "✓ Existing nginx config backed up"
+fi
+# copy new config
+if [ ! -f "$PROJECT_DIR"/config/nginx.conf ]; then
+    error "Nginx config file not found in $PROJECT_DIR/config/nginx.conf"
+else
+    log "✓ Nginx config file found"
+    cp "$PROJECT_DIR"/config/nginx.conf "${ORIGINAL_FILE_NGINX}" || error "Failed to copy nginx config"
+fi
+
+# test nginx config
+if ! nginx -t >> "$LOG_FILE" 2>&1; then
+    error "Nginx configuration test failed. Check logs: tail -f $LOG_FILE"
+    # restore backup
+    if [ -f "${BACKUP_FILE}" ]; then
+        rm "${ORIGINAL_FILE_NGINX}"
+        mv "${BACKUP_FILE}" "${ORIGINAL_FILE_NGINX}" || warn "Failed to restore nginx config from backup"
+        log "✓ Nginx config restored from backup"
+    fi
+
+else
+    log "✓ Nginx configuration test passed"
+    systemctl reload nginx || error "Failed to reload nginx"
+fi
+
 # Ensure nginx is running
 if ! systemctl is-active --quiet nginx; then
     systemctl start nginx || error "Failed to start nginx"
