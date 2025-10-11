@@ -1,4 +1,4 @@
-# Build stage
+# Production stage
 FROM node:20-alpine AS builder
 
 # Install pnpm
@@ -7,18 +7,18 @@ RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 WORKDIR /app
 
 # Copy workspace files
-COPY pnpm-workspace.yaml ./
-COPY package.json pnpm-lock.yaml ./
-COPY turbo.json ./
+COPY /docker/pnpm-workspace.yaml ./
+COPY /docker/package.json pnpm-lock.yaml ./
+COPY /docker/turbo.json ./
 
 # Copy app package files
-COPY apps/api/package.json ./apps/api/
+COPY /docker/apps/api/package.json ./apps/api/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
 # Copy source code
-COPY apps/api ./apps/api
+COPY /apps/api ./apps/api
 
 # Generate Prisma client
 RUN cd apps/api && pnpm prisma:generate
@@ -27,7 +27,14 @@ RUN cd apps/api && pnpm prisma:generate
 RUN pnpm --filter @nginx-love/api build
 
 # Production stage
-FROM node:20-slim
+FROM vouu/nginx-modsecurity-base
+
+RUN apt-get update && apt-get install -y curl ca-certificates gnupg && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/
+
+RUN npm install -g corepack && corepack enable && corepack prepare pnpm@8.15.0 --activate
 
 # Install OpenSSL and wget for Prisma and health checks
 RUN apt-get update && apt-get install -y openssl wget && rm -rf /var/lib/apt/lists/*
@@ -52,13 +59,26 @@ RUN pnpm install --frozen-lockfile --filter @nginx-love/api
 # Generate Prisma client
 RUN cd apps/api && pnpm prisma:generate
 
+# Install acme.sh for SSL certificate management
+RUN cd /tmp && \
+    wget -O acme.sh.tar.gz https://github.com/acmesh-official/acme.sh/archive/master.tar.gz && \
+    tar -xzf acme.sh.tar.gz && \
+    cd acme.sh-master && \
+    ./acme.sh --install --force --home /root/.acme.sh && \
+    ln -s /root/.acme.sh/acme.sh /usr/local/bin/acme.sh && \
+    rm -rf /tmp/acme.sh*
+
 WORKDIR /app/apps/api
 
+
+COPY /docker/start.sh /start.sh
+RUN chmod +x /start.sh
+
 # Expose port 3001
-EXPOSE 3001
+EXPOSE 80 443 3001 
 
 # Health check (using root endpoint)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3001/ || exit 1
 
-CMD ["node", "dist/index.js"]
+CMD ["/start.sh"]

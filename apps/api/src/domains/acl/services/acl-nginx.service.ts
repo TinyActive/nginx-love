@@ -14,7 +14,7 @@ const execAsync = promisify(exec);
 export class AclNginxService {
   private readonly ACL_CONFIG_FILE = '/etc/nginx/conf.d/acl-rules.conf';
   private readonly NGINX_TEST_CMD = 'nginx -t';
-  private readonly NGINX_RELOAD_CMD = 'systemctl reload nginx';
+  private readonly NGINX_RELOAD_CMD = 'nginx -s reload';
 
   /**
    * Generate Nginx ACL configuration from database rules

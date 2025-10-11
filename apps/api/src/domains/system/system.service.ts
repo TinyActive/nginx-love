@@ -52,14 +52,22 @@ export class SystemService {
   /**
    * Get nginx status
    */
-  async getNginxStatus(): Promise<NginxStatus> {
+  async getNginxStatus() {
     try {
-      const { stdout } = await execAsync('systemctl status nginx');
+      const { stdout } = await execAsync("pgrep nginx > /dev/null && echo 'true' || echo 'false'");
 
-      return {
-        running: stdout.includes('active (running)'),
-        output: stdout,
-      };
+      if (stdout.trim() ===  "true") {
+         return {
+          running: stdout.includes('active (running)'),
+          output: stdout,
+        };
+      } else {
+        return {
+          running: false,
+          output: 'Nginx is not running',
+        };
+      }
+     
     } catch (error: any) {
       return {
         running: false,

@@ -347,6 +347,9 @@ EOF
 # Set permissions
 chown -R www-data:www-data /var/www/html
 chmod -R 755 /var/www/html
+sed -i 's/^\s*listen \[::\]:80 default_server;/# &/' /etc/nginx/sites-available/default
+#nginx -t
+#nginx
 
 # Create systemd service
 cat > /etc/systemd/system/nginx.service << 'EOF'
@@ -368,10 +371,18 @@ PrivateTmp=true
 WantedBy=multi-user.target
 EOF
 
-# Enable and start nginx
-systemctl daemon-reload
-systemctl enable nginx >> "${INSTALL_LOG}" 2>&1
-systemctl start nginx >> "${INSTALL_LOG}" 2>&1
+
+# Enable and start nginx safely
+if [ "$(ps -p 1 -o comm=)" = "systemd" ]; then
+    log "Systemd detected — enabling and starting nginx service..."
+    systemctl daemon-reload
+    systemctl enable nginx >> "${INSTALL_LOG}" 2>&1
+    systemctl start nginx >> "${INSTALL_LOG}" 2>&1
+else
+    log "No systemd detected (likely Docker build). Starting nginx manually..."
+    nginx -t >> "${INSTALL_LOG}" 2>&1 || error_exit "Nginx configuration test failed"
+    nginx >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to start nginx manually"
+fi
 
 # Test nginx
 if nginx -t >> "${INSTALL_LOG}" 2>&1; then
@@ -400,3 +411,9 @@ echo -e "Nginx with ModSecurity is now running"
 echo -e "Access: http://localhost"
 echo -e "Status: http://localhost/nginx_status (from localhost only)"
 echo -e "Logs: tail -f /var/log/nginx-modsecurity-install.log"
+mkdir -p /etc/nginx/ssl 
+mkdir -p /etc/nginx/conf.d 
+mkdir -p /etc/nginx/snippets 
+mkdir -p /var/www/html/.well-known/acme-challenge 
+chmod -R 755 /var/www/html/.well-known 
+touch /etc/nginx/conf.d/acl-rules.conf

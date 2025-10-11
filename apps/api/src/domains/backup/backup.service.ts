@@ -42,7 +42,7 @@ export class BackupService {
       await execAsync('nginx -t');
 
       logger.info('Reloading nginx...');
-      await execAsync('systemctl reload nginx');
+      await execAsync('nginx -s reload');
 
       logger.info('Nginx reloaded successfully');
       return true;
@@ -977,6 +977,10 @@ export class BackupService {
       domain.upstreams?.some((u: any) => u.protocol === 'https') || false;
     const upstreamProtocol = hasHttpsUpstream ? 'https' : 'http';
 
+    // Calculate keepalive connections: 10 connections per backend
+    const backendCount = domain.upstreams?.length || 0;
+    const keepaliveConnections = backendCount * 10;
+
     const upstreamBlock = `
 upstream ${domain.name.replace(/\./g, '_')}_backend {
     ${domain.loadBalancer?.algorithm === 'least_conn' ? 'least_conn;' : ''}
@@ -990,6 +994,9 @@ upstream ${domain.name.replace(/\./g, '_')}_backend {
           } fail_timeout=${u.failTimeout || 10}s;`
       )
       .join('\n    ')}
+    
+    # Keepalive connections - 10 per backend (${backendCount} backends)
+    keepalive ${keepaliveConnections};
 }
 `;
 

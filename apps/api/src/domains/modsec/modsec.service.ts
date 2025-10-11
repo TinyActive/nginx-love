@@ -108,13 +108,13 @@ export class ModSecService {
       // Try graceful reload first
       try {
         logger.info('Auto-reloading nginx (graceful)...');
-        await execAsync('systemctl reload nginx');
+        await execAsync('nginx -s reload');
 
         // Wait for reload to take effect
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Verify nginx is active
-        const { stdout } = await execAsync('systemctl is-active nginx');
+        const { stdout } = await execAsync("pgrep nginx > /dev/null && echo 'active' || echo 'inactive'");
         if (stdout.trim() === 'active') {
           logger.info('Nginx auto-reloaded successfully');
           return { success: true };
@@ -125,13 +125,13 @@ export class ModSecService {
 
       // Fallback to restart
       logger.info('Auto-restarting nginx...');
-      await execAsync('systemctl restart nginx');
+      await execAsync('nginx -s stop || true && rm -f /var/run/nginx.pid && nginx');
 
       // Wait for restart
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       // Verify nginx started
-      const { stdout } = await execAsync('systemctl is-active nginx');
+      const { stdout } = await execAsync("pgrep nginx > /dev/null && echo 'active' || echo 'inactive'");
       if (stdout.trim() !== 'active') {
         throw new Error('Nginx not active after restart');
       }

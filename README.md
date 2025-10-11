@@ -61,6 +61,55 @@ git pull
 bash scripts/update.sh
 ```
 
+### 🖥️ Production Deployment (Docker container)
+
+## Environment Setup
+
+Before running the application, you need to set up your environment variables:
+
+1. Copy the example environment file to create your local environment configuration:
+   ```bash
+   cp .env.example .env
+   ```
+
+   Update the following required environment variables in your `.env` file:
+
+      | Variable | Description | Example Value | Required |
+      |----------|-------------|---------------|----------|
+      | `JWT_ACCESS_SECRET` | Secret key for JWT access tokens | `your-random-secret-key-32-chars` | ✅ Yes |
+      | `JWT_REFRESH_SECRET` | Secret key for JWT refresh tokens | `your-random-secret-key-32-chars` | ✅ Yes |
+      | `SESSION_SECRET` | Secret key for session management | `your-random-secret-key-32-chars` | ✅ Yes |
+      | `VITE_API_URL` | Backend API URL for frontend | `http://YOUR_SERVER_IP:3001/api` | ✅ Yes |
+      | `DB_NAME` | PostgreSQL database name | `nginx_waf` | ✅ Yes |
+      | `DB_USER` | PostgreSQL database user | `postgres` | ✅ Yes |
+      | `DB_PASSWORD` | PostgreSQL database password | `postgres` | ✅ Yes |
+      | `POSTGRES_INITDB_ARGS` | PostgreSQL initialization arguments | `--encoding=UTF-8 --lc-collate=C --lc-ctype=C` | ⚠️ Optional |
+      | `CORS_ORIGIN` | Allowed CORS origins (comma-separated) | `http://YOUR_SERVER_IP:8080,http://localhost:8080` | ✅ Yes |
+
+      **Security Note**: Generate strong random secrets using:
+      ```bash
+      openssl rand -base64 32
+      ```
+
+2. Edit the `.env` file and configure the necessary environment variables according to your local setup.
+
+
+
+
+**Note**: The `.env.example` file serves as a template with all required environment variables. Make sure to update the values in your `.env` file with your actual configuration before starting the application.
+
+
+```bash
+# Clone repository
+git clone https://github.com/TinyActive/nginx-love.git
+cd nginx-love
+
+# Run script install docker latest version
+bash docker/scripts/docker.sh
+docker-compose build && docker-compose up -d
+
+```
+
 
 
 **Minimum Requirements:**

@@ -75,10 +75,16 @@ export class NginxConfigService {
       `server ${u.host}:${u.port} weight=${u.weight} max_fails=${u.maxFails} fail_timeout=${u.failTimeout}s;`
     ).join('\n    ');
 
+    // Calculate keepalive connections: 10 connections per backend
+    const keepaliveConnections = domain.upstreams.length * 10;
+
     return `
 upstream ${upstreamName}_backend {
     ${algorithmDirectives.join('\n    ')}
     ${algorithmDirectives.length > 0 ? '\n    ' : ''}${servers}
+    
+    # Keepalive connections - 10 per backend (${domain.upstreams.length} backends)
+    keepalive ${keepaliveConnections};
 }
 `;
   }

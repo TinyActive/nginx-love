@@ -6,7 +6,7 @@ import { NginxReloadResult, EnvironmentInfo } from '../domains.types';
 const execAsync = promisify(exec);
 
 /**
- * Service for reloading Nginx configuration
+ * Service for reloading and restarting Nginx safely
  */
 export class NginxReloadService {
   /**
@@ -24,165 +24,140 @@ export class NginxReloadService {
   }
 
   /**
-   * Test nginx configuration
+   * Test nginx configuration validity
    */
   private async testConfig(): Promise<{ success: boolean; error?: string }> {
     try {
       await execAsync('nginx -t');
-      logger.info('Nginx configuration test passed');
+      logger.info('✅ Nginx configuration test passed');
       return { success: true };
     } catch (error: any) {
-      logger.error('Nginx configuration test failed:', error.stderr);
+      logger.error('❌ Nginx configuration test failed:', error.stderr);
       return { success: false, error: error.stderr };
     }
   }
 
   /**
-   * Verify nginx is running
+   * Check if nginx process is running
    */
-  private async verifyRunning(isContainer: boolean): Promise<boolean> {
+  private async verifyRunning(): Promise<boolean> {
     try {
-      if (isContainer) {
-        const { stdout } = await execAsync(
-          'pgrep nginx > /dev/null && echo "running" || echo "not running"'
-        );
-        return stdout.trim() === 'running';
-      } else {
-        const { stdout } = await execAsync('systemctl is-active nginx');
-        return stdout.trim() === 'active';
-      }
-    } catch (error) {
+      const { stdout } = await execAsync(
+        'pgrep nginx > /dev/null && echo "running" || echo "not running"'
+      );
+      return stdout.trim() === 'running';
+    } catch {
       return false;
     }
   }
 
   /**
-   * Attempt graceful reload
+   * Attempt graceful reload (reload without stop)
    */
-  private async attemptReload(isContainer: boolean): Promise<boolean> {
+  private async attemptReload(): Promise<boolean> {
     try {
-      if (isContainer) {
-        logger.info('Attempting graceful nginx reload (container mode)...');
+      logger.info('🔁 Attempting graceful nginx reload...');
+      await execAsync('nginx -t'); // check config before reload
+
+      try {
         await execAsync('nginx -s reload');
-      } else {
-        logger.info('Attempting graceful nginx reload (host mode)...');
-        await execAsync('systemctl reload nginx');
+      } catch (e) {
+        logger.warn('⚠️ Reload failed, forcing restart instead...');
+        await execAsync('rm -f /var/run/nginx.pid && nginx');
       }
 
-      // Wait for reload to take effect
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // wait a little for reload to apply
+      await new Promise((r) => setTimeout(r, 500));
 
-      // Verify nginx is still running
-      const isRunning = await this.verifyRunning(isContainer);
+      const isRunning = await this.verifyRunning();
 
       if (isRunning) {
-        logger.info(
-          `Nginx reloaded successfully (${isContainer ? 'container' : 'host'} mode)`
-        );
+        logger.info('✅ Nginx reloaded successfully');
         return true;
       }
 
+      logger.warn('⚠️ Nginx reload reported as not running, fallback to restart');
       return false;
     } catch (error: any) {
-      logger.warn('Graceful reload failed:', error.message);
+      logger.error('❌ Graceful reload failed:', error.message);
       return false;
     }
   }
 
   /**
-   * Attempt restart
+   * Attempt to restart nginx safely
    */
-  private async attemptRestart(isContainer: boolean): Promise<boolean> {
+  private async attemptRestart(): Promise<boolean> {
     try {
-      if (isContainer) {
-        logger.info('Restarting nginx (container mode)...');
-        // Check if nginx is running
-        try {
-          await execAsync('pgrep nginx');
-          // If running, try to stop and start
-          await execAsync('nginx -s stop');
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          await execAsync('nginx');
-        } catch (e) {
-          // If not running, just start it
-          await execAsync('nginx');
-        }
-      } else {
-        logger.info('Restarting nginx (host mode)...');
-        await execAsync('systemctl restart nginx');
-      }
+      logger.info('♻️ Restarting nginx...');
 
-      // Wait for restart to complete
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Clean up old PID if exists
+      await execAsync('rm -f /var/run/nginx.pid || true');
 
-      // Verify nginx started
-      const isRunning = await this.verifyRunning(isContainer);
+      // Verify config
+      await execAsync('nginx -t');
 
+      // Start nginx fresh
+      await execAsync('nginx');
+
+      // Give it time to come up
+      await new Promise((r) => setTimeout(r, 1000));
+
+      const isRunning = await this.verifyRunning();
       if (!isRunning) {
-        throw new Error(
-          `Nginx failed to start after restart (${isContainer ? 'container' : 'host'} mode)`
-        );
+        throw new Error('Nginx failed to start after restart');
       }
 
-      logger.info(
-        `Nginx restarted successfully (${isContainer ? 'container' : 'host'} mode)`
-      );
+      logger.info('✅ Nginx restarted successfully');
       return true;
     } catch (error: any) {
-      logger.error('Nginx restart failed:', error);
+      logger.error('❌ Nginx restart failed:', error.stderr || error.message);
       throw error;
     }
   }
 
   /**
-   * Auto reload nginx with smart retry logic
-   * @param silent - If true, don't throw errors, just log them
+   * Auto reload nginx with retry logic
    */
   async autoReload(silent: boolean = false): Promise<boolean> {
     try {
       const env = this.detectEnvironment();
       logger.info(
-        `Environment check - Container: ${env.isContainer}, Node Env: ${env.nodeEnv}`
+        `🌍 Environment check - Container: ${env.isContainer}, Node Env: ${env.nodeEnv}`
       );
 
-      // Test nginx configuration first
+      // Step 1: Test config
       const configTest = await this.testConfig();
       if (!configTest.success) {
-        if (!silent) {
-          throw new Error(`Nginx config test failed: ${configTest.error}`);
-        }
+        if (!silent) throw new Error(`Nginx config test failed: ${configTest.error}`);
         return false;
       }
 
-      // Try graceful reload first
-      const reloadSuccess = await this.attemptReload(env.isContainer);
-      if (reloadSuccess) {
-        return true;
-      }
+      // Step 2: Try reload first
+      const reloadSuccess = await this.attemptReload();
+      if (reloadSuccess) return true;
 
-      // Fallback to restart
-      logger.warn('Graceful reload failed, trying restart...');
-      await this.attemptRestart(env.isContainer);
+      // Step 3: Fallback to restart
+      logger.warn('🔁 Graceful reload failed, trying restart...');
+      await this.attemptRestart();
       return true;
     } catch (error: any) {
-      logger.error('Auto reload nginx failed:', error);
+      logger.error('❌ Auto reload nginx failed:', error);
       if (!silent) throw error;
       return false;
     }
   }
 
   /**
-   * Reload nginx configuration with smart retry logic
-   * Used by the manual reload endpoint
+   * Manual reload endpoint handler
    */
   async reload(): Promise<NginxReloadResult> {
     try {
       const env = this.detectEnvironment();
       logger.info(
-        `[reloadNginx] Environment check - Container: ${env.isContainer}, Node Env: ${env.nodeEnv}`
+        `[reloadNginx] Environment - Container: ${env.isContainer}, Node Env: ${env.nodeEnv}`
       );
 
-      // Test nginx configuration first
       const configTest = await this.testConfig();
       if (!configTest.success) {
         return {
@@ -191,8 +166,7 @@ export class NginxReloadService {
         };
       }
 
-      // Try graceful reload first
-      const reloadSuccess = await this.attemptReload(env.isContainer);
+      const reloadSuccess = await this.attemptReload();
 
       if (reloadSuccess) {
         return {
@@ -202,9 +176,8 @@ export class NginxReloadService {
         };
       }
 
-      // Fallback to restart
-      logger.info('[reloadNginx] Falling back to nginx restart...');
-      await this.attemptRestart(env.isContainer);
+      logger.info('[reloadNginx] Reload failed, performing restart...');
+      await this.attemptRestart();
 
       return {
         success: true,

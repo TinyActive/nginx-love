@@ -1,0 +1,40 @@
+# Frontend Dockerfile for nginx-love React/Vite app
+FROM node:20-alpine
+
+# Install pnpm globally
+RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
+
+# Set working directory
+WORKDIR /app
+
+# Copy workspace configuration files
+COPY ../pnpm-workspace.yaml ./
+COPY ../package.json ./
+COPY ../pnpm-lock.yaml ./
+COPY ../turbo.json ./
+
+# Copy web app package.json for dependency installation
+COPY ../apps/web/package.json ./apps/web/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy the entire web application source code
+COPY ../apps/web ./apps/web
+
+# Accept build args for environment variables
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
+# Build the Vite React application
+RUN pnpm --filter @nginx-love/web build
+
+# Expose port 8080 (as configured in package.json dev script)
+EXPOSE 8080
+
+# Health check for development server
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
+
+    # Start the development server
+CMD ["pnpm", "--filter", "@nginx-love/web", "preview", "--", "--host", "0.0.0.0", "--port", "8080"]

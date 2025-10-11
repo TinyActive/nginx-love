@@ -451,6 +451,50 @@ if ! systemctl is-active --quiet nginx; then
     
     systemctl start nginx || error "Failed to start nginx"
 fi
+# Configure Nginx
+log "Configuring Nginx with custom settings..."
+cd "${PROJECT_DIR}"
+
+# Check if custom config exists
+if [ ! -f "config/nginx.conf" ]; then
+    error "Custom Nginx configuration not found at ${PROJECT_DIR}/config/nginx.conf"
+fi
+
+# Create backup with timestamp
+BACKUP_FILE="/etc/nginx/nginx.conf.bak-$(date +%Y%m%d%H%M%S)"
+if ! cp -f /etc/nginx/nginx.conf "${BACKUP_FILE}" 2>/dev/null; then
+    warn "Failed to create backup of original Nginx config"
+else
+    log "Created backup of original config at ${BACKUP_FILE}"
+fi
+
+# Copy custom config
+if ! cp -f config/nginx.conf /etc/nginx/nginx.conf; then
+    error "Failed to copy custom Nginx configuration"
+fi
+
+# Test nginx configuration
+if nginx -t >> "$LOG_FILE" 2>&1; then
+    log "✓ Nginx configuration test passed"
+    
+    # Reload nginx to apply changes
+    if systemctl reload nginx >> "$LOG_FILE" 2>&1; then
+        log "✓ Nginx configuration reloaded successfully"
+    else
+        warn "Failed to reload Nginx, attempting restart"
+        systemctl restart nginx >> "$LOG_FILE" 2>&1
+    fi
+else
+    warn "Nginx configuration test failed, reverting to backup"
+    cp -f "${BACKUP_FILE}" /etc/nginx/nginx.conf
+    
+    # Log the specific error for troubleshooting
+    echo -e "${RED}Nginx configuration error:${NC}" | tee -a "$LOG_FILE"
+    nginx -t 2>&1 | tee -a "$LOG_FILE"
+    
+    warn "Reverted to original configuration"
+fi
+
 log "✓ Nginx running"
 
 # Final Summary

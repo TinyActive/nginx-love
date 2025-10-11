@@ -29,7 +29,10 @@ services:
 
   # Backend API Service
   backend:
-    image: vouu/nginx-waf-backend:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: nginx-love-backend
     restart: unless-stopped
     
     ports:
@@ -51,7 +54,7 @@ services:
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
       
       # CORS Configuration
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080,http://localhost:5173}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://167.172.76.108:8080,http://localhost:8080,http://localhost:5173}
       
       # Security
       BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-10}

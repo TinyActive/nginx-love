@@ -17,16 +17,15 @@ let monitoringTimer: NodeJS.Timeout | null = null;
 let slaveStatusTimer: NodeJS.Timeout | null = null;
 
 // Security middleware
-app.use(helmet());
+// app.use(helmet());
 
 // CORS
-app.use(
-  cors({
-    origin: config.cors.origin,
-    credentials: true,
-  })
-);
-
+app.use(cors({
+  origin: config.cors.origin,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  credentials: true,
+}));
 // Body parser
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
