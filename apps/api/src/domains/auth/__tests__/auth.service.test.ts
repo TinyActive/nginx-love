@@ -39,6 +39,7 @@ describe('AuthService', () => {
     phone: null,
     timezone: 'Asia/Ho_Chi_Minh',
     language: 'en',
+    isFirstLogin: false,
     lastLogin: null,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -336,12 +337,18 @@ describe('AuthService', () => {
       vi.spyOn(authRepository, 'findRefreshToken').mockResolvedValue(mockTokenRecord);
       vi.spyOn(authRepository, 'isRefreshTokenValid').mockReturnValue(true);
       vi.spyOn(jwtUtil, 'generateAccessToken').mockReturnValue(mockAccessToken);
+      vi.spyOn(jwtUtil, 'generateRefreshToken').mockReturnValue('new-refresh-token');
+      vi.spyOn(authRepository, 'saveRefreshToken').mockResolvedValue(undefined);
+      vi.spyOn(authRepository, 'revokeRefreshToken').mockResolvedValue(undefined);
 
       // Act
       const result = await authService.refreshAccessToken(refreshDto);
 
       // Assert
-      expect(result).toEqual({ accessToken: mockAccessToken });
+      expect(result).toEqual({
+        accessToken: mockAccessToken,
+        refreshToken: 'new-refresh-token'
+      });
     });
 
     it('should throw AuthenticationError for non-existent token', async () => {

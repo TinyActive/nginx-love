@@ -15,7 +15,13 @@ export const generateAccessToken = (payload: TokenPayload): string => {
 };
 
 export const generateRefreshToken = (payload: TokenPayload): string => {
-  return jwt.sign(payload, config.jwt.refreshSecret, {
+  // Add a random jti (JWT ID) to ensure uniqueness
+  const payloadWithJti = {
+    ...payload,
+    jti: Math.random().toString(36).substring(2) + Date.now().toString(36),
+  };
+  
+  return jwt.sign(payloadWithJti, config.jwt.refreshSecret, {
     expiresIn: config.jwt.refreshExpiresIn,
   } as any);
 };

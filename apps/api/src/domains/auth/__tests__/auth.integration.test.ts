@@ -31,6 +31,7 @@ describe('Auth Integration Tests', () => {
         fullName: 'Test User',
         role: 'admin',
         status: 'active',
+        isFirstLogin: false,
       },
     });
     testUserId = user.id;
@@ -286,6 +287,7 @@ describe('Auth Integration Tests', () => {
           fullName: 'Test User 2FA',
           role: 'admin',
           status: 'active',
+          isFirstLogin: false,
         },
       });
       user2FAId = user.id;

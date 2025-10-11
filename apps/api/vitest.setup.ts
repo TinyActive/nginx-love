@@ -28,7 +28,7 @@ beforeAll(async () => {
   } catch (error: any) {
     console.error('❌ Failed to setup test database:', error.message);
     console.log('💡 Make sure PostgreSQL is running and test database exists.');
-    console.log('   Create test database: createdb nginx_love_test');
+    console.log('   Create test database: createdb nginx_waf_test');
     // Don't throw - allow tests to run but they may fail
   }
 });
