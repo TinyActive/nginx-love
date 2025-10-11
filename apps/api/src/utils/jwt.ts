@@ -1,4 +1,5 @@
 import jwt, { SignOptions } from 'jsonwebtoken';
+import { randomUUID } from 'crypto';
 import { config } from '../config';
 
 export interface TokenPayload {
@@ -15,10 +16,10 @@ export const generateAccessToken = (payload: TokenPayload): string => {
 };
 
 export const generateRefreshToken = (payload: TokenPayload): string => {
-  // Add a random jti (JWT ID) to ensure uniqueness
+  // Add a cryptographically secure random jti (JWT ID) to ensure uniqueness
   const payloadWithJti = {
     ...payload,
-    jti: Math.random().toString(36).substring(2) + Date.now().toString(36),
+    jti: randomUUID(),
   };
   
   return jwt.sign(payloadWithJti, config.jwt.refreshSecret, {

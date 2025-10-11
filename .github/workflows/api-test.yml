@@ -29,7 +29,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: nginx_waf_test
+          POSTGRES_DB: nginx_waf
         ports:
           - 5432:5432
         options: >-
@@ -59,8 +59,7 @@ jobs:
       - name: Setup test environment
         working-directory: apps/api
         run: |
-          cp .env.test .env
-          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/nginx_waf_test?schema=public" >> .env
+          cp .env.example .env
 
       - name: Generate Prisma Client
         working-directory: apps/api
@@ -70,13 +69,13 @@ jobs:
         working-directory: apps/api
         run: pnpm prisma migrate deploy
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/nginx_waf_test?schema=public
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/nginx_waf?schema=public
 
       - name: Run tests
         working-directory: apps/api
         run: pnpm test:coverage
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/nginx_waf_test?schema=public
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/nginx_waf?schema=public
           NODE_ENV: test
           JWT_ACCESS_SECRET: test-access-secret-key-12345
           JWT_REFRESH_SECRET: test-refresh-secret-key-12345
