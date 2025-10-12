@@ -200,6 +200,9 @@ export class ClusterRepository {
     const acl = await prisma.aclRule.findMany();
     const users = await prisma.user.findMany();
 
+    // Get Network Load Balancers
+    const networkLoadBalancers = await this.getAllNetworkLoadBalancersForSync();
+
     return {
       // Domains (NO timestamps, NO IDs)
       domains: domains.map(d => ({
@@ -276,6 +279,36 @@ export class ClusterRepository {
         fullName: u.fullName,
         password: u.password, // Already hashed
         role: u.role
+      })),
+
+      // Network Load Balancers (NO timestamps, NO IDs)
+      networkLoadBalancers: networkLoadBalancers.map(nlb => ({
+        name: nlb.name,
+        description: nlb.description || undefined,
+        port: nlb.port,
+        protocol: nlb.protocol,
+        algorithm: nlb.algorithm,
+        enabled: nlb.enabled,
+        proxyTimeout: nlb.proxyTimeout,
+        proxyConnectTimeout: nlb.proxyConnectTimeout,
+        proxyNextUpstream: nlb.proxyNextUpstream,
+        proxyNextUpstreamTimeout: nlb.proxyNextUpstreamTimeout,
+        proxyNextUpstreamTries: nlb.proxyNextUpstreamTries,
+        healthCheckEnabled: nlb.healthCheckEnabled,
+        healthCheckInterval: nlb.healthCheckInterval,
+        healthCheckTimeout: nlb.healthCheckTimeout,
+        healthCheckRises: nlb.healthCheckRises,
+        healthCheckFalls: nlb.healthCheckFalls,
+        upstreams: nlb.upstreams.map(u => ({
+          host: u.host,
+          port: u.port,
+          weight: u.weight,
+          maxFails: u.maxFails,
+          failTimeout: u.failTimeout,
+          maxConns: u.maxConns,
+          backup: u.backup,
+          down: u.down,
+        })),
       }))
     };
   }
@@ -293,6 +326,8 @@ export class ClusterRepository {
       modsecCustom: 0,
       acl: 0,
       users: 0,
+      networkLoadBalancers: 0,
+      nlbUpstreams: 0,
       totalChanges: 0
     };
 
@@ -480,10 +515,95 @@ export class ClusterRepository {
       }
     }
 
+    // 7. Import Network Load Balancers
+    if (config.networkLoadBalancers && Array.isArray(config.networkLoadBalancers)) {
+      for (const nlbData of config.networkLoadBalancers) {
+        const nlb = await this.upsertNetworkLoadBalancerForSync(nlbData.name, {
+          description: nlbData.description,
+          port: nlbData.port,
+          protocol: nlbData.protocol as any,
+          algorithm: nlbData.algorithm as any,
+          enabled: nlbData.enabled,
+          proxyTimeout: nlbData.proxyTimeout,
+          proxyConnectTimeout: nlbData.proxyConnectTimeout,
+          proxyNextUpstream: nlbData.proxyNextUpstream,
+          proxyNextUpstreamTimeout: nlbData.proxyNextUpstreamTimeout,
+          proxyNextUpstreamTries: nlbData.proxyNextUpstreamTries,
+          healthCheckEnabled: nlbData.healthCheckEnabled,
+          healthCheckInterval: nlbData.healthCheckInterval,
+          healthCheckTimeout: nlbData.healthCheckTimeout,
+          healthCheckRises: nlbData.healthCheckRises,
+          healthCheckFalls: nlbData.healthCheckFalls,
+        });
+        results.networkLoadBalancers++;
+
+        // Import upstreams
+        if (nlbData.upstreams && Array.isArray(nlbData.upstreams)) {
+          await this.deleteNLBUpstreamsByNLBIdForSync(nlb.id);
+
+          for (const upstream of nlbData.upstreams) {
+            await this.createNLBUpstreamForSync({
+              nlbId: nlb.id,
+              host: upstream.host,
+              port: upstream.port,
+              weight: upstream.weight,
+              maxFails: upstream.maxFails,
+              failTimeout: upstream.failTimeout,
+              maxConns: upstream.maxConns,
+              backup: upstream.backup,
+              down: upstream.down,
+            });
+            results.nlbUpstreams++;
+          }
+        }
+      }
+    }
+
     results.totalChanges = results.domains + results.ssl + results.modsecCRS +
-                           results.modsecCustom + results.acl + results.users;
+                           results.modsecCustom + results.acl + results.users +
+                           results.networkLoadBalancers;
 
     return results;
+  }
+
+  /**
+   * Get all Network Load Balancers for sync
+   */
+  async getAllNetworkLoadBalancersForSync() {
+    return prisma.networkLoadBalancer.findMany({
+      include: {
+        upstreams: true,
+      },
+    });
+  }
+
+  /**
+   * Upsert Network Load Balancer for sync
+   */
+  async upsertNetworkLoadBalancerForSync(name: string, data: any) {
+    return prisma.networkLoadBalancer.upsert({
+      where: { name },
+      update: data,
+      create: { name, ...data },
+    });
+  }
+
+  /**
+   * Create NLB upstream for sync
+   */
+  async createNLBUpstreamForSync(data: any) {
+    return prisma.nLBUpstream.create({
+      data,
+    });
+  }
+
+  /**
+   * Delete NLB upstreams by NLB ID for sync
+   */
+  async deleteNLBUpstreamsByNLBIdForSync(nlbId: string) {
+    return prisma.nLBUpstream.deleteMany({
+      where: { nlbId },
+    });
   }
 
   /**

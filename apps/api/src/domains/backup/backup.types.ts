@@ -62,6 +62,7 @@ export interface BackupData {
   alertRules: any[];
   users: any[];
   nginxConfigs: any[];
+  networkLoadBalancers: NetworkLoadBalancerBackupData[];
 }
 
 /**
@@ -137,6 +138,8 @@ export interface ImportResults {
   alertRules: number;
   users: number;
   nginxConfigs: number;
+  networkLoadBalancers: number;
+  nlbUpstreams: number;
 }
 
 /**
@@ -146,6 +149,45 @@ export interface SSLCertificateFiles {
   certificate?: string;
   privateKey?: string;
   chain?: string;
+}
+
+/**
+ * Network Load Balancer backup data
+ */
+export interface NetworkLoadBalancerBackupData {
+  name: string;
+  description?: string;
+  port: number;
+  protocol: string;
+  algorithm: string;
+  status: string;
+  enabled: boolean;
+  proxyTimeout: number;
+  proxyConnectTimeout: number;
+  proxyNextUpstream: boolean;
+  proxyNextUpstreamTimeout: number;
+  proxyNextUpstreamTries: number;
+  healthCheckEnabled: boolean;
+  healthCheckInterval: number;
+  healthCheckTimeout: number;
+  healthCheckRises: number;
+  healthCheckFalls: number;
+  upstreams: NetworkLoadBalancerUpstreamBackupData[];
+}
+
+/**
+ * Network Load Balancer upstream backup data
+ */
+export interface NetworkLoadBalancerUpstreamBackupData {
+  host: string;
+  port: number;
+  weight: number;
+  maxFails: number;
+  failTimeout: number;
+  maxConns: number;
+  backup: boolean;
+  down: boolean;
+  status: string;
 }
 
 /**

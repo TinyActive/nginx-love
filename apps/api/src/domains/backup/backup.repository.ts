@@ -379,6 +379,46 @@ export class BackupRepository {
       },
     });
   }
+
+  /**
+   * Get all Network Load Balancers for backup
+   */
+  async getAllNetworkLoadBalancers() {
+    return prisma.networkLoadBalancer.findMany({
+      include: {
+        upstreams: true,
+      },
+    });
+  }
+
+  /**
+   * Upsert Network Load Balancer
+   */
+  async upsertNetworkLoadBalancer(name: string, createData: any, updateData: any) {
+    return prisma.networkLoadBalancer.upsert({
+      where: { name },
+      update: updateData,
+      create: { name, ...createData },
+    });
+  }
+
+  /**
+   * Create NLB upstream
+   */
+  async createNLBUpstream(data: Prisma.NLBUpstreamCreateInput) {
+    return prisma.nLBUpstream.create({
+      data,
+    });
+  }
+
+  /**
+   * Delete NLB upstreams by NLB ID
+   */
+  async deleteNLBUpstreamsByNLBId(nlbId: string) {
+    return prisma.nLBUpstream.deleteMany({
+      where: { nlbId },
+    });
+  }
 }
 
 // Export singleton instance
