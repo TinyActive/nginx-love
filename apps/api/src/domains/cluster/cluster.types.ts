@@ -74,6 +74,7 @@ export interface SyncConfigData {
   modsecCustomRules: SyncModSecCustomRule[];
   aclRules: SyncACLRule[];
   users: SyncUser[];
+  networkLoadBalancers: SyncNetworkLoadBalancer[];
 }
 
 /**
@@ -176,6 +177,43 @@ export interface SyncUser {
 }
 
 /**
+ * Sync Network Load Balancer
+ */
+export interface SyncNetworkLoadBalancer {
+  name: string;
+  description?: string;
+  port: number;
+  protocol: string;
+  algorithm: string;
+  enabled: boolean;
+  proxyTimeout: number;
+  proxyConnectTimeout: number;
+  proxyNextUpstream: boolean;
+  proxyNextUpstreamTimeout: number;
+  proxyNextUpstreamTries: number;
+  healthCheckEnabled: boolean;
+  healthCheckInterval: number;
+  healthCheckTimeout: number;
+  healthCheckRises: number;
+  healthCheckFalls: number;
+  upstreams: SyncNLBUpstream[];
+}
+
+/**
+ * Sync NLB Upstream
+ */
+export interface SyncNLBUpstream {
+  host: string;
+  port: number;
+  weight: number;
+  maxFails: number;
+  failTimeout: number;
+  maxConns: number;
+  backup: boolean;
+  down: boolean;
+}
+
+/**
  * Sync Export Response
  */
 export interface SyncExportResponse {
@@ -195,6 +233,8 @@ export interface ImportResults {
   modsecCustom: number;
   acl: number;
   users: number;
+  networkLoadBalancers: number;
+  nlbUpstreams: number;
   totalChanges: number;
 }
 

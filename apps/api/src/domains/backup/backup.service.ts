@@ -272,6 +272,8 @@ export class BackupService {
       alertRules: 0,
       users: 0,
       nginxConfigs: 0,
+      networkLoadBalancers: 0,
+      nlbUpstreams: 0,
     };
 
     // 1. Restore domains
@@ -325,6 +327,13 @@ export class BackupService {
     if (backupData.nginxConfigs && Array.isArray(backupData.nginxConfigs)) {
       for (const config of backupData.nginxConfigs) {
         await this.restoreNginxConfig(config, results);
+      }
+    }
+
+    // 9. Restore Network Load Balancers
+    if (backupData.networkLoadBalancers && Array.isArray(backupData.networkLoadBalancers)) {
+      for (const nlbData of backupData.networkLoadBalancers) {
+        await this.restoreNetworkLoadBalancer(nlbData, results);
       }
     }
 
@@ -465,6 +474,9 @@ export class BackupService {
     // Get nginx configs
     const nginxConfigs = await backupRepository.getAllNginxConfigs();
 
+    // Get Network Load Balancers
+    const networkLoadBalancers = await backupRepository.getAllNetworkLoadBalancers();
+
     return {
       version: BACKUP_CONSTANTS.BACKUP_VERSION,
       timestamp: new Date().toISOString(),
@@ -497,6 +509,36 @@ export class BackupService {
       })),
       users,
       nginxConfigs,
+      networkLoadBalancers: networkLoadBalancers.map((nlb) => ({
+        name: nlb.name,
+        description: nlb.description || undefined,
+        port: nlb.port,
+        protocol: nlb.protocol,
+        algorithm: nlb.algorithm,
+        status: nlb.status,
+        enabled: nlb.enabled,
+        proxyTimeout: nlb.proxyTimeout,
+        proxyConnectTimeout: nlb.proxyConnectTimeout,
+        proxyNextUpstream: nlb.proxyNextUpstream,
+        proxyNextUpstreamTimeout: nlb.proxyNextUpstreamTimeout,
+        proxyNextUpstreamTries: nlb.proxyNextUpstreamTries,
+        healthCheckEnabled: nlb.healthCheckEnabled,
+        healthCheckInterval: nlb.healthCheckInterval,
+        healthCheckTimeout: nlb.healthCheckTimeout,
+        healthCheckRises: nlb.healthCheckRises,
+        healthCheckFalls: nlb.healthCheckFalls,
+        upstreams: nlb.upstreams.map((u) => ({
+          host: u.host,
+          port: u.port,
+          weight: u.weight,
+          maxFails: u.maxFails,
+          failTimeout: u.failTimeout,
+          maxConns: u.maxConns,
+          backup: u.backup,
+          down: u.down,
+          status: u.status,
+        })),
+      })),
     };
   }
 
@@ -957,6 +999,80 @@ export class BackupService {
       results.nginxConfigs++;
     } catch (error) {
       logger.error(`Failed to restore nginx config ${config.id}:`, error);
+    }
+  }
+
+  /**
+   * Restore Network Load Balancer
+   */
+  private async restoreNetworkLoadBalancer(nlbData: any, results: ImportResults) {
+    try {
+      const nlb = await backupRepository.upsertNetworkLoadBalancer(
+        nlbData.name,
+        {
+          description: nlbData.description,
+          port: nlbData.port,
+          protocol: nlbData.protocol,
+          algorithm: nlbData.algorithm,
+          status: nlbData.status || 'inactive',
+          enabled: nlbData.enabled ?? true,
+          proxyTimeout: nlbData.proxyTimeout ?? 3,
+          proxyConnectTimeout: nlbData.proxyConnectTimeout ?? 1,
+          proxyNextUpstream: nlbData.proxyNextUpstream ?? true,
+          proxyNextUpstreamTimeout: nlbData.proxyNextUpstreamTimeout ?? 0,
+          proxyNextUpstreamTries: nlbData.proxyNextUpstreamTries ?? 0,
+          healthCheckEnabled: nlbData.healthCheckEnabled ?? true,
+          healthCheckInterval: nlbData.healthCheckInterval ?? 10,
+          healthCheckTimeout: nlbData.healthCheckTimeout ?? 5,
+          healthCheckRises: nlbData.healthCheckRises ?? 2,
+          healthCheckFalls: nlbData.healthCheckFalls ?? 3,
+        },
+        {
+          description: nlbData.description,
+          port: nlbData.port,
+          protocol: nlbData.protocol,
+          algorithm: nlbData.algorithm,
+          status: nlbData.status || 'inactive',
+          enabled: nlbData.enabled ?? true,
+          proxyTimeout: nlbData.proxyTimeout ?? 3,
+          proxyConnectTimeout: nlbData.proxyConnectTimeout ?? 1,
+          proxyNextUpstream: nlbData.proxyNextUpstream ?? true,
+          proxyNextUpstreamTimeout: nlbData.proxyNextUpstreamTimeout ?? 0,
+          proxyNextUpstreamTries: nlbData.proxyNextUpstreamTries ?? 0,
+          healthCheckEnabled: nlbData.healthCheckEnabled ?? true,
+          healthCheckInterval: nlbData.healthCheckInterval ?? 10,
+          healthCheckTimeout: nlbData.healthCheckTimeout ?? 5,
+          healthCheckRises: nlbData.healthCheckRises ?? 2,
+          healthCheckFalls: nlbData.healthCheckFalls ?? 3,
+        }
+      );
+
+      results.networkLoadBalancers++;
+
+      // Restore upstreams
+      if (nlbData.upstreams && Array.isArray(nlbData.upstreams)) {
+        await backupRepository.deleteNLBUpstreamsByNLBId(nlb.id);
+
+        for (const upstream of nlbData.upstreams) {
+          await backupRepository.createNLBUpstream({
+            nlb: { connect: { id: nlb.id } },
+            host: upstream.host,
+            port: upstream.port,
+            weight: upstream.weight ?? 1,
+            maxFails: upstream.maxFails ?? 3,
+            failTimeout: upstream.failTimeout ?? 10,
+            maxConns: upstream.maxConns ?? 0,
+            backup: upstream.backup ?? false,
+            down: upstream.down ?? false,
+            status: upstream.status || 'checking',
+          });
+          results.nlbUpstreams++;
+        }
+      }
+
+      logger.info(`Network Load Balancer ${nlbData.name} restored`);
+    } catch (error) {
+      logger.error(`Failed to restore Network Load Balancer ${nlbData.name}:`, error);
     }
   }
 
