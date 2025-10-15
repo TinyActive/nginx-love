@@ -273,6 +273,16 @@ export class BackupOperationsService {
     const backendCount = domain.upstreams?.length || 0;
     const keepaliveConnections = backendCount * 10;
 
+    // Generate WebSocket map block
+    const websocketMapBlock = `
+# WebSocket support - Map for connection upgrade
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    '' close;
+}
+
+`;
+
     // Generate upstream block
     const upstreamBlock = `
 upstream ${domain.name.replace(/\./g, '_')}_backend {
@@ -321,6 +331,14 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        
+        # WebSocket timeout settings
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
 
         ${
           hasHttpsUpstream
@@ -408,6 +426,14 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        
+        # WebSocket timeout settings
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
 
         ${
           hasHttpsUpstream
@@ -448,7 +474,7 @@ server {
 `;
     }
 
-    const fullConfig = upstreamBlock + httpServerBlock + httpsServerBlock;
+    const fullConfig = websocketMapBlock + upstreamBlock + httpServerBlock + httpsServerBlock;
 
     // Write configuration file
     try {

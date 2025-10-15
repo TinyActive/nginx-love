@@ -1097,6 +1097,16 @@ export class BackupService {
     const backendCount = domain.upstreams?.length || 0;
     const keepaliveConnections = backendCount * 10;
 
+    // Generate WebSocket map block
+    const websocketMapBlock = `
+# WebSocket support - Map for connection upgrade
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    '' close;
+}
+
+`;
+
     const upstreamBlock = `
 upstream ${domain.name.replace(/\./g, '_')}_backend {
     ${domain.loadBalancer?.algorithm === 'least_conn' ? 'least_conn;' : ''}
@@ -1141,6 +1151,14 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        
+        # WebSocket timeout settings
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
     }
 
     location /nginx_health {
@@ -1184,6 +1202,14 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        
+        # WebSocket timeout settings
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
     }
 
     location /nginx_health {
@@ -1195,7 +1221,7 @@ server {
 `;
     }
 
-    const fullConfig = upstreamBlock + httpServerBlock + httpsServerBlock;
+    const fullConfig = websocketMapBlock + upstreamBlock + httpServerBlock + httpsServerBlock;
 
     await fs.mkdir(BACKUP_CONSTANTS.NGINX_SITES_AVAILABLE, { recursive: true });
     await fs.mkdir(BACKUP_CONSTANTS.NGINX_SITES_ENABLED, { recursive: true });

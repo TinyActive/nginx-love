@@ -28,11 +28,12 @@ export class NginxConfigService {
     }
 
     // Generate configuration blocks
+    const websocketMapBlock = this.generateWebSocketMapBlock();
     const upstreamBlock = this.generateUpstreamBlock(domain);
     const httpServerBlock = await this.generateHttpServerBlock(domain);
     const httpsServerBlock = await this.generateHttpsServerBlock(domain);
 
-    const fullConfig = upstreamBlock + httpServerBlock + httpsServerBlock;
+    const fullConfig = websocketMapBlock + upstreamBlock + httpServerBlock + httpsServerBlock;
 
     // Write configuration file
     try {
@@ -55,6 +56,21 @@ export class NginxConfigService {
       logger.error(`Failed to write nginx config for ${domain.name}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Generate WebSocket map block for connection upgrade
+   * This enables WebSocket support for all domains by default
+   */
+  private generateWebSocketMapBlock(): string {
+    return `
+# WebSocket support - Map for connection upgrade
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    '' close;
+}
+
+`;
   }
 
   /**
@@ -266,12 +282,21 @@ ${realIpBlock}
 
   /**
    * Generate proxy headers for passing client information to backend
+   * Includes WebSocket support by default
    */
   private generateProxyHeaders(domain: DomainWithRelations): string {
     return `proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;`;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        
+        # WebSocket timeout settings
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;`;
   }
 
   /**
