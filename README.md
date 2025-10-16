@@ -5,9 +5,17 @@ Comprehensive Nginx management system with ModSecurity WAF, Domain Management, S
 <a href="https://www.producthunt.com/products/waf-advanced-nginx-management-platform?embed=true&utm_source=badge-featured&utm_medium=badge&utm_source=badge-waf-advanced-nginx-management-platform" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1023177&theme=light&t=1759655841567" alt="Nginx WAF - Advanced Nginx Management Platform | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
 
 
-
 # Project Goal
 This project began as a private service built for a company. Later, my client and I decided to make it open source and free for the community to meet the personal or organizational needs of providing users with an easy way to configure Loadbalancer for server systems with SSL termination, Web Application Firewall, and it should be so easy that even a monkey could do it. This goal remains the same Although there may be advanced options, they are optional and the project should be as simple as possible to minimize the barrier to entry. The software will have all the features of an application for a digital business that is needed in the context of technological development to rapidly develop the system along with ensuring system security.
+
+
+## 🖥️ Cross-Platform Support
+
+Nginx WAF - Advanced Nginx Management Platform offers full support for major operating systems: **Windows**, **macOS**, and **Linux**. You can deploy, manage, and use this tool on any platform, ensuring flexibility for individuals and organizations. 
+
+**Download the latest release:**  
+[Nginx WAF Apps Client Releases](https://github.com/TinyActive/nginx-waf-apps-client/releases)
+
 
 
 ## ✨ Key Features
