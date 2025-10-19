@@ -35,18 +35,18 @@
         
         <div class="hero-stats" data-animate="fade-up" data-delay="400">
           <div class="stat-item">
-            <div class="stat-value">10K+</div>
+            <div class="stat-value">{{ githubStats.stars }}</div>
+            <div class="stat-label">GitHub Stars</div>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <div class="stat-value">{{ githubStats.forks }}</div>
+            <div class="stat-label">GitHub Forks</div>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <div class="stat-value">{{ githubStats.installations }}</div>
             <div class="stat-label">Active Installations</div>
-          </div>
-          <div class="stat-divider"></div>
-          <div class="stat-item">
-            <div class="stat-value">99.9%</div>
-            <div class="stat-label">Uptime</div>
-          </div>
-          <div class="stat-divider"></div>
-          <div class="stat-item">
-            <div class="stat-value">24/7</div>
-            <div class="stat-label">Monitoring</div>
           </div>
         </div>
       </div>
@@ -146,9 +146,41 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
+
+// GitHub stats state
+const githubStats = ref({
+  stars: '...',
+  forks: '...',
+  installations: '500+'
+})
+
+const formatNumber = (num: number): string => {
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'K+'
+  }
+  return num.toString()
+}
+
+const fetchGitHubStats = async () => {
+  try {
+    const response = await fetch('https://api.github.com/repos/TinyActive/nginx-love')
+    if (response.ok) {
+      const data = await response.json()
+      githubStats.value.stars = formatNumber(data.stargazers_count)
+      githubStats.value.forks = formatNumber(data.forks_count)
+    }
+  } catch (error) {
+    console.error('Failed to fetch GitHub stats:', error)
+    githubStats.value.stars = '0'
+    githubStats.value.forks = '0'
+  }
+}
 
 onMounted(() => {
+  // Fetch GitHub stats
+  fetchGitHubStats()
+
   // Intersection Observer for animations
   const observer = new IntersectionObserver(
     (entries) => {
