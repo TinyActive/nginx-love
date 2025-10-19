@@ -11,7 +11,18 @@
         >
           <div class="stat-icon" v-html="stat.icon"></div>
           <div class="stat-content">
-            <div class="stat-value">{{ stat.value }}</div>
+            <div class="stat-value">
+              <a 
+                v-if="stat.link" 
+                :href="stat.link" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                class="stat-link"
+              >
+                {{ stat.value }}
+              </a>
+              <span v-else>{{ stat.value }}</span>
+            </div>
             <div class="stat-label">{{ stat.label }}</div>
           </div>
         </div>
@@ -21,28 +32,65 @@
 </template>
 
 <script setup lang="ts">
-const stats = [
+import { ref, onMounted } from 'vue'
+
+interface Stat {
+  icon: string
+  value: string
+  label: string
+  link?: string
+}
+
+const stats = ref<Stat[]>([
   {
-    icon: '<svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 8v16l12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
-    value: '99.9%',
-    label: 'Uptime Guarantee'
+    icon: '<svg viewBox="0 0 48 48" fill="none"><path d="M24 2l7.5 15.2L48 19.8l-12 11.7L38.8 48 24 40.2 9.2 48l2.8-16.5L0 19.8l16.5-2.6L24 2z" stroke="currentColor" stroke-width="2" fill="none"/></svg>',
+    value: '...',
+    label: 'GitHub Stars',
+    link: 'https://github.com/TinyActive/nginx-love'
+  },
+  {
+    icon: '<svg viewBox="0 0 48 48" fill="none"><path d="M24 4v20M24 24l-8-8M24 24l8-8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 32v8a4 4 0 0 0 4 4h16a4 4 0 0 0 4-4v-8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    value: '...',
+    label: 'GitHub Forks',
+    link: 'https://github.com/TinyActive/nginx-love/fork'
   },
   {
     icon: '<svg viewBox="0 0 48 48" fill="none"><rect x="8" y="12" width="32" height="24" rx="2" stroke="currentColor" stroke-width="2" fill="none"/><path d="M16 24h16M16 28h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
-    value: '10K+',
+    value: '500+',
     label: 'Active Installations'
-  },
-  {
-    icon: '<svg viewBox="0 0 48 48" fill="none"><path d="M24 12l-8 4v8c0 5 3.5 9.7 8 11 4.5-1.3 8-6 8-11v-8l-8-4z" stroke="currentColor" stroke-width="2" fill="none"/></svg>',
-    value: '1M+',
-    label: 'Threats Blocked Daily'
-  },
-  {
-    icon: '<svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="12" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 16v8l6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
-    value: '<45ms',
-    label: 'Average Response Time'
   }
-]
+])
+
+const formatNumber = (num: number): string => {
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'K+'
+  }
+  return num.toString()
+}
+
+const fetchGitHubStats = async () => {
+  try {
+    const response = await fetch('https://api.github.com/repos/TinyActive/nginx-love')
+    if (response.ok) {
+      const data = await response.json()
+      
+      // Update stars
+      stats.value[0].value = formatNumber(data.stargazers_count)
+      
+      // Update forks
+      stats.value[1].value = formatNumber(data.forks_count)
+    }
+  } catch (error) {
+    console.error('Failed to fetch GitHub stats:', error)
+    // Keep default values if fetch fails
+    stats.value[0].value = '0'
+    stats.value[1].value = '0'
+  }
+}
+
+onMounted(() => {
+  fetchGitHubStats()
+})
 </script>
 
 <style scoped>
