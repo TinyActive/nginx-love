@@ -15,6 +15,16 @@ export interface ParsedLogEntry {
   path?: string;
   statusCode?: number;
   responseTime?: number;
+  // ModSecurity specific fields
+  ruleId?: string;
+  severity?: string;
+  tags?: string[];
+  uri?: string;
+  uniqueId?: string;
+  file?: string;
+  line?: string;
+  data?: string;
+  fullMessage?: string; // Store complete log message without truncation
 }
 
 export interface LogFilterOptions {

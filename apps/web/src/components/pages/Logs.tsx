@@ -73,6 +73,7 @@ import {
   useSuspenseLogs,
   useLogs
 } from "@/queries/logs.query-options";
+import { LogDetailsDialog } from "@/components/logs/LogDetailsDialog";
 
 // Component for fast-loading statistics data
 const LogStatistics = () => {
@@ -160,7 +161,9 @@ const LogEntries = ({
   autoRefresh,
   setAutoRefresh,
   toast,
-  onRefetch
+  onRefetch,
+  selectedLog,
+  setSelectedLog
 }: {
   page: number;
   limit: number;
@@ -182,6 +185,8 @@ const LogEntries = ({
   setAutoRefresh: (refresh: boolean) => void;
   toast: any;
   onRefetch: (refetch: () => Promise<any>) => void;
+  selectedLog: LogEntry | null;
+  setSelectedLog: (log: LogEntry | null) => void;
 }) => {
   const [isPageChanging, setIsPageChanging] = useState(false);
   // Build query parameters
@@ -363,11 +368,21 @@ const LogEntries = ({
     {
       accessorKey: "message",
       header: "Message",
-      cell: ({ row }) => (
-        <div className="max-w-md truncate" title={row.getValue("message")}>
-          {row.getValue("message")}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const log = row.original;
+        const displayMessage = log.fullMessage || log.message;
+        return (
+          <div className="max-w-md" title={displayMessage}>
+            {/* Show truncated version in table, full message in title tooltip */}
+            <div className="truncate">{log.message}</div>
+            {log.fullMessage && log.fullMessage.length > log.message.length && (
+              <div className="text-xs text-muted-foreground mt-1">
+                Click for full details
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "details",
@@ -375,7 +390,7 @@ const LogEntries = ({
       cell: ({ row }) => {
         const log = row.original;
         return (
-          <div className="text-xs text-muted-foreground">
+          <div className="text-xs text-muted-foreground space-y-1">
             {log.ip && <div>IP: {log.ip}</div>}
             {log.method && log.path && (
               <div>
@@ -384,6 +399,19 @@ const LogEntries = ({
             )}
             {log.statusCode && <div>Status: {log.statusCode}</div>}
             {log.responseTime && <div>RT: {log.responseTime}ms</div>}
+            {/* ModSecurity specific details */}
+            {log.ruleId && (
+              <div className="font-semibold text-red-600">Rule ID: {log.ruleId}</div>
+            )}
+            {log.severity && (
+              <div>Severity: {log.severity}</div>
+            )}
+            {log.tags && log.tags.length > 0 && (
+              <div className="max-w-xs">
+                Tags: {log.tags.join(', ')}
+              </div>
+            )}
+            {log.uri && <div>URI: {log.uri}</div>}
           </div>
         );
       },
@@ -582,6 +610,8 @@ const LogEntries = ({
                     data-state={
                       rowSelection[String(log.id || index)] && "selected"
                     }
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => setSelectedLog(log)}
                   >
                     <TableCell className="font-mono text-xs">
                       {new Date(log.timestamp).toLocaleString()}
@@ -610,13 +640,17 @@ const LogEntries = ({
                         </span>
                       )}
                     </TableCell>
-                    <TableCell
-                      className="max-w-md truncate"
-                      title={log.message}
-                    >
-                      {log.message}
+                    <TableCell className="max-w-md">
+                      <div className="truncate" title={log.fullMessage || log.message}>
+                        {log.message}
+                      </div>
+                      {log.fullMessage && log.fullMessage.length > log.message.length && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Click for full details
+                        </div>
+                      )}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className="text-xs text-muted-foreground space-y-1">
                       {log.ip && <div>IP: {log.ip}</div>}
                       {log.method && log.path && (
                         <div>
@@ -627,6 +661,21 @@ const LogEntries = ({
                       {log.responseTime && (
                         <div>RT: {log.responseTime}ms</div>
                       )}
+                      {/* ModSecurity specific details */}
+                      {log.ruleId && (
+                        <div className="font-semibold text-red-600">
+                          Rule ID: {log.ruleId}
+                        </div>
+                      )}
+                      {log.severity && (
+                        <div>Severity: {log.severity}</div>
+                      )}
+                      {log.tags && log.tags.length > 0 && (
+                        <div className="max-w-xs">
+                          Tags: {log.tags.join(', ')}
+                        </div>
+                      )}
+                      {log.uri && <div>URI: {log.uri}</div>}
                     </TableCell>
                   </TableRow>
                 ))
@@ -726,6 +775,7 @@ const Logs = () => {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [logsRefetch, setLogsRefetch] = useState<(() => Promise<any>) | null>(null);
   const [isReloading, setIsReloading] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
 
   // URL state management with nuqs
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1));
@@ -897,6 +947,15 @@ const Logs = () => {
         setAutoRefresh={setAutoRefresh}
         toast={toast}
         onRefetch={(refetch) => setLogsRefetch(() => refetch)}
+        selectedLog={selectedLog}
+        setSelectedLog={setSelectedLog}
+      />
+
+      {/* Log Details Dialog */}
+      <LogDetailsDialog
+        log={selectedLog}
+        open={!!selectedLog}
+        onOpenChange={(open) => !open && setSelectedLog(null)}
       />
     </div>
   );
