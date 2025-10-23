@@ -449,8 +449,8 @@ HTTP Basic Auth:
   Description: Primary admin account
 
 Assigned Domains:
-  - example.com/admin
-  - example.com/wp-admin
+  - admin.example.com
+  - cms.example.com
 ```
 
 **Why Combined?**
@@ -510,7 +510,7 @@ IP Whitelist:
   - 203.0.113.25        # Partner C gateway
 
 Assigned Domains:
-  - api.example.com/v1/partner
+  - api.example.com
 ```
 
 **Why IP Whitelist?**
@@ -556,7 +556,7 @@ HTTP Basic Auth:
   Description: Break glass emergency access
 
 Assigned Domains:
-  - example.com/admin
+  - example.com
 ```
 
 **Usage**:
