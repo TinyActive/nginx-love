@@ -176,59 +176,6 @@ async function grepLogFile(
 }
 
 /**
- * Search logs by uniqueId
- */
-async function searchLogsByUniqueId(uniqueId: string, limit: number = 100): Promise<ParsedLogEntry[]> {
-  // Validate uniqueId
-  if (!/^[a-zA-Z0-9-_]+$/.test(uniqueId) || uniqueId.length > SECURITY_LIMITS.maxUniqueIdLength) {
-    logger.warn(`Invalid uniqueId: ${uniqueId}`);
-    return [];
-  }
-
-  const results: ParsedLogEntry[] = [];
-  const searchPattern = `unique_id "${uniqueId}"`;
-
-  // Search main error log
-  const mainResult = await grepLogFile(LOG_PATHS.nginxError, searchPattern, limit);
-  if (mainResult) {
-    results.push(...parseLogLines(mainResult.split('\n'), { parser: 'modsec' }));
-  }
-
-  // Search domain logs
-  try {
-    const domainLogs = await getDomainLogFiles();
-    
-    for (let i = 0; i < domainLogs.length && results.length < limit; i += SECURITY_LIMITS.maxConcurrentFiles) {
-      const batch = domainLogs.slice(i, i + SECURITY_LIMITS.maxConcurrentFiles);
-      
-      await Promise.all(batch.map(async ({ domain, errorLog, sslErrorLog }) => {
-        const logsToSearch = [
-          { path: errorLog, domain },
-          { path: sslErrorLog, domain }
-        ].filter(log => log.path && isPathSafe(log.path));
-
-        for (const { path: logPath, domain: logDomain } of logsToSearch) {
-          const grepResult = await grepLogFile(logPath, searchPattern, limit);
-          if (grepResult) {
-            const parsed = parseLogLines(grepResult.split('\n'), {
-              parser: 'modsec',
-              domain: logDomain
-            });
-            results.push(...parsed);
-          }
-        }
-      }));
-    }
-  } catch (error) {
-    logger.error('Error searching domain logs:', error);
-  }
-
-  return results
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .slice(0, limit);
-}
-
-/**
  * Get domain log file paths
  */
 interface DomainLogFiles {
@@ -247,6 +194,7 @@ async function getDomainLogFiles(): Promise<DomainLogFiles[]> {
     }
 
     const files = await fs.readdir(LOG_PATHS.nginxDir);
+    logger.info(`Found ${files.length} files in ${LOG_PATHS.nginxDir}`);
     const domainLogs: Record<string, Partial<Omit<DomainLogFiles, 'domain'>>> = {};
 
     files.forEach(file => {
@@ -279,13 +227,17 @@ async function getDomainLogFiles(): Promise<DomainLogFiles[]> {
       }
     });
 
-    return Object.entries(domainLogs).map(([domain, logs]) => ({
+    const result = Object.entries(domainLogs).map(([domain, logs]) => ({
       domain,
       accessLog: logs.accessLog || '',
       errorLog: logs.errorLog || '',
       sslAccessLog: logs.sslAccessLog || '',
       sslErrorLog: logs.sslErrorLog || '',
     }));
+    
+    logger.info(`Found ${result.length} domains with logs: ${result.map(d => d.domain).join(', ')}`);
+    
+    return result;
   } catch (error) {
     logger.error('Error reading domain log files:', error);
     return [];
@@ -512,6 +464,11 @@ function applyFilters(
     filtered = filtered.filter(log => log.ruleId?.includes(safeRuleId));
   }
 
+  if (filters.uniqueId) {
+    const safeUniqueId = filters.uniqueId.substring(0, SECURITY_LIMITS.maxUniqueIdLength);
+    filtered = filtered.filter(log => log.uniqueId?.includes(safeUniqueId));
+  }
+
   return filtered;
 }
 
@@ -531,12 +488,6 @@ export async function getParsedLogs(options: LogFilterOptions = {}): Promise<Par
   const safeOffset = Math.max(offset || 0, 0);
 
   try {
-    // Early return for uniqueId search
-    if (uniqueId) {
-      const results = await searchLogsByUniqueId(uniqueId, safeLimit);
-      return results.slice(safeOffset, safeOffset + safeLimit);
-    }
-
     // Validate domain
     const safeDomain = domain ? sanitizeDomain(domain) : null;
     if (domain && domain !== 'all' && !safeDomain) {
