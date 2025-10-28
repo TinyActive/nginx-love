@@ -24,50 +24,112 @@ const NGINX_ACCESS_LOG = '/var/log/nginx/access.log';
 const NGINX_ERROR_LOG = '/var/log/nginx/error.log';
 const MODSEC_AUDIT_LOG = '/var/log/modsec_audit.log';
 const NGINX_LOG_DIR = '/var/log/nginx';
+const MAX_BUFFER = 100 * 1024 * 1024; // 100MB
+const HOURS_24 = 24 * 3600 * 1000;
 
 export class DashboardAnalyticsService {
+  /**
+   * Helper: Calculate cutoff time for a given period in hours
+   */
+  private getCutoffTime(hours: number): number {
+    return Date.now() - hours * 3600 * 1000;
+  }
+
+  /**
+   * Helper: Read ModSecurity logs from a single error log file
+   */
+  private async readModSecFromFile(filePath: string): Promise<string[]> {
+    try {
+      const { stdout } = await execAsync(`grep "ModSecurity:" ${filePath} 2>/dev/null || echo ""`, { maxBuffer: MAX_BUFFER });
+      return stdout.trim().split('\n').filter(line => line.trim().length > 0);
+    } catch (error) {
+      logger.warn(`Could not read ModSec logs from ${filePath}:`, error);
+      return [];
+    }
+  }
+
   /**
    * Helper: Read ALL ModSecurity logs from error.log (NO LINE LIMIT!)
    */
   private async readModSecLogs(numLines: number): Promise<string[]> {
     const lines: string[] = [];
     
-    // MaxBuffer for large log files (100MB)
-    const maxBuffer = 100 * 1024 * 1024;
+    // Read from main nginx error.log
+    lines.push(...await this.readModSecFromFile(NGINX_ERROR_LOG));
     
-    // Read from main nginx error.log - NO LIMIT, read entire file
-    try {
-      const { stdout } = await execAsync(`grep "ModSecurity:" ${NGINX_ERROR_LOG} 2>/dev/null || echo ""`, { maxBuffer });
-      const modsecLines = stdout.trim().split('\n').filter(line => line.trim().length > 0);
-      lines.push(...modsecLines);
-    } catch (error) {
-      logger.warn('Could not read from nginx error.log:', error);
-    }
-    
-    // Read from domain-specific error logs - NO LIMIT
+    // Read from domain-specific error logs
     try {
       const domainLogs = await this.getDomainLogFiles();
-      
       for (const domainLog of domainLogs) {
-        if (domainLog.errorLog) {
-          const { stdout } = await execAsync(`grep "ModSecurity:" ${domainLog.errorLog} 2>/dev/null || echo ""`, { maxBuffer });
-          const modsecLines = stdout.trim().split('\n').filter(line => line.trim().length > 0);
-          lines.push(...modsecLines);
-        }
-        if (domainLog.sslErrorLog) {
-          const { stdout } = await execAsync(`grep "ModSecurity:" ${domainLog.sslErrorLog} 2>/dev/null || echo ""`, { maxBuffer });
-          const modsecLines = stdout.trim().split('\n').filter(line => line.trim().length > 0);
-          lines.push(...modsecLines);
-        }
+        if (domainLog.errorLog) lines.push(...await this.readModSecFromFile(domainLog.errorLog));
+        if (domainLog.sslErrorLog) lines.push(...await this.readModSecFromFile(domainLog.sslErrorLog));
       }
     } catch (error) {
       logger.error('Could not read from domain error logs:', error);
     }
     
-    // NOTE: modsec_audit.log has completely different format (sections A-Z)
-    // and doesn't have [client IP] pattern, so we DON'T read it here
+    return lines;
+  }
+
+  /**
+   * Helper: Read access logs from all sources (main + domain-specific)
+   */
+  private async readAllAccessLogs(mainLogLines: number, domainLogLines: number): Promise<string[]> {
+    const lines = await this.readLastLines(NGINX_ACCESS_LOG, mainLogLines);
+    
+    const domainLogs = await this.getDomainLogFiles();
+    for (const domainLog of domainLogs) {
+      if (domainLog.accessLog) lines.push(...await this.readLastLines(domainLog.accessLog, domainLogLines));
+      if (domainLog.sslAccessLog) lines.push(...await this.readLastLines(domainLog.sslAccessLog, domainLogLines));
+    }
     
     return lines;
+  }
+
+  /**
+   * Helper: Determine attack type from parsed ModSec log
+   */
+  private determineAttackType(parsed: any, defaultType: string = 'Unknown Attack'): string {
+    // Check tags first
+    if (parsed.tags && parsed.tags.length > 0) {
+      const meaningfulTag = parsed.tags.find((tag: string) => 
+        tag.includes('attack') || tag.includes('injection') || tag.includes('xss') ||
+        tag.includes('sqli') || tag.includes('rce') || tag.includes('lfi') || tag.includes('rfi')
+      );
+      if (meaningfulTag) {
+        return meaningfulTag.replace(/-/g, ' ').replace(/_/g, ' ').toUpperCase();
+      }
+    }
+
+    // Check message
+    if (parsed.message) {
+      const attackTypes: { [key: string]: string } = {
+        'SQL Injection': 'SQL Injection',
+        'XSS': defaultType === 'Unknown Attack' ? 'Cross-Site Scripting' : 'XSS Attack',
+        'RCE': 'Remote Code Execution',
+        'LFI': 'Local File Inclusion',
+        'RFI': 'Remote File Inclusion',
+        'Command Injection': 'Command Injection'
+      };
+      
+      for (const [key, value] of Object.entries(attackTypes)) {
+        if (parsed.message.includes(key)) return value;
+      }
+    }
+
+    return defaultType;
+  }
+
+  /**
+   * Helper: Increment status code counter
+   */
+  private incrementStatusCode(dataPoint: RequestTrendDataPoint, status: number): void {
+    const statusKey = `status${status}` as keyof RequestTrendDataPoint;
+    if (statusKey in dataPoint) {
+      (dataPoint[statusKey] as number)++;
+    } else {
+      dataPoint.statusOther++;
+    }
   }
 
   /**
@@ -81,21 +143,8 @@ export class DashboardAnalyticsService {
       const dataPoints = Math.floor((hoursToFetch * 3600) / intervalSeconds);
       const now = Date.now();
 
-      // Read access logs
-      const lines = await this.readLastLines(NGINX_ACCESS_LOG, 10000);
-      
-      // Also read domain-specific logs
-      const domainLogs = await this.getDomainLogFiles();
-      for (const domainLog of domainLogs) {
-        if (domainLog.accessLog) {
-          const domainLines = await this.readLastLines(domainLog.accessLog, 5000);
-          lines.push(...domainLines);
-        }
-        if (domainLog.sslAccessLog) {
-          const sslLines = await this.readLastLines(domainLog.sslAccessLog, 5000);
-          lines.push(...sslLines);
-        }
-      }
+      // Read access logs from all sources
+      const lines = await this.readAllAccessLogs(10000, 5000);
 
       // Parse logs and group by time intervals
       const intervalMap = new Map<number, RequestTrendDataPoint>();
@@ -132,17 +181,9 @@ export class DashboardAnalyticsService {
         dataPoint.total++;
 
         // Count by status code
-        const status = parsed.statusCode;
-        if (status === 200) dataPoint.status200++;
-        else if (status === 301) dataPoint.status301++;
-        else if (status === 302) dataPoint.status302++;
-        else if (status === 400) dataPoint.status400++;
-        else if (status === 403) dataPoint.status403++;
-        else if (status === 404) dataPoint.status404++;
-        else if (status === 500) dataPoint.status500++;
-        else if (status === 502) dataPoint.status502++;
-        else if (status === 503) dataPoint.status503++;
-        else dataPoint.statusOther++;
+        if (parsed.statusCode) {
+          this.incrementStatusCode(dataPoint, parsed.statusCode);
+        }
       });
 
       // Convert to array and sort by timestamp
@@ -220,7 +261,7 @@ export class DashboardAnalyticsService {
         ruleIds: Set<string>;
       }>();
 
-      const cutoffTime = Date.now() - 24 * 3600 * 1000;
+      const cutoffTime = this.getCutoffTime(24);
 
       lines.forEach((line, index) => {
         const parsed = parseModSecLogLine(line, index);
@@ -229,33 +270,7 @@ export class DashboardAnalyticsService {
         const timestamp = new Date(parsed.timestamp).getTime();
         if (timestamp < cutoffTime) return;
 
-        // Determine attack type from tags or message
-        let attackType = 'Unknown Attack';
-        if (parsed.tags && parsed.tags.length > 0) {
-          // Use the first meaningful tag
-          const meaningfulTag = parsed.tags.find(tag => 
-            tag.includes('attack') || 
-            tag.includes('injection') || 
-            tag.includes('xss') ||
-            tag.includes('sqli') ||
-            tag.includes('rce') ||
-            tag.includes('lfi') ||
-            tag.includes('rfi')
-          );
-          if (meaningfulTag) {
-            attackType = meaningfulTag.replace(/-/g, ' ').replace(/_/g, ' ').toUpperCase();
-          }
-        }
-
-        // Extract attack type from message if not found in tags
-        if (attackType === 'Unknown Attack' && parsed.message) {
-          if (parsed.message.includes('SQL Injection')) attackType = 'SQL Injection';
-          else if (parsed.message.includes('XSS')) attackType = 'Cross-Site Scripting';
-          else if (parsed.message.includes('RCE')) attackType = 'Remote Code Execution';
-          else if (parsed.message.includes('LFI')) attackType = 'Local File Inclusion';
-          else if (parsed.message.includes('RFI')) attackType = 'Remote File Inclusion';
-          else if (parsed.message.includes('Command Injection')) attackType = 'Command Injection';
-        }
+        const attackType = this.determineAttackType(parsed);
 
         if (!attackMap.has(attackType)) {
           attackMap.set(attackType, {
@@ -305,7 +320,7 @@ export class DashboardAnalyticsService {
       const lines = await this.readModSecLogs(2000);
       
       const attacks: LatestAttackEntry[] = [];
-      const cutoffTime = Date.now() - 24 * 3600 * 1000;
+      const cutoffTime = this.getCutoffTime(24);
 
       lines.forEach((line, index) => {
         const parsed = parseModSecLogLine(line, index);
@@ -314,22 +329,9 @@ export class DashboardAnalyticsService {
         const timestamp = new Date(parsed.timestamp).getTime();
         if (timestamp < cutoffTime) return;
 
-        // Use parsed IP (already extracted from [client IP])
         const attackerIp = parsed.ip || 'Unknown';
-        
-        // Use parsed hostname (already extracted from [hostname "domain.com"])
         const domain = parsed.hostname;
-
-        // Determine attack type
-        let attackType = 'Security Event';
-        if (parsed.tags && parsed.tags.length > 0) {
-          const tag = parsed.tags.find(t => t.includes('attack') || t.includes('injection'));
-          if (tag) attackType = tag.replace(/-/g, ' ').toUpperCase();
-        }
-        if (parsed.message) {
-          if (parsed.message.includes('SQL Injection')) attackType = 'SQL Injection';
-          else if (parsed.message.includes('XSS')) attackType = 'XSS Attack';
-        }
+        const attackType = this.determineAttackType(parsed, 'Security Event');
 
         // Use ruleId as logId for better searching
         const logId = parsed.ruleId || parsed.uniqueId || parsed.id;
@@ -367,23 +369,10 @@ export class DashboardAnalyticsService {
   async getRequestAnalytics(period: 'day' | 'week' | 'month' = 'day'): Promise<RequestAnalyticsResponse> {
     try {
       const periodHours = period === 'day' ? 24 : period === 'week' ? 168 : 720;
-      const cutoffTime = Date.now() - periodHours * 3600 * 1000;
+      const cutoffTime = this.getCutoffTime(periodHours);
 
-      // Read access logs
-      const lines = await this.readLastLines(NGINX_ACCESS_LOG, 20000);
-      
-      // Read domain logs
-      const domainLogs = await this.getDomainLogFiles();
-      for (const domainLog of domainLogs) {
-        if (domainLog.accessLog) {
-          const domainLines = await this.readLastLines(domainLog.accessLog, 10000);
-          lines.push(...domainLines);
-        }
-        if (domainLog.sslAccessLog) {
-          const sslLines = await this.readLastLines(domainLog.sslAccessLog, 10000);
-          lines.push(...sslLines);
-        }
-      }
+      // Read access logs from all sources
+      const lines = await this.readAllAccessLogs(20000, 10000);
 
       // Group by IP
       const ipMap = new Map<string, IpAnalyticsEntry>();
@@ -483,22 +472,8 @@ export class DashboardAnalyticsService {
   async getAttackRatio(): Promise<AttackRatioStats> {
     try {
       // Count total requests from access logs (last 24h)
-      const accessLines = await this.readLastLines(NGINX_ACCESS_LOG, 20000);
-      
-      // Read domain logs
-      const domainLogs = await this.getDomainLogFiles();
-      for (const domainLog of domainLogs) {
-        if (domainLog.accessLog) {
-          const lines = await this.readLastLines(domainLog.accessLog, 10000);
-          accessLines.push(...lines);
-        }
-        if (domainLog.sslAccessLog) {
-          const lines = await this.readLastLines(domainLog.sslAccessLog, 10000);
-          accessLines.push(...lines);
-        }
-      }
-
-      const cutoffTime = Date.now() - 24 * 3600 * 1000;
+      const accessLines = await this.readAllAccessLogs(20000, 10000);
+      const cutoffTime = this.getCutoffTime(24);
       let totalRequests = 0;
 
       accessLines.forEach((line, index) => {

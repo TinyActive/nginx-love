@@ -97,6 +97,34 @@ const EmptyState = ({ message }: { message: string }) => (
   </div>
 );
 
+// Reusable Count Badge Component
+const CountBadge = ({ count, variant = "destructive" }: { count: number; variant?: "destructive" | "secondary" }) => (
+  count > 0 ? (
+    <Badge variant={variant}>{count}</Badge>
+  ) : (
+    <span className="text-muted-foreground">0</span>
+  )
+);
+
+// Reusable List Item Component
+const ListItem = ({ 
+  title, 
+  subtitle, 
+  badge 
+}: { 
+  title: string; 
+  subtitle: string; 
+  badge: React.ReactNode;
+}) => (
+  <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
+    <div className="flex-1">
+      <p className="text-sm font-medium">{title}</p>
+      <p className="text-xs text-muted-foreground">{subtitle}</p>
+    </div>
+    {badge}
+  </div>
+);
+
 // Reusable Card Header with Icon
 const CardHeaderWithIcon = ({ 
   icon: Icon, 
@@ -368,20 +396,12 @@ function LatestAttacksCard() {
         {attacks && attacks.length > 0 ? (
           <div className="space-y-3">
             {attacks.map((attack, idx) => (
-              <div
+              <ListItem
                 key={idx}
-                className="flex items-center justify-between p-3 rounded-lg bg-secondary/50"
-              >
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{attack.attackType}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Last: {new Date(attack.lastOccurred).toLocaleString()}
-                  </p>
-                </div>
-                <Badge variant={getSeverityVariant(attack.severity)}>
-                  {attack.count}
-                </Badge>
-              </div>
+                title={attack.attackType}
+                subtitle={`Last: ${new Date(attack.lastOccurred).toLocaleString()}`}
+                badge={<Badge variant={getSeverityVariant(attack.severity)}>{attack.count}</Badge>}
+              />
             ))}
           </div>
         ) : (
@@ -391,6 +411,25 @@ function LatestAttacksCard() {
     </Card>
   );
 }
+
+// Table headers configuration
+type TableHeader = { key: string; label: string; width?: string; align?: string };
+
+const NEWS_TABLE_HEADERS: TableHeader[] = [
+  { key: "timestamp", label: "dashboard.timestamp", width: "w-[140px]" },
+  { key: "attackerIp", label: "dashboard.attackerIp", width: "w-[120px]" },
+  { key: "domain", label: "dashboard.domain", width: "w-[140px]" },
+  { key: "attackType", label: "dashboard.attackType" },
+  { key: "action", label: "dashboard.action" },
+  { key: "actions", label: "dashboard.actions", align: "text-right" },
+];
+
+const IP_TABLE_HEADERS: TableHeader[] = [
+  { key: "sourceIp", label: "dashboard.sourceIp" },
+  { key: "requestCount", label: "dashboard.requestCount", align: "text-right" },
+  { key: "errors", label: "Errors", align: "text-right" },
+  { key: "attacks", label: "Attacks", align: "text-right" },
+];
 
 // Component for Latest News Table
 function LatestNewsTable() {
@@ -403,15 +442,6 @@ function LatestNewsTable() {
       : `/logs?search=${encodeURIComponent(item.ruleId || item.attackType)}`;
     window.location.href = url;
   };
-
-  const tableHeaders = [
-    { key: "timestamp", label: "dashboard.timestamp", width: "w-[140px]" },
-    { key: "attackerIp", label: "dashboard.attackerIp", width: "w-[120px]" },
-    { key: "domain", label: "dashboard.domain", width: "w-[140px]" },
-    { key: "attackType", label: "dashboard.attackType" },
-    { key: "action", label: "dashboard.action" },
-    { key: "actions", label: "dashboard.actions", align: "text-right" },
-  ];
 
   return (
     <Card>
@@ -426,7 +456,7 @@ function LatestNewsTable() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {tableHeaders.map(({ key, label, width, align }) => (
+                  {NEWS_TABLE_HEADERS.map(({ key, label, width, align }) => (
                     <TableHead key={key} className={`${width || ''} ${align || ''}`}>
                       {t(label)}
                     </TableHead>
@@ -509,10 +539,11 @@ function RequestAnalyticsCard() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t("dashboard.sourceIp")}</TableHead>
-                  <TableHead className="text-right">{t("dashboard.requestCount")}</TableHead>
-                  <TableHead className="text-right">Errors</TableHead>
-                  <TableHead className="text-right">Attacks</TableHead>
+                  {IP_TABLE_HEADERS.map(({ key, label, align }) => (
+                    <TableHead key={key} className={align || ''}>
+                      {key === 'sourceIp' || key === 'requestCount' ? t(label) : label}
+                    </TableHead>
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -523,18 +554,10 @@ function RequestAnalyticsCard() {
                       {ip.requestCount.toLocaleString()}
                     </TableCell>
                     <TableCell className="text-right">
-                      {ip.errorCount > 0 ? (
-                        <Badge variant="destructive">{ip.errorCount}</Badge>
-                      ) : (
-                        <span className="text-muted-foreground">0</span>
-                      )}
+                      <CountBadge count={ip.errorCount} />
                     </TableCell>
                     <TableCell className="text-right">
-                      {ip.attackCount > 0 ? (
-                        <Badge variant="destructive">{ip.attackCount}</Badge>
-                      ) : (
-                        <span className="text-muted-foreground">0</span>
-                      )}
+                      <CountBadge count={ip.attackCount} />
                     </TableCell>
                   </TableRow>
                 ))}

@@ -3,22 +3,24 @@
  * Types for advanced dashboard statistics and analytics
  */
 
-// HTTP Status codes mapping type
-type HttpStatusCodes = 200 | 301 | 302 | 400 | 403 | 404 | 500 | 502 | 503;
-
-// Base statistics interface for count-based metrics
+// Base interfaces
 interface BaseCountStats {
   count: number;
 }
 
-// Base timestamp interface
 interface TimestampedEntry {
   timestamp: string;
 }
 
-// Request trend data point with dynamic status codes
-export interface RequestTrendDataPoint extends TimestampedEntry {
-  total: number;
+interface ResponseTimeMetrics {
+  requestCount: number;
+  avgResponseTime: number;
+  maxResponseTime: number;
+  minResponseTime: number;
+}
+
+// Status code fields interface
+interface StatusCodeFields {
   status200: number;
   status301: number;
   status302: number;
@@ -31,16 +33,13 @@ export interface RequestTrendDataPoint extends TimestampedEntry {
   statusOther: number;
 }
 
-// Request metrics with min/max/avg pattern
-interface RequestMetrics {
-  requestCount: number;
-  avgResponseTime: number;
-  maxResponseTime: number;
-  minResponseTime: number;
+// Request trend data point
+export interface RequestTrendDataPoint extends TimestampedEntry, StatusCodeFields {
+  total: number;
 }
 
 // Slow request entry
-export interface SlowRequestEntry extends RequestMetrics {
+export interface SlowRequestEntry extends ResponseTimeMetrics {
   path: string;
 }
 
@@ -66,7 +65,7 @@ export interface LatestAttackEntry extends TimestampedEntry {
   logId: string;
 }
 
-// IP analytics entry with count-based metrics
+// IP analytics entry
 export interface IpAnalyticsEntry {
   ip: string;
   requestCount: number;

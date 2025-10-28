@@ -126,6 +126,38 @@ const getNestedValue = (obj: any, path: string) => {
   return path.split('.').reduce((acc, part) => acc?.[part], obj);
 };
 
+// Build filter parameters helper
+const buildFilterParams = (filters: {
+  level: string;
+  type: string;
+  domain: string;
+  search: string;
+  ruleId: string;
+  uniqueId: string;
+  page?: number;
+  limit?: number;
+}) => {
+  const params: any = {};
+  
+  if (filters.page) params.page = filters.page;
+  if (filters.limit) params.limit = filters.limit;
+  
+  const filterConfigs = [
+    { key: 'level', value: filters.level, exclude: 'all' },
+    { key: 'type', value: filters.type, exclude: 'all' },
+    { key: 'domain', value: filters.domain, exclude: 'all' },
+    { key: 'search', value: filters.search },
+    { key: 'ruleId', value: filters.ruleId },
+    { key: 'uniqueId', value: filters.uniqueId },
+  ];
+
+  filterConfigs.forEach(({ key, value, exclude }) => {
+    if (value && value !== exclude) params[key] = value;
+  });
+  
+  return params;
+};
+
 // Truncatable text component
 const TruncatableText = ({ text, maxLength = 40 }: { text: string; maxLength?: number }) => {
   if (text.length <= maxLength) return <div>{text}</div>;
@@ -395,24 +427,14 @@ const LogEntries = ({
   
   const stableUniqueId = useMemo(() => uniqueId ? String(uniqueId) : "", [uniqueId]);
 
-  const params = useMemo(() => {
-    const p: any = { page, limit };
-    
-    const filters = [
-      { key: 'level', value: level, exclude: 'all' },
-      { key: 'type', value: type, exclude: 'all' },
-      { key: 'domain', value: domain, exclude: 'all' },
-      { key: 'search', value: search },
-      { key: 'ruleId', value: ruleId },
-      { key: 'uniqueId', value: stableUniqueId },
-    ];
-
-    filters.forEach(({ key, value, exclude }) => {
-      if (value && value !== exclude) p[key] = value;
-    });
-    
-    return p;
-  }, [page, limit, level, type, domain, search, ruleId, stableUniqueId]);
+  const params = useMemo(() => 
+    buildFilterParams({
+      level, type, domain, search, ruleId,
+      uniqueId: stableUniqueId,
+      page, limit
+    }),
+    [page, limit, level, type, domain, search, ruleId, stableUniqueId]
+  );
 
   const { data: logsResponse, refetch, isFetching, isLoading } = useLogs(params);
   const logs = logsResponse?.data || [];
@@ -434,29 +456,13 @@ const LogEntries = ({
     setIsPageChanging(isFetching && !isLoading);
   }, [isFetching, isLoading]);
 
-  // Build download params
-  const buildDownloadParams = useCallback(() => {
-    const downloadParams: any = { limit: 1000 };
-    
-    const filters = [
-      { key: 'level', value: level, exclude: 'all' },
-      { key: 'type', value: type, exclude: 'all' },
-      { key: 'domain', value: domain, exclude: 'all' },
-      { key: 'search', value: search },
-      { key: 'ruleId', value: ruleId },
-      { key: 'uniqueId', value: uniqueId },
-    ];
-
-    filters.forEach(({ key, value, exclude }) => {
-      if (value && value !== exclude) downloadParams[key] = value;
-    });
-
-    return downloadParams;
-  }, [level, type, domain, search, ruleId, uniqueId]);
-
-  const handleDownloadLogs = async () => {
+  const handleDownloadLogs = useCallback(async () => {
     try {
-      await downloadLogs(buildDownloadParams());
+      const downloadParams = buildFilterParams({
+        level, type, domain, search, ruleId, uniqueId,
+        limit: 1000
+      });
+      await downloadLogs(downloadParams);
       toast({
         title: "Success",
         description: "Logs downloaded successfully",
@@ -469,7 +475,7 @@ const LogEntries = ({
         variant: "destructive",
       });
     }
-  };
+  }, [level, type, domain, search, ruleId, uniqueId, toast]);
 
   // Define columns
   const columns: ColumnDef<LogEntry>[] = [
@@ -728,32 +734,14 @@ const LogEntries = ({
               Page {page} of {pagination.totalPages || 1}
             </div>
             <div className="flex items-center space-x-2">
-              <PaginationButton
-                onClick={() => setPage(1)}
-                disabled={page === 1}
-                icon={ChevronsLeft}
-                label="Go to first page"
-                className="hidden lg:flex"
-              />
-              <PaginationButton
-                onClick={() => setPage(page - 1)}
-                disabled={page === 1}
-                icon={ChevronLeft}
-                label="Go to previous page"
-              />
-              <PaginationButton
-                onClick={() => setPage(page + 1)}
-                disabled={page === pagination.totalPages}
-                icon={ChevronRight}
-                label="Go to next page"
-              />
-              <PaginationButton
-                onClick={() => setPage(pagination.totalPages || 1)}
-                disabled={page === pagination.totalPages}
-                icon={ChevronsRight}
-                label="Go to last page"
-                className="hidden lg:flex"
-              />
+              {[
+                { icon: ChevronsLeft, onClick: () => setPage(1), disabled: page === 1, label: "Go to first page", className: "hidden lg:flex" },
+                { icon: ChevronLeft, onClick: () => setPage(page - 1), disabled: page === 1, label: "Go to previous page" },
+                { icon: ChevronRight, onClick: () => setPage(page + 1), disabled: page === pagination.totalPages, label: "Go to next page" },
+                { icon: ChevronsRight, onClick: () => setPage(pagination.totalPages || 1), disabled: page === pagination.totalPages, label: "Go to last page", className: "hidden lg:flex" },
+              ].map((btn, idx) => (
+                <PaginationButton key={idx} {...btn} />
+              ))}
             </div>
           </div>
         </div>
@@ -810,22 +798,12 @@ const Logs = () => {
   useCustomEvent('ruleIdChange', setRuleId);
   useCustomEvent('uniqueIdChange', setUniqueId);
 
-  const handleDownloadLogs = async () => {
+  const handleDownloadLogs = useCallback(async () => {
     try {
-      const downloadParams: any = { limit: 1000 };
-      const filters = [
-        { key: 'level', value: level, exclude: 'all' },
-        { key: 'type', value: type, exclude: 'all' },
-        { key: 'domain', value: domain, exclude: 'all' },
-        { key: 'search', value: search },
-        { key: 'ruleId', value: ruleId },
-        { key: 'uniqueId', value: uniqueId },
-      ];
-
-      filters.forEach(({ key, value, exclude }) => {
-        if (value && value !== exclude) downloadParams[key] = value;
+      const downloadParams = buildFilterParams({
+        level, type, domain, search, ruleId, uniqueId,
+        limit: 1000
       });
-
       await downloadLogs(downloadParams);
       toast({ title: "Success", description: "Logs downloaded successfully" });
     } catch (error: any) {
@@ -836,7 +814,7 @@ const Logs = () => {
         variant: "destructive",
       });
     }
-  };
+  }, [level, type, domain, search, ruleId, uniqueId, toast]);
 
   return (
     <div className="space-y-6">
