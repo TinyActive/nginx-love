@@ -144,6 +144,92 @@ const CardHeaderWithIcon = ({
   </CardHeader>
 );
 
+// Reusable Metric Row Component
+const MetricRow = ({ 
+  label, 
+  value, 
+  valueClassName = "" 
+}: { 
+  label: string; 
+  value: React.ReactNode; 
+  valueClassName?: string;
+}) => (
+  <div className="flex items-center justify-between">
+    <span className="text-sm font-medium">{label}</span>
+    <span className={valueClassName}>{value}</span>
+  </div>
+);
+
+// Reusable Data Card Component
+const DataCard = ({
+  icon,
+  title,
+  description,
+  data,
+  emptyMessage,
+  children
+}: {
+  icon: any;
+  title: string;
+  description?: string;
+  data: any;
+  emptyMessage: string;
+  children: (data: any) => React.ReactNode;
+}) => (
+  <Card>
+    <CardHeaderWithIcon icon={icon} title={title} description={description} />
+    <CardContent>
+      {data && (Array.isArray(data) ? data.length > 0 : true) ? (
+        children(data)
+      ) : (
+        <EmptyState message={emptyMessage} />
+      )}
+    </CardContent>
+  </Card>
+);
+
+// Reusable Table Card Component
+const TableCard = ({
+  icon,
+  title,
+  description,
+  data,
+  emptyMessage,
+  headers,
+  renderRow,
+  maxHeight = "max-h-[400px]"
+}: {
+  icon: any;
+  title: string;
+  description?: string;
+  data: any[];
+  emptyMessage: string;
+  headers: TableHeader[];
+  renderRow: (item: any) => React.ReactNode;
+  maxHeight?: string;
+}) => (
+  <DataCard icon={icon} title={title} description={description} data={data} emptyMessage={emptyMessage}>
+    {(items) => (
+      <div className={`rounded-md border ${maxHeight} overflow-auto`}>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {headers.map(({ key, label, width, align }) => (
+                <TableHead key={key} className={`${width || ''} ${align || ''}`}>
+                  {label}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map(renderRow)}
+          </TableBody>
+        </Table>
+      </div>
+    )}
+  </DataCard>
+);
+
 // Component for stats overview
 function DashboardStatsOverview() {
   const { t } = useTranslation();
@@ -295,37 +381,34 @@ function SlowRequestsCard() {
   const { data: slowRequests } = useSuspenseSlowRequests(10);
 
   return (
-    <Card>
-      <CardHeaderWithIcon
-        icon={Clock}
-        title={t("dashboard.slowRequests")}
-        description={t("dashboard.slowRequestsDesc")}
-      />
-      <CardContent>
-        {slowRequests && slowRequests.length > 0 ? (
-          <div className="space-y-2">
-            {slowRequests.slice(0, 3).map((req, idx) => (
-              <div
-                key={idx}
-                className="flex items-center justify-between p-2 rounded-lg bg-secondary/50"
-              >
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{req.path}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {req.requestCount} requests
-                  </p>
-                </div>
-                <Badge variant="outline" className="ml-2 shrink-0">
-                  {req.avgResponseTime.toFixed(2)}ms
-                </Badge>
+    <DataCard
+      icon={Clock}
+      title={t("dashboard.slowRequests")}
+      description={t("dashboard.slowRequestsDesc")}
+      data={slowRequests}
+      emptyMessage={t("dashboard.noData")}
+    >
+      {(data) => (
+        <div className="space-y-2">
+          {data.slice(0, 3).map((req: any, idx: number) => (
+            <div
+              key={idx}
+              className="flex items-center justify-between p-2 rounded-lg bg-secondary/50"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{req.path}</p>
+                <p className="text-xs text-muted-foreground">
+                  {req.requestCount} requests
+                </p>
               </div>
-            ))}
-          </div>
-        ) : (
-          <EmptyState message={t("dashboard.noData")} />
-        )}
-      </CardContent>
-    </Card>
+              <Badge variant="outline" className="ml-2 shrink-0">
+                {req.avgResponseTime.toFixed(2)}ms
+              </Badge>
+            </div>
+          ))}
+        </div>
+      )}
+    </DataCard>
   );
 }
 
@@ -340,43 +423,38 @@ function AttackRatioCard() {
   ];
 
   return (
-    <Card>
-      <CardHeaderWithIcon
-        icon={Shield}
-        title={t("dashboard.attackRatio")}
-        description={t("dashboard.attackRatioDesc")}
-      />
-      <CardContent>
-        {attackRatio ? (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">{t("dashboard.totalRequests")}</span>
-              <span className="text-2xl font-bold">
-                {attackRatio.totalRequests.toLocaleString()}
-              </span>
-            </div>
-            <div className="space-y-2">
-              {metrics.map(({ label, value, variant }) => (
-                <div key={label} className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">{t(label)}</span>
-                  <Badge variant={variant}>{value?.toLocaleString()}</Badge>
-                </div>
-              ))}
-            </div>
-            <div className="pt-4 border-t">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">{t("dashboard.attackPercentage")}</span>
-                <span className={`text-xl font-bold ${getAttackPercentageColor(attackRatio.attackPercentage)}`}>
-                  {attackRatio.attackPercentage.toFixed(2)}%
-                </span>
+    <DataCard
+      icon={Shield}
+      title={t("dashboard.attackRatio")}
+      description={t("dashboard.attackRatioDesc")}
+      data={attackRatio}
+      emptyMessage={t("dashboard.noData")}
+    >
+      {(data) => (
+        <div className="space-y-4">
+          <MetricRow
+            label={t("dashboard.totalRequests")}
+            value={data.totalRequests.toLocaleString()}
+            valueClassName="text-2xl font-bold"
+          />
+          <div className="space-y-2">
+            {metrics.map(({ label, value, variant }) => (
+              <div key={label} className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">{t(label)}</span>
+                <Badge variant={variant}>{value?.toLocaleString()}</Badge>
               </div>
-            </div>
+            ))}
           </div>
-        ) : (
-          <EmptyState message={t("dashboard.noData")} />
-        )}
-      </CardContent>
-    </Card>
+          <div className="pt-4 border-t">
+            <MetricRow
+              label={t("dashboard.attackPercentage")}
+              value={`${data.attackPercentage.toFixed(2)}%`}
+              valueClassName={`text-xl font-bold ${getAttackPercentageColor(data.attackPercentage)}`}
+            />
+          </div>
+        </div>
+      )}
+    </DataCard>
   );
 }
 
@@ -386,29 +464,26 @@ function LatestAttacksCard() {
   const { data: attacks } = useSuspenseLatestAttackStats(5);
 
   return (
-    <Card>
-      <CardHeaderWithIcon
-        icon={AlertTriangle}
-        title={t("dashboard.latestAttacks")}
-        description={t("dashboard.latestAttacksDesc")}
-      />
-      <CardContent>
-        {attacks && attacks.length > 0 ? (
-          <div className="space-y-3">
-            {attacks.map((attack, idx) => (
-              <ListItem
-                key={idx}
-                title={attack.attackType}
-                subtitle={`Last: ${new Date(attack.lastOccurred).toLocaleString()}`}
-                badge={<Badge variant={getSeverityVariant(attack.severity)}>{attack.count}</Badge>}
-              />
-            ))}
-          </div>
-        ) : (
-          <EmptyState message={t("dashboard.noData")} />
-        )}
-      </CardContent>
-    </Card>
+    <DataCard
+      icon={AlertTriangle}
+      title={t("dashboard.latestAttacks")}
+      description={t("dashboard.latestAttacksDesc")}
+      data={attacks}
+      emptyMessage={t("dashboard.noData")}
+    >
+      {(data) => (
+        <div className="space-y-3">
+          {data.map((attack: any, idx: number) => (
+            <ListItem
+              key={idx}
+              title={attack.attackType}
+              subtitle={`Last: ${new Date(attack.lastOccurred).toLocaleString()}`}
+              badge={<Badge variant={getSeverityVariant(attack.severity)}>{attack.count}</Badge>}
+            />
+          ))}
+        </div>
+      )}
+    </DataCard>
   );
 }
 
@@ -443,60 +518,34 @@ function LatestNewsTable() {
     window.location.href = url;
   };
 
+  const headers = NEWS_TABLE_HEADERS.map(h => ({ ...h, label: t(h.label) }));
+
   return (
-    <Card>
-      <CardHeaderWithIcon
-        icon={TrendingUp}
-        title={t("dashboard.latestNews")}
-        description={t("dashboard.latestNewsDesc")}
-      />
-      <CardContent>
-        {news && news.length > 0 ? (
-          <div className="rounded-md border max-h-[400px] overflow-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {NEWS_TABLE_HEADERS.map(({ key, label, width, align }) => (
-                    <TableHead key={key} className={`${width || ''} ${align || ''}`}>
-                      {t(label)}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {news.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-mono text-xs whitespace-nowrap">
-                      {new Date(item.timestamp).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {item.attackerIp}
-                    </TableCell>
-                    <TableCell className="text-sm truncate max-w-[140px]">
-                      {item.domain || '-'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{item.attackType}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="destructive">{item.action}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => handleViewDetails(item)}>
-                        <Eye className="h-4 w-4 mr-1" />
-                        {t("dashboard.viewDetails")}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        ) : (
-          <EmptyState message={t("dashboard.noData")} />
-        )}
-      </CardContent>
-    </Card>
+    <TableCard
+      icon={TrendingUp}
+      title={t("dashboard.latestNews")}
+      description={t("dashboard.latestNewsDesc")}
+      data={news || []}
+      emptyMessage={t("dashboard.noData")}
+      headers={headers}
+      renderRow={(item: any) => (
+        <TableRow key={item.id}>
+          <TableCell className="font-mono text-xs whitespace-nowrap">
+            {new Date(item.timestamp).toLocaleString()}
+          </TableCell>
+          <TableCell className="font-mono text-sm">{item.attackerIp}</TableCell>
+          <TableCell className="text-sm truncate max-w-[140px]">{item.domain || '-'}</TableCell>
+          <TableCell><Badge variant="outline">{item.attackType}</Badge></TableCell>
+          <TableCell><Badge variant="destructive">{item.action}</Badge></TableCell>
+          <TableCell className="text-right">
+            <Button variant="ghost" size="sm" onClick={() => handleViewDetails(item)}>
+              <Eye className="h-4 w-4 mr-1" />
+              {t("dashboard.viewDetails")}
+            </Button>
+          </TableCell>
+        </TableRow>
+      )}
+    />
   );
 }
 
@@ -507,6 +556,10 @@ function RequestAnalyticsCard() {
   const { data: analytics } = useSuspenseRequestAnalytics(period);
 
   const periods = ['day', 'week', 'month'] as const;
+  const headers = IP_TABLE_HEADERS.map(h => ({
+    ...h,
+    label: h.key === 'sourceIp' || h.key === 'requestCount' ? t(h.label) : h.label
+  }));
 
   return (
     <Card>
@@ -539,15 +592,15 @@ function RequestAnalyticsCard() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {IP_TABLE_HEADERS.map(({ key, label, align }) => (
+                  {headers.map(({ key, label, align }) => (
                     <TableHead key={key} className={align || ''}>
-                      {key === 'sourceIp' || key === 'requestCount' ? t(label) : label}
+                      {label}
                     </TableHead>
                   ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {analytics.topIps.map((ip, idx) => (
+                {analytics.topIps.map((ip: any, idx: number) => (
                   <TableRow key={idx}>
                     <TableCell className="font-mono">{ip.ip}</TableCell>
                     <TableCell className="text-right font-medium">
@@ -605,64 +658,40 @@ export default function DashboardNew() {
         <DashboardStatsOverview />
       </Suspense>
 
-      {/* Row 1: Request Trend Chart + Attack Ratio */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Suspense
-          fallback={
-            <SkeletonChart
-              title={t("dashboard.requestTrend")}
-              description={t("dashboard.requestTrendDesc")}
-              height="h-[320px]"
-            />
-          }
-        >
-          <div className="lg:col-span-2">
-            <RequestTrendChart />
-          </div>
-        </Suspense>
-
-        <Suspense fallback={<SkeletonChart title={t("dashboard.attackRatio")} />}>
-          <AttackRatioCard />
-        </Suspense>
-      </div>
-
-      {/* Row 2: Latest Attacks + Request Analytics */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Suspense fallback={<SkeletonChart title={t("dashboard.latestAttacks")} />}>
-          <LatestAttacksCard />
-        </Suspense>
-
-        <Suspense
-          fallback={
-            <SkeletonTable
-              rows={5}
-              columns={4}
-              title={t("dashboard.requestAnalytics")}
-            />
-          }
-        >
-          <RequestAnalyticsCard />
-        </Suspense>
-      </div>
-
-      {/* Row 3: Slow Requests + Latest News */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Suspense fallback={<SkeletonChart title={t("dashboard.slowRequests")} />}>
-          <SlowRequestsCard />
-        </Suspense>
-
-        <Suspense
-          fallback={
-            <SkeletonTable
-              rows={8}
-              columns={6}
-              title={t("dashboard.latestNews")}
-            />
-          }
-        >
-          <LatestNewsTable />
-        </Suspense>
-      </div>
+      {/* Dashboard Rows */}
+      {[
+        {
+          cols: "lg:grid-cols-3",
+          items: [
+            { component: <RequestTrendChart />, fallback: <SkeletonChart title={t("dashboard.requestTrend")} description={t("dashboard.requestTrendDesc")} height="h-[320px]" />, className: "lg:col-span-2" },
+            { component: <AttackRatioCard />, fallback: <SkeletonChart title={t("dashboard.attackRatio")} /> },
+          ]
+        },
+        {
+          cols: "lg:grid-cols-2",
+          items: [
+            { component: <LatestAttacksCard />, fallback: <SkeletonChart title={t("dashboard.latestAttacks")} /> },
+            { component: <RequestAnalyticsCard />, fallback: <SkeletonTable rows={5} columns={4} title={t("dashboard.requestAnalytics")} /> },
+          ]
+        },
+        {
+          cols: "lg:grid-cols-2",
+          items: [
+            { component: <SlowRequestsCard />, fallback: <SkeletonChart title={t("dashboard.slowRequests")} /> },
+            { component: <LatestNewsTable />, fallback: <SkeletonTable rows={8} columns={6} title={t("dashboard.latestNews")} /> },
+          ]
+        },
+      ].map((row, rowIdx) => (
+        <div key={rowIdx} className={`grid gap-4 ${row.cols}`}>
+          {row.items.map((item, itemIdx) => (
+            <Suspense key={itemIdx} fallback={item.fallback}>
+              <div className={item.className || ""}>
+                {item.component}
+              </div>
+            </Suspense>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
