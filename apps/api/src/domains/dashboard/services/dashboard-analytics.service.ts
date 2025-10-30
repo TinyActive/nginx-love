@@ -94,7 +94,7 @@ export class DashboardAnalyticsService {
     if (parsed.tags && parsed.tags.length > 0) {
       const meaningfulTag = parsed.tags.find((tag: string) => 
         tag.includes('attack') || tag.includes('injection') || tag.includes('xss') ||
-        tag.includes('sqli') || tag.includes('rce') || tag.includes('lfi') || tag.includes('rfi')
+        tag.includes('sqli') || tag.includes('rce') || tag.includes('lfi') || tag.includes('rfi') || tag.includes('anomaly-evaluation')
       );
       if (meaningfulTag) {
         return meaningfulTag.replace(/-/g, ' ').replace(/_/g, ' ').toUpperCase();
@@ -109,7 +109,8 @@ export class DashboardAnalyticsService {
         'RCE': 'Remote Code Execution',
         'LFI': 'Local File Inclusion',
         'RFI': 'Remote File Inclusion',
-        'Command Injection': 'Command Injection'
+        'Command Injection': 'Command Injection',
+        'Anomaly Evaluation': 'Anomaly Evaluation'
       };
       
       for (const [key, value] of Object.entries(attackTypes)) {
