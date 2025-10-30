@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Suspense } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,11 +9,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Download, Upload, Trash2, Edit, Loader2, UserCog } from "lucide-react";
+import { Plus, Download, Upload, Trash2, Edit, Loader2, UserCog, AlertCircle, CheckCircle2, Info, FileCode } from "lucide-react";
 import { ACLRule } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { SkeletonTable } from "@/components/ui/skeletons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { validateAclValue, getValidationHints, getExampleValue } from "@/utils/acl-validators";
+import { PreviewConfigDialog } from "@/components/acl/PreviewConfigDialog";
 import {
   useSuspenseAclRules,
   useCreateAclRule,
@@ -30,6 +33,7 @@ function AclRulesTable() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<ACLRule | null>(null);
   const [ruleToDelete, setRuleToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const createAclRule = useCreateAclRule();
   const updateAclRule = useUpdateAclRule();
@@ -47,7 +51,81 @@ function AclRulesTable() {
     enabled: true
   });
 
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationSuccess, setValidationSuccess] = useState(false);
+
+  // Real-time validation when value changes
+  useEffect(() => {
+    if (formData.value.trim().length === 0) {
+      setValidationError(null);
+      setValidationSuccess(false);
+      return;
+    }
+
+    const result = validateAclValue(formData.field, formData.operator, formData.value);
+    if (result.valid) {
+      setValidationError(null);
+      setValidationSuccess(true);
+    } else {
+      setValidationError(result.error || 'Invalid value');
+      setValidationSuccess(false);
+    }
+  }, [formData.value, formData.field, formData.operator]);
+
+  // Auto-adjust action based on type
+  useEffect(() => {
+    if (formData.type === 'whitelist' && formData.action === 'deny') {
+      setFormData(prev => ({ ...prev, action: 'allow' }));
+    } else if (formData.type === 'blacklist' && formData.action === 'allow') {
+      setFormData(prev => ({ ...prev, action: 'deny' }));
+    }
+  }, [formData.type]);
+
+  // Reset validation when field or operator changes
+  useEffect(() => {
+    setValidationError(null);
+    setValidationSuccess(false);
+    if (formData.value.trim().length > 0) {
+      const result = validateAclValue(formData.field, formData.operator, formData.value);
+      if (result.valid) {
+        setValidationSuccess(true);
+      } else {
+        setValidationError(result.error || 'Invalid value');
+      }
+    }
+  }, [formData.field, formData.operator]);
+
   const handleAddRule = async () => {
+    // Validate before submission
+    if (!formData.name.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Rule name is required",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!formData.value.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Condition value is required",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate value
+    const valueValidation = validateAclValue(formData.field, formData.operator, formData.value);
+    if (!valueValidation.valid) {
+      toast({
+        title: "Validation Error",
+        description: valueValidation.error || "Invalid condition value",
+        variant: "destructive"
+      });
+      return;
+    }
+
     // Transform field format: user-agent -> user_agent for backend
     const conditionField = formData.field.replace('-', '_') as any;
 
@@ -101,6 +179,8 @@ function AclRulesTable() {
       action: "deny",
       enabled: true
     });
+    setValidationError(null);
+    setValidationSuccess(false);
   };
 
   const handleEdit = (rule: ACLRule) => {
@@ -190,6 +270,10 @@ function AclRulesTable() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
+            <FileCode className="h-4 w-4 mr-2" />
+            Preview Config
+          </Button>
           <Button variant="secondary" size="sm" onClick={handleApplyRules} disabled={applyAclRules.isPending}>
             {applyAclRules.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Apply Rules to Nginx
@@ -291,14 +375,39 @@ function AclRulesTable() {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="value">Value</Label>
-                    <Input
-                      id="value"
-                      value={formData.value}
-                      onChange={(e) => setFormData({ ...formData, value: e.target.value })}
-                      placeholder="e.g., 192.168.1.100"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="value"
+                        value={formData.value}
+                        onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                        placeholder={getExampleValue(formData.field, formData.operator)}
+                        className={validationError ? 'border-red-500' : validationSuccess ? 'border-green-500' : ''}
+                      />
+                      {validationSuccess && formData.value.trim().length > 0 && (
+                        <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+                      )}
+                      {validationError && (
+                        <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
+                      )}
+                    </div>
                   </div>
                 </div>
+                
+                {/* Validation feedback */}
+                {validationError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{validationError}</AlertDescription>
+                  </Alert>
+                )}
+                
+                {/* Hints */}
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Hint:</strong> {getValidationHints(formData.field, formData.operator)}
+                  </AlertDescription>
+                </Alert>
                 <div className="flex items-center space-x-2">
                   <Switch
                     id="enabled"
@@ -310,7 +419,16 @@ function AclRulesTable() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={createAclRule.isPending || updateAclRule.isPending}>Cancel</Button>
-                <Button onClick={handleAddRule} disabled={createAclRule.isPending || updateAclRule.isPending}>
+                <Button 
+                  onClick={handleAddRule} 
+                  disabled={
+                    createAclRule.isPending || 
+                    updateAclRule.isPending || 
+                    !formData.name.trim() || 
+                    !formData.value.trim() || 
+                    !!validationError
+                  }
+                >
                   {(createAclRule.isPending || updateAclRule.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   {editingRule ? "Update" : "Add"} Rule
                 </Button>
@@ -387,19 +505,16 @@ function AclRulesTable() {
       <ConfirmDialog
         open={!!ruleToDelete}
         onOpenChange={(open) => !open && setRuleToDelete(null)}
-        title="Delete ACL Rule"
-        description={
-          <>
-            Are you sure you want to delete the rule <strong>{ruleToDelete?.name}</strong>?
-            <br />
-            This action cannot be undone and may affect access control to your domains.
-          </>
-        }
-        confirmText="Delete Rule"
-        cancelText="Cancel"
         onConfirm={handleDelete}
-        isLoading={deleteAclRule.isPending}
+        title="Delete ACL Rule"
+        description={`Are you sure you want to delete the rule "${ruleToDelete?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
         variant="destructive"
+      />
+
+      <PreviewConfigDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
       />
     </>
   );

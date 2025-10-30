@@ -51,31 +51,55 @@ export class DomainsService {
     // Create domain
     const domain = await domainsRepository.create(input);
 
-    // Generate nginx configuration
-    await nginxConfigService.generateConfig(domain);
+    try {
+      // Generate nginx configuration (includes validation)
+      await nginxConfigService.generateConfig(domain);
 
-    // Update domain status to active
-    const updatedDomain = await domainsRepository.updateStatus(domain.id, 'active');
+      // Update domain status to active
+      const updatedDomain = await domainsRepository.updateStatus(domain.id, 'active');
 
-    // Enable configuration
-    await nginxConfigService.enableConfig(domain.name);
+      // Enable configuration
+      await nginxConfigService.enableConfig(domain.name);
 
-    // Auto-reload nginx (silent mode)
-    await nginxReloadService.autoReload(true);
+      // Auto-reload nginx
+      const reloadResult = await nginxReloadService.reload();
+      if (!reloadResult.success) {
+        // Rollback: delete domain and config
+        await nginxConfigService.deleteConfig(domain.name);
+        await domainsRepository.delete(domain.id);
+        throw new Error(`Nginx reload failed: ${reloadResult.error || 'Unknown error'}`);
+      }
 
-    // Log activity
-    await this.logActivity(
-      userId,
-      `Created domain: ${input.name}`,
-      'config_change',
-      ip,
-      userAgent,
-      true
-    );
+      // Log activity
+      await this.logActivity(
+        userId,
+        `Created domain: ${input.name}`,
+        'config_change',
+        ip,
+        userAgent,
+        true
+      );
 
-    logger.info(`Domain ${input.name} created by user ${username}`);
+      logger.info(`Domain ${input.name} created by user ${username}`);
 
-    return updatedDomain;
+      return updatedDomain;
+    } catch (error: any) {
+      // Rollback: delete domain from database
+      logger.error(`Failed to create domain ${input.name}, rolling back:`, error);
+      try {
+        await nginxConfigService.deleteConfig(domain.name);
+        await domainsRepository.delete(domain.id);
+        logger.info(`Rolled back domain creation for ${input.name}`);
+      } catch (rollbackError) {
+        logger.error(`Failed to rollback domain creation:`, rollbackError);
+      }
+      
+      // Re-throw with user-friendly message
+      if (error.message.includes('Invalid nginx configuration')) {
+        throw new Error(`Nginx configuration validation failed: ${error.message}`);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -110,39 +134,92 @@ export class DomainsService {
     userAgent: string
   ): Promise<DomainWithRelations> {
     // Check if domain exists
-    const domain = await domainsRepository.findById(id);
-    if (!domain) {
+    const originalDomain = await domainsRepository.findById(id);
+    if (!originalDomain) {
       throw new Error('Domain not found');
     }
 
-    // Update domain
-    await domainsRepository.update(id, input);
+    // Store original data for rollback
+    const originalData: UpdateDomainInput = {
+      name: originalDomain.name,
+      status: originalDomain.status,
+      modsecEnabled: originalDomain.modsecEnabled,
+      upstreams: originalDomain.upstreams.map(u => ({
+        host: u.host,
+        port: u.port,
+        protocol: u.protocol,
+        sslVerify: u.sslVerify,
+        weight: u.weight,
+        maxFails: u.maxFails,
+        failTimeout: u.failTimeout,
+      })),
+      loadBalancer: originalDomain.loadBalancer ? {
+        algorithm: originalDomain.loadBalancer.algorithm,
+        healthCheckEnabled: originalDomain.loadBalancer.healthCheckEnabled,
+        healthCheckInterval: originalDomain.loadBalancer.healthCheckInterval,
+        healthCheckTimeout: originalDomain.loadBalancer.healthCheckTimeout,
+        healthCheckPath: originalDomain.loadBalancer.healthCheckPath,
+      } : undefined,
+    };
 
-    // Get updated domain with relations
-    const updatedDomain = await domainsRepository.findById(id);
-    if (!updatedDomain) {
-      throw new Error('Failed to fetch updated domain');
+    try {
+      // Update domain
+      await domainsRepository.update(id, input);
+
+      // Get updated domain with relations
+      const updatedDomain = await domainsRepository.findById(id);
+      if (!updatedDomain) {
+        throw new Error('Failed to fetch updated domain');
+      }
+
+      // Regenerate nginx config (includes validation and backup)
+      await nginxConfigService.generateConfig(updatedDomain);
+
+      // Auto-reload nginx
+      const reloadResult = await nginxReloadService.reload();
+      if (!reloadResult.success) {
+        // Rollback: restore original domain data
+        await domainsRepository.update(id, originalData);
+        const restoredDomain = await domainsRepository.findById(id);
+        if (restoredDomain) {
+          await nginxConfigService.generateConfig(restoredDomain);
+        }
+        throw new Error(`Nginx reload failed: ${reloadResult.error || 'Unknown error'}`);
+      }
+
+      // Log activity
+      await this.logActivity(
+        userId,
+        `Updated domain: ${updatedDomain.name}`,
+        'config_change',
+        ip,
+        userAgent,
+        true
+      );
+
+      logger.info(`Domain ${updatedDomain.name} updated by user ${username}`);
+
+      return updatedDomain;
+    } catch (error: any) {
+      // Rollback: restore original domain data
+      logger.error(`Failed to update domain ${originalDomain.name}, rolling back:`, error);
+      try {
+        await domainsRepository.update(id, originalData);
+        const restoredDomain = await domainsRepository.findById(id);
+        if (restoredDomain) {
+          await nginxConfigService.generateConfig(restoredDomain);
+        }
+        logger.info(`Rolled back domain update for ${originalDomain.name}`);
+      } catch (rollbackError) {
+        logger.error(`Failed to rollback domain update:`, rollbackError);
+      }
+      
+      // Re-throw with user-friendly message
+      if (error.message.includes('Invalid nginx configuration')) {
+        throw new Error(`Nginx configuration validation failed: ${error.message}`);
+      }
+      throw error;
     }
-
-    // Regenerate nginx config
-    await nginxConfigService.generateConfig(updatedDomain);
-
-    // Auto-reload nginx
-    await nginxReloadService.autoReload(true);
-
-    // Log activity
-    await this.logActivity(
-      userId,
-      `Updated domain: ${updatedDomain.name}`,
-      'config_change',
-      ip,
-      userAgent,
-      true
-    );
-
-    logger.info(`Domain ${updatedDomain.name} updated by user ${username}`);
-
-    return updatedDomain;
   }
 
   /**

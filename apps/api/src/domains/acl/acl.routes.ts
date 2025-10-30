@@ -29,6 +29,13 @@ router.get('/:id', (req, res) => aclController.getAclRule(req, res));
 router.post('/', authorize('admin', 'moderator'), (req, res) => aclController.createAclRule(req, res));
 
 /**
+ * @route   GET /api/acl/preview
+ * @desc    Preview ACL configuration without applying
+ * @access  Private (all roles)
+ */
+router.get('/preview', (req, res) => aclController.previewAclConfig(req, res));
+
+/**
  * @route   POST /api/acl/apply
  * @desc    Apply ACL rules to Nginx
  * @access  Private (admin, moderator)

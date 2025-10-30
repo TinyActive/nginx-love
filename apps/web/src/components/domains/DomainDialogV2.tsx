@@ -222,7 +222,7 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave }: DomainDia
     };
 
     onSave(domainData);
-    onOpenChange(false);
+    // Do not close dialog here - let parent component handle it after successful save
   };
 
   return (

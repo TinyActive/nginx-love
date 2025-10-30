@@ -182,6 +182,31 @@ export class AclController {
   }
 
   /**
+   * Preview ACL configuration without applying
+   * @route GET /api/acl/preview
+   */
+  async previewAclConfig(req: Request, res: Response): Promise<void> {
+    try {
+      const config = await aclService.previewNginxConfig();
+
+      res.json({
+        success: true,
+        data: {
+          config,
+          rulesCount: await aclService.getEnabledRulesCount()
+        }
+      });
+    } catch (error: any) {
+      logger.error('Failed to preview ACL config:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to preview ACL configuration',
+        error: error.message
+      });
+    }
+  }
+
+  /**
    * Apply ACL rules to Nginx
    * @route POST /api/acl/apply
    */

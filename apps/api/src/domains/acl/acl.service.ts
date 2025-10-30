@@ -106,6 +106,21 @@ export class AclService {
   }
 
   /**
+   * Preview Nginx configuration without applying
+   */
+  async previewNginxConfig(): Promise<string> {
+    return aclNginxService.generateAclConfig();
+  }
+
+  /**
+   * Get count of enabled rules
+   */
+  async getEnabledRulesCount(): Promise<number> {
+    const rules = await aclRepository.findEnabled();
+    return rules.length;
+  }
+
+  /**
    * Apply ACL rules to Nginx
    */
   async applyRulesToNginx(): Promise<AclNginxResult> {

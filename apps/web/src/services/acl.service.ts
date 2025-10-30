@@ -127,6 +127,14 @@ export const aclService = {
   },
 
   /**
+   * Preview ACL configuration
+   */
+  async preview(): Promise<{ config: string; rulesCount: number }> {
+    const response = await api.get<{ success: boolean; data: { config: string; rulesCount: number } }>('/acl/preview');
+    return response.data.data;
+  },
+
+  /**
    * Apply ACL rules to Nginx
    */
   async apply(): Promise<{ success: boolean; message: string }> {
