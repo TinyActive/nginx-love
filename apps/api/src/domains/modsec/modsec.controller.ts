@@ -200,10 +200,21 @@ export class ModSecController {
         return;
       }
 
+      // Handle validation errors (rule ID duplicates, nginx config errors)
+      if (error.message.includes('Rule ID(s) already exist') ||
+          error.message.includes('Nginx configuration test failed') ||
+          error.message.includes('Nginx reload failed')) {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+        });
+        return;
+      }
+
       logger.error('Add custom rule error:', error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: error.message || 'Internal server error',
       });
     }
   }
@@ -254,10 +265,21 @@ export class ModSecController {
         return;
       }
 
+      // Handle validation errors (rule ID duplicates, nginx config errors)
+      if (error.message.includes('Rule ID(s) already exist') ||
+          error.message.includes('Nginx configuration test failed') ||
+          error.message.includes('Nginx reload failed')) {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+        });
+        return;
+      }
+
       logger.error('Update ModSec rule error:', error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: error.message || 'Internal server error',
       });
     }
   }

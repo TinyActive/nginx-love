@@ -43,6 +43,86 @@ export class ModSecService {
   }
 
   /**
+   * Extract rule IDs from custom rule content
+   */
+  private extractRuleIdsFromContent(ruleContent: string): number[] {
+    const idMatches = ruleContent.matchAll(/id:(\d+)/g);
+    const ids = new Set<number>();
+
+    for (const match of idMatches) {
+      ids.add(parseInt(match[1]));
+    }
+
+    return Array.from(ids).sort((a, b) => a - b);
+  }
+
+  /**
+   * Get all existing rule IDs from custom rules
+   */
+  private async getAllExistingRuleIds(excludeRuleId?: string): Promise<Set<number>> {
+    const allRuleIds = new Set<number>();
+    
+    try {
+      // Get all custom rules from database
+      const customRules = await modSecRepository.findModSecRules();
+      
+      for (const rule of customRules) {
+        // Skip the rule being updated
+        if (excludeRuleId && rule.id === excludeRuleId) {
+          continue;
+        }
+        
+        // Extract IDs from rule content
+        const ruleIds = this.extractRuleIdsFromContent(rule.ruleContent);
+        ruleIds.forEach(id => allRuleIds.add(id));
+      }
+    } catch (error: any) {
+      logger.error('Failed to get existing rule IDs:', error);
+    }
+    
+    return allRuleIds;
+  }
+
+  /**
+   * Validate rule IDs for duplicates
+   */
+  private async validateRuleIds(ruleContent: string, excludeRuleId?: string): Promise<{ valid: boolean; duplicateIds: number[] }> {
+    const newRuleIds = this.extractRuleIdsFromContent(ruleContent);
+    
+    if (newRuleIds.length === 0) {
+      return { valid: true, duplicateIds: [] };
+    }
+    
+    const existingRuleIds = await this.getAllExistingRuleIds(excludeRuleId);
+    const duplicateIds: number[] = [];
+    
+    for (const id of newRuleIds) {
+      if (existingRuleIds.has(id)) {
+        duplicateIds.push(id);
+      }
+    }
+    
+    return {
+      valid: duplicateIds.length === 0,
+      duplicateIds,
+    };
+  }
+
+  /**
+   * Test nginx configuration validity
+   */
+  private async testNginxConfig(): Promise<{ valid: boolean; error?: string }> {
+    try {
+      await execAsync('nginx -t 2>&1');
+      return { valid: true };
+    } catch (error: any) {
+      const errorMessage = error.stderr || error.stdout || error.message;
+      logger.error('Nginx configuration test failed:', errorMessage);
+      return { valid: false, error: errorMessage };
+    }
+  }
+
+  /**
    * Regenerate CRS disable configuration file from database
    */
   private async regenerateCRSDisableConfig(domainId?: string): Promise<void> {
@@ -302,10 +382,17 @@ export class ModSecService {
       }
     }
 
-    // Create rule in database
+    // Validate rule IDs for duplicates
+    const ruleIdValidation = await this.validateRuleIds(dto.ruleContent);
+    if (!ruleIdValidation.valid) {
+      throw new Error(`Rule ID(s) already exist: ${ruleIdValidation.duplicateIds.join(', ')}. Please use unique rule IDs.`);
+    }
+
+    // Create rule in database first
     const rule = await modSecRepository.createModSecRule(dto);
 
     // Write rule to file (with appropriate extension based on enabled status)
+    let ruleFilePath: string | null = null;
     try {
       // Ensure custom rules directory exists
       await fs.mkdir(MODSEC_CUSTOM_RULES_PATH, { recursive: true });
@@ -313,18 +400,54 @@ export class ModSecService {
       const ruleFileName = rule.enabled 
         ? `custom_${rule.id}.conf` 
         : `custom_${rule.id}.conf.disabled`;
-      const ruleFilePath = path.join(MODSEC_CUSTOM_RULES_PATH, ruleFileName);
+      ruleFilePath = path.join(MODSEC_CUSTOM_RULES_PATH, ruleFileName);
 
       await fs.writeFile(ruleFilePath, dto.ruleContent, 'utf-8');
       logger.info(`Custom ModSecurity rule file created: ${ruleFilePath}`);
 
-      // Auto reload nginx only if enabled
+      // Test nginx configuration if rule is enabled
       if (rule.enabled) {
-        await this.autoReloadNginx(true);
+        const configTest = await this.testNginxConfig();
+        if (!configTest.valid) {
+          // Rollback: delete the file and database entry
+          try {
+            await fs.unlink(ruleFilePath);
+            await modSecRepository.deleteModSecRule(rule.id);
+          } catch (rollbackError) {
+            logger.error('Failed to rollback after nginx config test failure:', rollbackError);
+          }
+          throw new Error(`Nginx configuration test failed: ${configTest.error}`);
+        }
+
+        // Reload nginx if config is valid
+        const reloadResult = await this.autoReloadNginx(false);
+        if (!reloadResult.success) {
+          // Rollback: delete the file and database entry
+          try {
+            await fs.unlink(ruleFilePath);
+            await modSecRepository.deleteModSecRule(rule.id);
+          } catch (rollbackError) {
+            logger.error('Failed to rollback after nginx reload failure:', rollbackError);
+          }
+          throw new Error(`Nginx reload failed: ${reloadResult.message}`);
+        }
       }
     } catch (error: any) {
       logger.error('Failed to write custom rule file:', error);
-      // Continue even if file write fails
+      // If it's our validation error, rethrow it
+      if (error.message.includes('Nginx configuration test failed') || error.message.includes('Nginx reload failed')) {
+        throw error;
+      }
+      // For other errors, try to clean up
+      if (ruleFilePath) {
+        try {
+          await fs.unlink(ruleFilePath);
+          await modSecRepository.deleteModSecRule(rule.id);
+        } catch (cleanupError) {
+          logger.error('Failed to cleanup after error:', cleanupError);
+        }
+      }
+      throw new Error(`Failed to create custom rule: ${error.message}`);
     }
 
     logger.info(`Custom ModSecurity rule added: ${rule.name}`, {
@@ -340,6 +463,16 @@ export class ModSecService {
       throw new Error('ModSecurity rule not found');
     }
 
+    // Validate rule IDs for duplicates if content is being updated
+    if (dto.ruleContent !== undefined) {
+      const ruleIdValidation = await this.validateRuleIds(dto.ruleContent, id);
+      if (!ruleIdValidation.valid) {
+        throw new Error(`Rule ID(s) already exist: ${ruleIdValidation.duplicateIds.join(', ')}. Please use unique rule IDs.`);
+      }
+    }
+
+    // Store original state for rollback
+    const originalRule = { ...rule };
     const updatedRule = await modSecRepository.updateModSecRule(id, dto);
 
     // Handle file updates with proper naming
@@ -348,11 +481,13 @@ export class ModSecService {
     const enabledFilePath = path.join(MODSEC_CUSTOM_RULES_PATH, enabledFileName);
     const disabledFilePath = path.join(MODSEC_CUSTOM_RULES_PATH, disabledFileName);
 
+    let backupFilePath: string | null = null;
+    let currentFilePath: string | null = null;
+
     try {
       await fs.mkdir(MODSEC_CUSTOM_RULES_PATH, { recursive: true });
 
       // Determine which file currently exists
-      let currentFilePath: string | null = null;
       try {
         await fs.access(enabledFilePath);
         currentFilePath = enabledFilePath;
@@ -363,6 +498,12 @@ export class ModSecService {
         } catch {
           currentFilePath = null;
         }
+      }
+
+      // Create backup if file exists
+      if (currentFilePath) {
+        backupFilePath = `${currentFilePath}.backup`;
+        await fs.copyFile(currentFilePath, backupFilePath);
       }
 
       // Update content if provided
@@ -391,13 +532,78 @@ export class ModSecService {
         }
       }
 
-      // Auto reload nginx if rule is enabled
+      // Test nginx configuration if rule is enabled
       if (updatedRule.enabled) {
-        await this.autoReloadNginx(true);
+        const configTest = await this.testNginxConfig();
+        if (!configTest.valid) {
+          // Rollback: restore backup and database entry
+          if (backupFilePath && currentFilePath) {
+            try {
+              await fs.copyFile(backupFilePath, currentFilePath);
+              await modSecRepository.updateModSecRule(id, {
+                name: originalRule.name,
+                category: originalRule.category,
+                ruleContent: originalRule.ruleContent,
+                description: originalRule.description,
+                enabled: originalRule.enabled,
+              });
+            } catch (rollbackError) {
+              logger.error('Failed to rollback after nginx config test failure:', rollbackError);
+            }
+          }
+          throw new Error(`Nginx configuration test failed: ${configTest.error}`);
+        }
+
+        // Reload nginx if config is valid
+        const reloadResult = await this.autoReloadNginx(false);
+        if (!reloadResult.success) {
+          // Rollback: restore backup and database entry
+          if (backupFilePath && currentFilePath) {
+            try {
+              await fs.copyFile(backupFilePath, currentFilePath);
+              await modSecRepository.updateModSecRule(id, {
+                name: originalRule.name,
+                category: originalRule.category,
+                ruleContent: originalRule.ruleContent,
+                description: originalRule.description,
+                enabled: originalRule.enabled,
+              });
+            } catch (rollbackError) {
+              logger.error('Failed to rollback after nginx reload failure:', rollbackError);
+            }
+          }
+          throw new Error(`Nginx reload failed: ${reloadResult.message}`);
+        }
+      }
+
+      // Clean up backup file
+      if (backupFilePath) {
+        try {
+          await fs.unlink(backupFilePath);
+        } catch (error) {
+          logger.warn(`Could not remove backup file: ${backupFilePath}`);
+        }
       }
     } catch (error: any) {
       logger.error('Failed to update rule file:', error);
-      // Continue even if file update fails
+      
+      // Clean up backup file on error
+      if (backupFilePath) {
+        try {
+          await fs.unlink(backupFilePath);
+        } catch (cleanupError) {
+          logger.warn(`Could not remove backup file: ${backupFilePath}`);
+        }
+      }
+
+      // If it's our validation error, rethrow it
+      if (error.message.includes('Nginx configuration test failed') || 
+          error.message.includes('Nginx reload failed') ||
+          error.message.includes('Rule ID(s) already exist')) {
+        throw error;
+      }
+      
+      throw new Error(`Failed to update custom rule: ${error.message}`);
     }
 
     logger.info(`ModSecurity rule updated: ${updatedRule.name}`, {
