@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -12,19 +12,40 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { useAddModSecRule } from '@/queries/modsec.query-options';
+import { useAddModSecRule, useUpdateModSecRule } from '@/queries/modsec.query-options';
+import type { ModSecurityCustomRule } from '@/types';
 
 interface CustomRuleDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  editRule?: ModSecurityCustomRule | null;
 }
 
-export function CustomRuleDialog({ open, onOpenChange }: CustomRuleDialogProps) {
+export function CustomRuleDialog({ open, onOpenChange, editRule }: CustomRuleDialogProps) {
   const addCustomRuleMutation = useAddModSecRule();
+  const updateCustomRuleMutation = useUpdateModSecRule();
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [ruleContent, setRuleContent] = useState('');
   const [description, setDescription] = useState('');
+
+  const isEditMode = !!editRule;
+
+  // Load rule data when editing
+  useEffect(() => {
+    if (editRule) {
+      setName(editRule.name);
+      setCategory(editRule.category);
+      setRuleContent(editRule.ruleContent || '');
+      setDescription(editRule.description || '');
+    } else {
+      // Reset form when not editing
+      setName('');
+      setCategory('');
+      setRuleContent('');
+      setDescription('');
+    }
+  }, [editRule, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,24 +56,33 @@ export function CustomRuleDialog({ open, onOpenChange }: CustomRuleDialogProps) 
     }
 
     try {
-      await addCustomRuleMutation.mutateAsync({
-        name: name.trim(),
-        category: category.trim(),
-        ruleContent: ruleContent.trim(),
-        description: description.trim() || undefined,
-        enabled: true,
-      });
+      if (isEditMode && editRule) {
+        // Update existing rule
+        await updateCustomRuleMutation.mutateAsync({
+          id: editRule.id,
+          data: {
+            name: name.trim(),
+            category: category.trim(),
+            ruleContent: ruleContent.trim(),
+            description: description.trim() || undefined,
+          },
+        });
+        toast.success('Custom rule updated successfully');
+      } else {
+        // Add new rule
+        await addCustomRuleMutation.mutateAsync({
+          name: name.trim(),
+          category: category.trim(),
+          ruleContent: ruleContent.trim(),
+          description: description.trim() || undefined,
+          enabled: true,
+        });
+        toast.success('Custom rule added successfully');
+      }
 
-      toast.success('Custom rule added successfully');
       onOpenChange(false);
-      
-      // Reset form
-      setName('');
-      setCategory('');
-      setRuleContent('');
-      setDescription('');
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to add custom rule');
+      toast.error(error?.response?.data?.message || `Failed to ${isEditMode ? 'update' : 'add'} custom rule`);
     }
   };
 
@@ -69,7 +99,7 @@ SecRule REQUEST_FILENAME "@contains /admin" \\
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add Custom ModSecurity Rule</DialogTitle>
+          <DialogTitle>{isEditMode ? 'Edit' : 'Add'} Custom ModSecurity Rule</DialogTitle>
           <DialogDescription>
             Write custom ModSecurity rules using SecRule directives
           </DialogDescription>
@@ -153,11 +183,22 @@ SecRule ARGS "@detectSQLi" \\
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={addCustomRuleMutation.isPending}>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => onOpenChange(false)} 
+              disabled={addCustomRuleMutation.isPending || updateCustomRuleMutation.isPending}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={addCustomRuleMutation.isPending}>
-              {addCustomRuleMutation.isPending ? 'Adding...' : 'Add Rule'}
+            <Button 
+              type="submit" 
+              disabled={addCustomRuleMutation.isPending || updateCustomRuleMutation.isPending}
+            >
+              {isEditMode 
+                ? (updateCustomRuleMutation.isPending ? 'Updating...' : 'Update Rule')
+                : (addCustomRuleMutation.isPending ? 'Adding...' : 'Add Rule')
+              }
             </Button>
           </DialogFooter>
         </form>

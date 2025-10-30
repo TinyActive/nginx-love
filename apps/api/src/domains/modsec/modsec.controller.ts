@@ -354,6 +354,39 @@ export class ModSecController {
       });
     }
   }
+
+  /**
+   * Reinitialize ModSecurity configuration
+   * This will update main.conf with any missing includes
+   */
+  async reinitializeConfig(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const result = await modSecService.reinitializeConfig();
+
+      logger.info('ModSecurity configuration reinitialized', {
+        userId: req.user?.userId,
+        success: result.success,
+      });
+
+      if (result.success) {
+        res.json({
+          success: true,
+          message: result.message,
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      logger.error('Reinitialize ModSec config error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+      });
+    }
+  }
 }
 
 export const modSecController = new ModSecController();

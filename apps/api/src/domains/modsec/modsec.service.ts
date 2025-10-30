@@ -5,6 +5,7 @@ import { promisify } from 'util';
 import logger from '../../utils/logger';
 import { modSecRepository } from './modsec.repository';
 import { crsRulesService } from './services/crs-rules.service';
+import { modSecSetupService } from './services/modsec-setup.service';
 import { AddCustomRuleDto, UpdateModSecRuleDto, ToggleCRSRuleDto, SetGlobalModSecDto } from './dto';
 import { CRSRule, ModSecRule, ModSecRuleWithDomain, GlobalModSecSettings, NginxReloadResult } from './modsec.types';
 
@@ -249,12 +250,45 @@ export class ModSecService {
 
     const updatedRule = await modSecRepository.toggleModSecRule(id, !rule.enabled);
 
+    // Handle file renaming based on enabled status
+    const enabledFileName = `custom_${rule.id}.conf`;
+    const disabledFileName = `custom_${rule.id}.conf.disabled`;
+    const enabledFilePath = path.join(MODSEC_CUSTOM_RULES_PATH, enabledFileName);
+    const disabledFilePath = path.join(MODSEC_CUSTOM_RULES_PATH, disabledFileName);
+
+    try {
+      if (updatedRule.enabled) {
+        // Enable: rename .disabled to .conf
+        try {
+          await fs.access(disabledFilePath);
+          await fs.rename(disabledFilePath, enabledFilePath);
+          logger.info(`Renamed rule file to enabled: ${enabledFileName}`);
+        } catch (error) {
+          // File might not exist or already enabled, that's ok
+          logger.warn(`Could not find disabled file to enable: ${disabledFileName}`);
+        }
+      } else {
+        // Disable: rename .conf to .conf.disabled
+        try {
+          await fs.access(enabledFilePath);
+          await fs.rename(enabledFilePath, disabledFilePath);
+          logger.info(`Renamed rule file to disabled: ${disabledFileName}`);
+        } catch (error) {
+          // File might not exist or already disabled, that's ok
+          logger.warn(`Could not find enabled file to disable: ${enabledFileName}`);
+        }
+      }
+
+      // Auto reload nginx
+      await this.autoReloadNginx(true);
+    } catch (error: any) {
+      logger.error('Failed to rename rule file:', error);
+      // Continue even if file rename fails
+    }
+
     logger.info(`ModSecurity rule ${updatedRule.name} ${updatedRule.enabled ? 'enabled' : 'disabled'}`, {
       ruleId: id,
     });
-
-    // Auto reload nginx
-    await this.autoReloadNginx(true);
 
     return updatedRule;
   }
@@ -271,24 +305,26 @@ export class ModSecService {
     // Create rule in database
     const rule = await modSecRepository.createModSecRule(dto);
 
-    // Write rule to file if enabled
-    if (rule.enabled) {
-      try {
-        // Ensure custom rules directory exists
-        await fs.mkdir(MODSEC_CUSTOM_RULES_PATH, { recursive: true });
+    // Write rule to file (with appropriate extension based on enabled status)
+    try {
+      // Ensure custom rules directory exists
+      await fs.mkdir(MODSEC_CUSTOM_RULES_PATH, { recursive: true });
 
-        const ruleFileName = `custom_${rule.id}.conf`;
-        const ruleFilePath = path.join(MODSEC_CUSTOM_RULES_PATH, ruleFileName);
+      const ruleFileName = rule.enabled 
+        ? `custom_${rule.id}.conf` 
+        : `custom_${rule.id}.conf.disabled`;
+      const ruleFilePath = path.join(MODSEC_CUSTOM_RULES_PATH, ruleFileName);
 
-        await fs.writeFile(ruleFilePath, dto.ruleContent, 'utf-8');
-        logger.info(`Custom ModSecurity rule file created: ${ruleFilePath}`);
+      await fs.writeFile(ruleFilePath, dto.ruleContent, 'utf-8');
+      logger.info(`Custom ModSecurity rule file created: ${ruleFilePath}`);
 
-        // Auto reload nginx
+      // Auto reload nginx only if enabled
+      if (rule.enabled) {
         await this.autoReloadNginx(true);
-      } catch (error: any) {
-        logger.error('Failed to write custom rule file:', error);
-        // Continue even if file write fails
       }
+    } catch (error: any) {
+      logger.error('Failed to write custom rule file:', error);
+      // Continue even if file write fails
     }
 
     logger.info(`Custom ModSecurity rule added: ${rule.name}`, {
@@ -306,30 +342,62 @@ export class ModSecService {
 
     const updatedRule = await modSecRepository.updateModSecRule(id, dto);
 
-    // Update rule file if exists
-    const ruleFileName = `custom_${rule.id}.conf`;
-    const ruleFilePath = path.join(MODSEC_CUSTOM_RULES_PATH, ruleFileName);
+    // Handle file updates with proper naming
+    const enabledFileName = `custom_${rule.id}.conf`;
+    const disabledFileName = `custom_${rule.id}.conf.disabled`;
+    const enabledFilePath = path.join(MODSEC_CUSTOM_RULES_PATH, enabledFileName);
+    const disabledFilePath = path.join(MODSEC_CUSTOM_RULES_PATH, disabledFileName);
 
     try {
-      await fs.access(ruleFilePath);
+      await fs.mkdir(MODSEC_CUSTOM_RULES_PATH, { recursive: true });
 
-      if (updatedRule.enabled && dto.ruleContent) {
-        await fs.writeFile(ruleFilePath, dto.ruleContent, 'utf-8');
-        logger.info(`Custom ModSecurity rule file updated: ${ruleFilePath}`);
-      } else if (!updatedRule.enabled) {
-        await fs.unlink(ruleFilePath);
-        logger.info(`Custom ModSecurity rule file removed: ${ruleFilePath}`);
+      // Determine which file currently exists
+      let currentFilePath: string | null = null;
+      try {
+        await fs.access(enabledFilePath);
+        currentFilePath = enabledFilePath;
+      } catch {
+        try {
+          await fs.access(disabledFilePath);
+          currentFilePath = disabledFilePath;
+        } catch {
+          currentFilePath = null;
+        }
       }
 
-      // Auto reload nginx
-      await this.autoReloadNginx(true);
-    } catch (error: any) {
-      // File doesn't exist or error accessing it
-      if (updatedRule.enabled && dto.ruleContent) {
-        await fs.mkdir(MODSEC_CUSTOM_RULES_PATH, { recursive: true });
-        await fs.writeFile(ruleFilePath, dto.ruleContent, 'utf-8');
+      // Update content if provided
+      if (dto.ruleContent !== undefined) {
+        const targetFilePath = updatedRule.enabled ? enabledFilePath : disabledFilePath;
+        
+        // Write new content to target file
+        await fs.writeFile(targetFilePath, dto.ruleContent, 'utf-8');
+        logger.info(`Custom ModSecurity rule file updated: ${targetFilePath}`);
+
+        // Remove old file if it has different name
+        if (currentFilePath && currentFilePath !== targetFilePath) {
+          try {
+            await fs.unlink(currentFilePath);
+            logger.info(`Removed old rule file: ${currentFilePath}`);
+          } catch (error) {
+            logger.warn(`Could not remove old file: ${currentFilePath}`);
+          }
+        }
+      } else if (dto.enabled !== undefined && currentFilePath) {
+        // Only enabled status changed, rename file
+        const targetFilePath = updatedRule.enabled ? enabledFilePath : disabledFilePath;
+        if (currentFilePath !== targetFilePath) {
+          await fs.rename(currentFilePath, targetFilePath);
+          logger.info(`Renamed rule file from ${currentFilePath} to ${targetFilePath}`);
+        }
+      }
+
+      // Auto reload nginx if rule is enabled
+      if (updatedRule.enabled) {
         await this.autoReloadNginx(true);
       }
+    } catch (error: any) {
+      logger.error('Failed to update rule file:', error);
+      // Continue even if file update fails
     }
 
     logger.info(`ModSecurity rule updated: ${updatedRule.name}`, {
@@ -347,18 +415,35 @@ export class ModSecService {
 
     await modSecRepository.deleteModSecRule(id);
 
-    // Delete rule file if exists
-    const ruleFileName = `custom_${rule.id}.conf`;
-    const ruleFilePath = path.join(MODSEC_CUSTOM_RULES_PATH, ruleFileName);
+    // Delete both enabled and disabled rule files if they exist
+    const enabledFileName = `custom_${rule.id}.conf`;
+    const disabledFileName = `custom_${rule.id}.conf.disabled`;
+    const enabledFilePath = path.join(MODSEC_CUSTOM_RULES_PATH, enabledFileName);
+    const disabledFilePath = path.join(MODSEC_CUSTOM_RULES_PATH, disabledFileName);
 
+    let fileDeleted = false;
+
+    // Try to delete enabled file
     try {
-      await fs.unlink(ruleFilePath);
-      logger.info(`Custom ModSecurity rule file deleted: ${ruleFilePath}`);
-
-      // Auto reload nginx
-      await this.autoReloadNginx(true);
+      await fs.unlink(enabledFilePath);
+      logger.info(`Custom ModSecurity rule file deleted: ${enabledFilePath}`);
+      fileDeleted = true;
     } catch (error: any) {
-      // File doesn't exist, continue
+      // File doesn't exist, that's ok
+    }
+
+    // Try to delete disabled file
+    try {
+      await fs.unlink(disabledFilePath);
+      logger.info(`Custom ModSecurity rule file deleted: ${disabledFilePath}`);
+      fileDeleted = true;
+    } catch (error: any) {
+      // File doesn't exist, that's ok
+    }
+
+    // Auto reload nginx if any file was deleted
+    if (fileDeleted) {
+      await this.autoReloadNginx(true);
     }
 
     logger.info(`ModSecurity rule deleted: ${rule.name}`, {
@@ -400,6 +485,21 @@ export class ModSecService {
     await this.autoReloadNginx(true);
 
     return config;
+  }
+
+  /**
+   * Reinitialize ModSecurity configuration
+   * This will update main.conf with any missing includes
+   */
+  async reinitializeConfig(): Promise<{ success: boolean; message: string }> {
+    const result = await modSecSetupService.reinitializeModSecurityConfig();
+    
+    if (result.success) {
+      // Auto reload nginx after config update
+      await this.autoReloadNginx(true);
+    }
+    
+    return result;
   }
 }
 

@@ -70,4 +70,9 @@ router.post(
   (req: AuthRequest, res: Response) => modSecController.setGlobalModSec(req, res)
 );
 
+// Reinitialize ModSecurity configuration
+router.post('/reinitialize', authorize('admin'), (req: AuthRequest, res: Response) =>
+  modSecController.reinitializeConfig(req, res)
+);
+
 export default router;

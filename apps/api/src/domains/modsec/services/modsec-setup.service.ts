@@ -5,12 +5,33 @@ import logger from '../../../utils/logger';
 const MODSEC_MAIN_CONF = '/etc/nginx/modsec/main.conf';
 const MODSEC_CRS_DISABLE_PATH = '/etc/nginx/modsec/crs_disabled';
 const MODSEC_CRS_DISABLE_FILE = '/etc/nginx/modsec/crs_disabled.conf';
+const MODSEC_CUSTOM_RULES_PATH = '/etc/nginx/modsec/custom_rules';
 
 /**
  * ModSecurity setup service
  * Handles initialization and configuration of ModSecurity
  */
 export class ModSecSetupService {
+  /**
+   * Force reinitialize ModSecurity configuration
+   * This will update main.conf with any missing includes
+   */
+  async reinitializeModSecurityConfig(): Promise<{ success: boolean; message: string }> {
+    try {
+      await this.initializeModSecurityConfig();
+      return {
+        success: true,
+        message: 'ModSecurity configuration reinitialized successfully',
+      };
+    } catch (error: any) {
+      logger.error('Failed to reinitialize ModSecurity config:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to reinitialize ModSecurity configuration',
+      };
+    }
+  }
+
   /**
    * Initialize ModSecurity configuration for CRS rule management
    */
@@ -28,6 +49,32 @@ export class ModSecSetupService {
           throw error;
         }
         logger.info(`✓ CRS disable directory already exists: ${MODSEC_CRS_DISABLE_PATH}`);
+      }
+
+      // Step 2: Create custom_rules directory
+      try {
+        await fs.mkdir(MODSEC_CUSTOM_RULES_PATH, { recursive: true });
+        await fs.chmod(MODSEC_CUSTOM_RULES_PATH, 0o755);
+        logger.info(`✓ Custom rules directory created: ${MODSEC_CUSTOM_RULES_PATH}`);
+      } catch (error: any) {
+        if (error.code !== 'EEXIST') {
+          throw error;
+        }
+        logger.info(`✓ Custom rules directory already exists: ${MODSEC_CUSTOM_RULES_PATH}`);
+      }
+
+      // Create placeholder file to prevent nginx error when no custom rules exist
+      const placeholderFile = path.join(MODSEC_CUSTOM_RULES_PATH, 'placeholder.conf');
+      try {
+        await fs.access(placeholderFile);
+        logger.info('✓ Custom rules placeholder file already exists');
+      } catch (error) {
+        const placeholderContent = `# Custom ModSecurity Rules Placeholder
+# This file ensures nginx doesn't fail when no custom rules exist
+# Managed by Nginx Love UI - DO NOT EDIT MANUALLY
+`;
+        await fs.writeFile(placeholderFile, placeholderContent, 'utf-8');
+        logger.info('✓ Created custom rules placeholder file');
       }
 
       // Step 3: Check if main.conf exists
@@ -98,15 +145,32 @@ export class ModSecSetupService {
       }
 
       // Check if crs_disabled.conf include exists
+      let needsUpdate = false;
       if (mainConfContent.includes('Include /etc/nginx/modsec/crs_disabled.conf')) {
         logger.info('✓ CRS disable include already configured in main.conf');
       } else {
         // Add include directive for CRS disable file (single file, not wildcard)
         const includeDirective = `\n# CRS Rule Disables (managed by Nginx Love UI)\nInclude /etc/nginx/modsec/crs_disabled.conf\n`;
         mainConfContent += includeDirective;
-
-        await fs.writeFile(MODSEC_MAIN_CONF, mainConfContent, 'utf-8');
+        needsUpdate = true;
         logger.info('✓ Added CRS disable include to main.conf');
+      }
+
+      // Check if custom_rules include exists
+      if (mainConfContent.includes('Include /etc/nginx/modsec/custom_rules/*.conf')) {
+        logger.info('✓ Custom rules include already configured in main.conf');
+      } else {
+        // Add include directive for custom rules
+        const customRulesDirective = `\n# Custom ModSecurity Rules (managed by Nginx Love UI)\nInclude /etc/nginx/modsec/custom_rules/*.conf\n`;
+        mainConfContent += customRulesDirective;
+        needsUpdate = true;
+        logger.info('✓ Added custom rules include to main.conf');
+      }
+
+      // Write main.conf if updated
+      if (needsUpdate) {
+        await fs.writeFile(MODSEC_MAIN_CONF, mainConfContent, 'utf-8');
+        logger.info('✓ Updated main.conf with new includes');
       }
 
       // Step 5: Create empty crs_disabled.conf if not exists
