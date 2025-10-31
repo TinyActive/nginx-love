@@ -63,5 +63,8 @@ export const SSL_CONSTANTS = {
   CERTS_PATH: '/etc/nginx/ssl',
   EXPIRING_THRESHOLD_DAYS: 30,
   LETSENCRYPT_ISSUER: "Let's Encrypt",
+  ZEROSSL_ISSUER: 'ZeroSSL',
   MANUAL_ISSUER: 'Manual Upload',
+  // List of issuers that support auto-renewal via ACME
+  AUTO_RENEWABLE_ISSUERS: ["Let's Encrypt", 'ZeroSSL'] as string[],
 } as const;

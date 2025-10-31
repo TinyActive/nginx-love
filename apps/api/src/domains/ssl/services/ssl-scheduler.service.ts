@@ -18,10 +18,11 @@ class SSLSchedulerService {
    */
   async checkAndRenewExpiringCertificates(): Promise<void> {
     try {
-      logger.debug('Checking for expiring SSL certificates...');
+      logger.info('🔍 Checking for expiring SSL certificates...');
 
       // Get all SSL certificates
       const certificates = await sslRepository.findAll();
+      logger.info(`Found ${certificates.length} SSL certificate(s) in database`);
 
       const now = new Date();
       const thresholdDate = new Date(now.getTime() + this.renewThresholdDays * 24 * 60 * 60 * 1000);
@@ -29,13 +30,13 @@ class SSLSchedulerService {
       for (const cert of certificates) {
         // Skip if autoRenew is disabled
         if (!cert.autoRenew) {
-          logger.debug(`Certificate ${cert.id} (${cert.domain.name}) has autoRenew disabled, skipping...`);
+          logger.info(`⏭️  Certificate ${cert.id} (${cert.domain.name}) has autoRenew disabled, skipping...`);
           continue;
         }
 
-        // Skip if not Let's Encrypt (manual certs can't be auto-renewed)
-        if (cert.issuer !== SSL_CONSTANTS.LETSENCRYPT_ISSUER) {
-          logger.debug(`Certificate ${cert.id} (${cert.domain.name}) is not Let's Encrypt, skipping...`);
+        // Skip if not an auto-renewable issuer (Let's Encrypt or ZeroSSL)
+        if (!SSL_CONSTANTS.AUTO_RENEWABLE_ISSUERS.includes(cert.issuer)) {
+          logger.info(`⏭️  Certificate ${cert.id} (${cert.domain.name}) has issuer "${cert.issuer}" which doesn't support auto-renewal, skipping...`);
           continue;
         }
 
@@ -46,18 +47,25 @@ class SSLSchedulerService {
           );
 
           logger.info(
-            `Certificate for ${cert.domain.name} expires in ${daysUntilExpiry} days, attempting renewal...`
+            `🔄 Certificate for ${cert.domain.name} (issuer: ${cert.issuer}) expires in ${daysUntilExpiry} days, attempting renewal...`
           );
 
           // Execute renewal asynchronously (don't wait)
           this.renewCertificate(cert.id, cert.domain.name)
             .catch(error => {
-              logger.error(`Failed to auto-renew certificate ${cert.id} (${cert.domain.name}):`, error);
+              logger.error(`❌ Failed to auto-renew certificate ${cert.id} (${cert.domain.name}):`, error);
             });
+        } else {
+          const daysUntilExpiry = Math.floor(
+            (cert.validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+          );
+          logger.info(`✅ Certificate for ${cert.domain.name} (issuer: ${cert.issuer}) is valid for ${daysUntilExpiry} more days`);
         }
       }
+      
+      logger.info('✅ SSL certificate check completed');
     } catch (error) {
-      logger.error('Error in checkAndRenewExpiringCertificates:', error);
+      logger.error('❌ Error in checkAndRenewExpiringCertificates:', error);
     }
   }
 
@@ -95,9 +103,23 @@ class SSLSchedulerService {
         `[Auto-Renew] ✅ Successfully renewed certificate for ${domainName}, valid until ${certInfo.validTo.toISOString()}`
       );
     } catch (error: any) {
+      const errorMsg = error.message || error.toString();
+      
+      // Handle rate limiting - don't mark as failed, just log and retry later
+      if (errorMsg.includes('Rate limited') || errorMsg.includes('retryafter')) {
+        logger.warn(`[Auto-Renew] ⏳ Certificate renewal for ${domainName} is rate limited, will retry in next cycle`);
+        return; // Don't throw, just return and try again later
+      }
+      
+      // Handle "not yet due for renewal" - this is normal
+      if (errorMsg.includes('not yet due for renewal')) {
+        logger.info(`[Auto-Renew] ℹ️  Certificate for ${domainName} is not yet due for renewal`);
+        return; // Don't throw, this is expected
+      }
+      
       logger.error(`[Auto-Renew] ❌ Failed to renew certificate for ${domainName}:`, error.message);
       
-      // Update certificate status to indicate renewal failure
+      // Only update status to 'expiring' for real errors
       try {
         await sslRepository.update(certId, {
           status: 'expiring',

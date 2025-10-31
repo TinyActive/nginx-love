@@ -196,7 +196,18 @@ export class AcmeService {
       const homeDir = process.env.HOME || '/root';
       const acmeScript = path.join(homeDir, '.acme.sh', 'acme.sh');
 
-      const renewCmd = `${acmeScript} --renew -d ${domain} --force`;
+      // Check if certificate is ECC
+      const eccDir = path.join(homeDir, '.acme.sh', `${domain}_ecc`);
+      const isECC = fs.existsSync(eccDir);
+      const certDir = isECC ? eccDir : path.join(homeDir, '.acme.sh', domain);
+      
+      // Build renewal command (without --force to respect rate limits)
+      let renewCmd = `${acmeScript} --renew -d ${domain}`;
+      if (isECC) {
+        renewCmd += ' --ecc';
+      }
+
+      logger.info(`Running: ${renewCmd}`);
 
       const { stdout, stderr } = await execAsync(renewCmd);
       logger.info(`acme.sh renew output: ${stdout}`);
@@ -206,10 +217,12 @@ export class AcmeService {
       }
 
       // Get renewed certificate files
-      const certDir = path.join(homeDir, '.acme.sh', domain);
 
-      const certificate = await fs.promises.readFile(path.join(certDir, `${domain}.cer`), 'utf8');
-      const privateKey = await fs.promises.readFile(path.join(certDir, `${domain}.key`), 'utf8');
+      const certFileName = isECC ? `${domain}.cer` : `${domain}.cer`;
+      const keyFileName = isECC ? `${domain}.key` : `${domain}.key`;
+      
+      const certificate = await fs.promises.readFile(path.join(certDir, certFileName), 'utf8');
+      const privateKey = await fs.promises.readFile(path.join(certDir, keyFileName), 'utf8');
       const chain = await fs.promises.readFile(path.join(certDir, 'ca.cer'), 'utf8');
       const fullchain = await fs.promises.readFile(path.join(certDir, 'fullchain.cer'), 'utf8');
 
@@ -228,6 +241,19 @@ export class AcmeService {
         fullchain,
       };
     } catch (error: any) {
+      // Check if error is due to rate limiting
+      const errorMsg = error.message || error.toString();
+      if (errorMsg.includes('retryafter') || errorMsg.includes('too large')) {
+        logger.warn(`Certificate renewal rate limited for ${domain}, will retry later`);
+        throw new Error(`Rate limited by CA, will retry in next cycle`);
+      }
+      
+      // Check if certificate is not due for renewal yet
+      if (errorMsg.includes('not due for renewal') || errorMsg.includes('Skip')) {
+        logger.info(`Certificate for ${domain} is not yet due for renewal`);
+        throw new Error(`Certificate not yet due for renewal`);
+      }
+      
       logger.error('Failed to renew certificate:', error);
       throw new Error(`Failed to renew certificate: ${error.message}`);
     }
