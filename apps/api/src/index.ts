@@ -12,11 +12,13 @@ import { modSecSetupService } from './domains/modsec/services/modsec-setup.servi
 import { startAlertMonitoring, stopAlertMonitoring } from './domains/alerts/services/alert-monitoring.service';
 import { startSlaveNodeStatusCheck, stopSlaveNodeStatusCheck } from './domains/cluster/services/slave-status-checker.service';
 import { backupSchedulerService } from './domains/backup/services/backup-scheduler.service';
+import { sslSchedulerService } from './domains/ssl/services/ssl-scheduler.service';
 
 const app: Application = express();
 let monitoringTimer: NodeJS.Timeout | null = null;
 let slaveStatusTimer: NodeJS.Timeout | null = null;
 let backupSchedulerTimer: NodeJS.Timeout | null = null;
+let sslSchedulerTimer: NodeJS.Timeout | null = null;
 
 // Security middleware
 // app.use(helmet());
@@ -80,6 +82,14 @@ const server = app.listen(PORT, async () => {
   } catch (error) {
     logger.error('Failed to start backup scheduler:', error);
   }
+  
+  // Start SSL auto-renew scheduler (check every hour, renew if expires in 30 days)
+  try {
+    sslSchedulerTimer = sslSchedulerService.start(3600000, 30);
+    logger.info('🔒 SSL auto-renew scheduler started');
+  } catch (error) {
+    logger.error('Failed to start SSL auto-renew scheduler:', error);
+  }
 });
 
 // Graceful shutdown
@@ -93,6 +103,9 @@ process.on('SIGTERM', () => {
   }
   if (backupSchedulerTimer) {
     backupSchedulerService.stop(backupSchedulerTimer);
+  }
+  if (sslSchedulerTimer) {
+    sslSchedulerService.stop(sslSchedulerTimer);
   }
   server.close(() => {
     logger.info('HTTP server closed');
@@ -110,6 +123,9 @@ process.on('SIGINT', () => {
   }
   if (backupSchedulerTimer) {
     backupSchedulerService.stop(backupSchedulerTimer);
+  }
+  if (sslSchedulerTimer) {
+    sslSchedulerService.stop(sslSchedulerTimer);
   }
   server.close(() => {
     logger.info('HTTP server closed');
