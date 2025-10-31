@@ -63,8 +63,10 @@ export default defineConfig({
           { text: 'Configuration', link: '/reference/configuration' },
           { text: 'Troubleshooting', link: '/reference/troubleshooting' },
           { text: 'FAQ', link: '/reference/faq' },
-          { text: 'Whitelist Generator', link: 'https://whitelist.nginxwaf.me' },
-          { text: 'IP address lookup', link: 'https://ip.nginxwaf.me/' }
+          { text: 'Modsecurity Whitelist Generator', link: 'https://whitelist.nginxwaf.me' },
+          { text: 'IP address lookup', link: 'https://ip.nginxwaf.me/' },
+          { text: 'Feature Voting', link: 'https://idea.nginxwaf.me' }
+
         ]
       }
     ],
