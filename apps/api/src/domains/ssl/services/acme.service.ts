@@ -260,6 +260,47 @@ export class AcmeService {
   }
 
   /**
+   * Validate that private key matches certificate
+   */
+  async validateKeyPair(certificate: string, privateKey: string): Promise<boolean> {
+    try {
+      const forge = await import('node-forge');
+      
+      // Parse certificate and private key
+      const cert = forge.pki.certificateFromPem(certificate);
+      let privKey;
+      
+      try {
+        privKey = forge.pki.privateKeyFromPem(privateKey);
+      } catch (error) {
+        // Try RSA format
+        try {
+          privKey = forge.pki.privateKeyFromPem(privateKey);
+        } catch {
+          throw new Error('Invalid private key format');
+        }
+      }
+
+      // Get public key from certificate
+      const certPublicKey = cert.publicKey as any;
+      
+      // Compare modulus for RSA keys (simplified validation)
+      if (certPublicKey.n && (privKey as any).n) {
+        const certModulus = (certPublicKey.n as any).toString(16);
+        const keyModulus = ((privKey as any).n as any).toString(16);
+        return certModulus === keyModulus;
+      }
+
+      // For other key types, we'll let nginx validation handle it
+      return true;
+    } catch (error) {
+      logger.warn('Key pair validation failed, will rely on nginx validation:', error);
+      // Return true to allow nginx to validate - this is a best-effort check
+      return true;
+    }
+  }
+
+  /**
    * Parse certificate to extract information using node-forge
    */
   async parseCertificate(certContent: string): Promise<ParsedCertificate> {

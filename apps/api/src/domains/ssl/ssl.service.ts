@@ -299,7 +299,7 @@ export class SSLService {
       throw new Error('SSL certificate already exists for this domain. Use update endpoint instead.');
     }
 
-    // Parse certificate to extract real information
+    // Validate certificate and private key formats
     let certInfo;
     try {
       certInfo = await acmeService.parseCertificate(certificate);
@@ -307,6 +307,48 @@ export class SSLService {
     } catch (error: any) {
       logger.error('Failed to parse manual certificate:', error);
       throw new Error(`Invalid certificate format: ${error.message}`);
+    }
+
+    // Validate private key matches certificate
+    try {
+      const isValidKeyPair = await acmeService.validateKeyPair(certificate, privateKey);
+      if (!isValidKeyPair) {
+        throw new Error('Private key does not match the certificate. Please ensure you upload the correct key pair.');
+      }
+    } catch (error: any) {
+      if (error.message.includes('does not match')) {
+        throw error;
+      }
+      logger.warn('Key pair validation could not be completed, proceeding with caution:', error.message);
+      // Continue - nginx will validate when loading
+    }
+
+    // Validate domain name matches certificate (CN or SANs)
+    const domainMatches = 
+      certInfo.commonName.toLowerCase() === domain.name.toLowerCase() ||
+      certInfo.sans.some(san => san.toLowerCase() === domain.name.toLowerCase()) ||
+      certInfo.commonName.toLowerCase() === `*.${domain.name.toLowerCase()}` ||
+      certInfo.sans.some(san => san.toLowerCase() === `*.${domain.name.toLowerCase()}`);
+
+    if (!domainMatches) {
+      logger.warn(`Certificate domain mismatch: Certificate is for "${certInfo.commonName}" (SANs: ${certInfo.sans.join(', ')}) but domain is "${domain.name}"`);
+      throw new Error(
+        `Certificate domain mismatch: This certificate is for "${certInfo.commonName}" but you selected domain "${domain.name}". Please upload the correct certificate.`
+      );
+    }
+
+    // Validate certificate is not expired
+    const now = new Date();
+    if (certInfo.validTo < now) {
+      throw new Error(`Certificate has already expired on ${certInfo.validTo.toISOString()}. Please upload a valid certificate.`);
+    }
+
+    // Warn if certificate is expiring soon
+    const daysUntilExpiry = Math.floor(
+      (certInfo.validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (daysUntilExpiry < 30) {
+      logger.warn(`Uploaded certificate for ${domain.name} expires in ${daysUntilExpiry} days`);
     }
 
     // Use parsed information
