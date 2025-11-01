@@ -104,6 +104,7 @@ export interface SSLCertificate {
   validTo: string;
   autoRenew: boolean;
   status: 'valid' | 'expiring' | 'expired';
+  daysUntilExpiry?: number;
 }
 
 export interface Alert {

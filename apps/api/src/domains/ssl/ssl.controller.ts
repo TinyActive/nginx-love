@@ -307,6 +307,11 @@ export const renewSSLCertificate = async (req: AuthRequest, res: Response): Prom
           success: false,
           message: error.message,
         });
+      } else if (error.message.includes('not yet eligible')) {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+        });
       } else {
         res.status(500).json({
           success: false,

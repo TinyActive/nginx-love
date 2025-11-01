@@ -124,18 +124,22 @@ export class SSLService {
             validFrom.getTime() !== cert.validFrom.getTime()
           ) {
             logger.info(`Updating certificate dates for ${cert.domain.name}: ${validFrom.toISOString()} - ${validTo.toISOString()}`);
-            await sslRepository.update(cert.id, {
+            const updateData: any = {
               validFrom,
               validTo,
               commonName: certInfo.commonName,
               sans: certInfo.sans,
               issuer: certInfo.issuer || cert.issuer,
-              subject: certInfo.subject,
-              subjectDetails: certInfo.subjectDetails as any,
-              issuerDetails: certInfo.issuerDetails as any,
-              serialNumber: certInfo.serialNumber,
               status: this.calculateStatus(validTo),
-            });
+            };
+            
+            // Add optional fields if they exist
+            if (certInfo.subject) updateData.subject = certInfo.subject;
+            if (certInfo.subjectDetails) updateData.subjectDetails = certInfo.subjectDetails;
+            if (certInfo.issuerDetails) updateData.issuerDetails = certInfo.issuerDetails;
+            if (certInfo.serialNumber) updateData.serialNumber = certInfo.serialNumber;
+            
+            await sslRepository.update(cert.id, updateData);
           }
         } catch (error) {
           logger.warn(`Failed to re-parse certificate for ${cert.domain.name}:`, error);
@@ -214,17 +218,13 @@ export class SSLService {
       logger.info(`SSL certificate issued successfully for ${domain.name}`);
 
       // Create SSL certificate in database
-      const sslCertificate = await sslRepository.create({
+      const createData: any = {
         domain: {
           connect: { id: domainId },
         },
         commonName: certInfo.commonName,
         sans: certInfo.sans,
         issuer: certInfo.issuer,
-        subject: certInfo.subject,
-        subjectDetails: certInfo.subjectDetails,
-        issuerDetails: certInfo.issuerDetails,
-        serialNumber: certInfo.serialNumber,
         certificate: certFiles.certificate,
         privateKey: certFiles.privateKey,
         chain: certFiles.chain,
@@ -232,7 +232,15 @@ export class SSLService {
         validTo: certInfo.validTo,
         autoRenew,
         status: 'valid',
-      });
+      };
+      
+      // Add optional fields if they exist
+      if (certInfo.subject) createData.subject = certInfo.subject;
+      if (certInfo.subjectDetails) createData.subjectDetails = certInfo.subjectDetails;
+      if (certInfo.issuerDetails) createData.issuerDetails = certInfo.issuerDetails;
+      if (certInfo.serialNumber) createData.serialNumber = certInfo.serialNumber;
+      
+      const sslCertificate = await sslRepository.create(createData);
 
       // Update domain SSL expiry (DO NOT auto-enable SSL)
       await sslRepository.updateDomainSSLExpiry(domainId, sslCertificate.validTo);
@@ -306,17 +314,13 @@ export class SSLService {
     const status = this.calculateStatus(certInfo.validTo);
 
     // Create certificate with real information
-    const cert = await sslRepository.create({
+    const createData: any = {
       domain: {
         connect: { id: domainId },
       },
       commonName: certInfo.commonName,
       sans: certInfo.sans,
       issuer: finalIssuer,
-      subject: certInfo.subject,
-      subjectDetails: certInfo.subjectDetails,
-      issuerDetails: certInfo.issuerDetails,
-      serialNumber: certInfo.serialNumber,
       certificate,
       privateKey,
       chain: chain || null,
@@ -324,7 +328,15 @@ export class SSLService {
       validTo: certInfo.validTo,
       autoRenew: false, // Manual certs don't auto-renew
       status,
-    });
+    };
+    
+    // Add optional fields if they exist
+    if (certInfo.subject) createData.subject = certInfo.subject;
+    if (certInfo.subjectDetails) createData.subjectDetails = certInfo.subjectDetails;
+    if (certInfo.issuerDetails) createData.issuerDetails = certInfo.issuerDetails;
+    if (certInfo.serialNumber) createData.serialNumber = certInfo.serialNumber;
+    
+    const cert = await sslRepository.create(createData);
 
     // Write certificate files to disk
     try {
@@ -509,11 +521,27 @@ export class SSLService {
       throw new Error('SSL certificate not found');
     }
 
-    if (cert.issuer !== SSL_CONSTANTS.LETSENCRYPT_ISSUER) {
-      throw new Error("Only Let's Encrypt certificates can be renewed automatically");
+    // Check if certificate supports auto-renewal (Let's Encrypt or ZeroSSL)
+    const isAutoRenewable = SSL_CONSTANTS.AUTO_RENEWABLE_ISSUERS.includes(cert.issuer);
+    if (!isAutoRenewable) {
+      throw new Error(
+        `Only Let's Encrypt and ZeroSSL certificates can be renewed automatically. Current issuer: ${cert.issuer}`
+      );
     }
 
-    logger.info(`Renewing Let's Encrypt certificate for ${cert.domain.name}`);
+    // Check if certificate is eligible for renewal (less than 30 days remaining)
+    const now = new Date();
+    const daysUntilExpiry = Math.floor(
+      (cert.validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    if (daysUntilExpiry > 30) {
+      throw new Error(
+        `Certificate is not yet eligible for renewal. It expires in ${daysUntilExpiry} days. Renewal is only allowed when less than 30 days remain.`
+      );
+    }
+
+    logger.info(`Renewing ${cert.issuer} certificate for ${cert.domain.name} (${daysUntilExpiry} days remaining)`);
 
     let certificate, privateKey, chain;
     let certInfo;
@@ -538,10 +566,10 @@ export class SSLService {
         commonName: cert.commonName,
         sans: cert.sans,
         issuer: cert.issuer,
-        subject: cert.subject,
-        subjectDetails: cert.subjectDetails,
-        issuerDetails: cert.issuerDetails,
-        serialNumber: cert.serialNumber,
+        subject: (cert as any).subject || '',
+        subjectDetails: (cert as any).subjectDetails || {},
+        issuerDetails: (cert as any).issuerDetails || {},
+        serialNumber: (cert as any).serialNumber || '',
         validFrom: new Date(),
         validTo: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
       };
@@ -551,22 +579,26 @@ export class SSLService {
     }
 
     // Update certificate expiry
-    const updatedCert = await sslRepository.update(id, {
+    const updateData: any = {
       certificate,
       privateKey,
       chain,
       commonName: certInfo.commonName,
       sans: certInfo.sans,
       issuer: certInfo.issuer,
-      subject: certInfo.subject,
-      subjectDetails: certInfo.subjectDetails as any,
-      issuerDetails: certInfo.issuerDetails as any,
-      serialNumber: certInfo.serialNumber,
       validFrom: certInfo.validFrom,
       validTo: certInfo.validTo,
       status: 'valid',
       updatedAt: new Date(),
-    });
+    };
+
+    // Add optional fields if they exist
+    if (certInfo.subject) updateData.subject = certInfo.subject;
+    if (certInfo.subjectDetails) updateData.subjectDetails = certInfo.subjectDetails;
+    if (certInfo.issuerDetails) updateData.issuerDetails = certInfo.issuerDetails;
+    if (certInfo.serialNumber) updateData.serialNumber = certInfo.serialNumber;
+
+    const updatedCert = await sslRepository.update(id, updateData);
 
     // Update domain SSL expiry
     await sslRepository.updateDomainSSLExpiry(cert.domainId, updatedCert.validTo);
