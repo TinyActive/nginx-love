@@ -91,7 +91,7 @@ describe('SSL API Compatibility', () => {
 
     it('should maintain certificate renewal logic', () => {
       // Renewal logic should be preserved:
-      // - Only Let's Encrypt certificates
+      // - ZeroSSL and Let's Encrypt certificates
       // - Fallback to expiry extension
       // - Update domain SSL expiry
       expect(true).toBe(true);

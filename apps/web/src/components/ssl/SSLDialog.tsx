@@ -217,7 +217,7 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
           email: formData.email || undefined,
           autoRenew: formData.autoRenew,
         });
-        toast.success("Let's Encrypt certificate issued successfully");
+        toast.success("SSL certificate issued successfully (ZeroSSL)");
       } else {
         await uploadManualSSL.mutateAsync({
           domainId: formData.domainId,
@@ -284,15 +284,15 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
 
           <Tabs value={method} onValueChange={(v) => setMethod(v as 'auto' | 'manual')}>
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="auto">Auto (Let's Encrypt)</TabsTrigger>
+              <TabsTrigger value="auto">Auto (ZeroSSL/Let's Encrypt)</TabsTrigger>
               <TabsTrigger value="manual">Manual Upload</TabsTrigger>
             </TabsList>
 
             <TabsContent value="auto" className="space-y-4">
               <div className="rounded-lg bg-primary/10 p-4 border border-primary/20">
-                <h4 className="font-medium mb-2">Let's Encrypt Auto-SSL</h4>
+                <h4 className="font-medium mb-2">ZeroSSL/Let's Encrypt Auto-SSL</h4>
                 <p className="text-sm text-muted-foreground">
-                  Automatically obtain and renew SSL certificates from Let's Encrypt.
+                  Automatically obtain and renew SSL certificates from ZeroSSL or Let's Encrypt.
                   Certificates will be issued within minutes and auto-renewed before expiry.
                 </p>
               </div>

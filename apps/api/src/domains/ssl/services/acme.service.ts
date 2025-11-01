@@ -10,8 +10,19 @@ const execAsync = promisify(exec);
 
 /**
  * ACME Service - Handles all Let's Encrypt/ZeroSSL certificate operations
+ * Default CA: ZeroSSL (can be changed via environment variable)
  */
 export class AcmeService {
+  // Default CA server (ZeroSSL) - can be overridden by environment variable
+  private defaultCA: string = process.env.ACME_CA_SERVER || 'zerossl';
+
+  /**
+   * Get current default CA
+   */
+  getDefaultCA(): string {
+    return this.defaultCA;
+  }
+
   /**
    * Check if acme.sh is installed
    */
@@ -99,8 +110,10 @@ export class AcmeService {
       // Build domain list (primary + SANs)
       let issueCmd = `${acmeScript} --issue`;
 
-      // Set ZeroSSL as default CA
-      issueCmd += ` --server zerossl`;
+      // Set default CA (ZeroSSL or from environment variable)
+      const caServer = this.defaultCA;
+      issueCmd += ` --server ${caServer}`;
+      logger.info(`Using CA server: ${caServer}`);
 
       // Add primary domain
       issueCmd += ` -d ${domain}`;

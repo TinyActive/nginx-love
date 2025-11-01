@@ -125,7 +125,7 @@ export function SSLTable() {
               No SSL certificates found. Add one to get started.
             </div>
             <div className="text-sm text-muted-foreground">
-              You can issue a free Let's Encrypt certificate or upload a manual certificate for your domains.
+              You can issue a free ZeroSSL/Let's Encrypt certificate or upload a manual certificate for your domains.
             </div>
           </div>
         ) : (

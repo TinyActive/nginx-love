@@ -309,7 +309,7 @@ paths:
                       domain: "api.example.com"
                       commonName: "api.example.com"
                       sans: ["api.example.com", "www.api.example.com"]
-                      issuer: "Let's Encrypt"
+                      issuer: "ZeroSSL"
                       validFrom: "2024-10-01"
                       validTo: "2025-12-31"
                       autoRenew: true
