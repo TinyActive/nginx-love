@@ -79,7 +79,7 @@ class SSLSchedulerService {
       // Use acme.sh to renew the certificate
       const certFiles = await acmeService.renewCertificate(domainName);
 
-      // Parse renewed certificate to get validity dates
+      // Parse renewed certificate to get validity dates and details
       const certInfo = await acmeService.parseCertificate(certFiles.certificate);
 
       // Update certificate in database
@@ -87,6 +87,13 @@ class SSLSchedulerService {
         certificate: certFiles.certificate,
         privateKey: certFiles.privateKey,
         chain: certFiles.chain,
+        commonName: certInfo.commonName,
+        sans: certInfo.sans,
+        issuer: certInfo.issuer,
+        subject: certInfo.subject,
+        subjectDetails: certInfo.subjectDetails,
+        issuerDetails: certInfo.issuerDetails,
+        serialNumber: certInfo.serialNumber,
         validFrom: certInfo.validFrom,
         validTo: certInfo.validTo,
         status: 'valid',

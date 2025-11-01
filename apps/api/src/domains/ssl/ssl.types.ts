@@ -47,8 +47,20 @@ export interface ParsedCertificate {
   commonName: string;
   sans: string[];
   issuer: string;
+  issuerDetails: {
+    commonName: string;
+    organization?: string;
+    country?: string;
+  };
+  subject: string;
+  subjectDetails: {
+    commonName: string;
+    organization?: string;
+    country?: string;
+  };
   validFrom: Date;
   validTo: Date;
+  serialNumber?: string;
 }
 
 /**

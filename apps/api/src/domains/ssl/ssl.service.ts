@@ -100,24 +100,65 @@ export class SSLService {
 
   /**
    * Get all SSL certificates with computed status
+   * Re-parse certificates to ensure accurate dates
    */
   async getAllCertificates(): Promise<SSLCertificateWithStatus[]> {
     const certificates = await sslRepository.findAll();
 
     const now = new Date();
-    return certificates.map(cert => {
-      const daysUntilExpiry = Math.floor(
-        (cert.validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-      );
+    const updatedCertificates = await Promise.all(
+      certificates.map(async (cert) => {
+        // Re-parse certificate to get accurate dates if needed
+        let validTo = cert.validTo;
+        let validFrom = cert.validFrom;
+        
+        try {
+          // Parse certificate content to get real dates
+          const certInfo = await acmeService.parseCertificate(cert.certificate);
+          validTo = certInfo.validTo;
+          validFrom = certInfo.validFrom;
+          
+          // Update database if dates are different
+          if (
+            validTo.getTime() !== cert.validTo.getTime() ||
+            validFrom.getTime() !== cert.validFrom.getTime()
+          ) {
+            logger.info(`Updating certificate dates for ${cert.domain.name}: ${validFrom.toISOString()} - ${validTo.toISOString()}`);
+            await sslRepository.update(cert.id, {
+              validFrom,
+              validTo,
+              commonName: certInfo.commonName,
+              sans: certInfo.sans,
+              issuer: certInfo.issuer || cert.issuer,
+              subject: certInfo.subject,
+              subjectDetails: certInfo.subjectDetails as any,
+              issuerDetails: certInfo.issuerDetails as any,
+              serialNumber: certInfo.serialNumber,
+              status: this.calculateStatus(validTo),
+            });
+          }
+        } catch (error) {
+          logger.warn(`Failed to re-parse certificate for ${cert.domain.name}:`, error);
+          // Use existing dates from database
+        }
 
-      const status = this.calculateStatus(cert.validTo);
+        const daysUntilExpiry = Math.floor(
+          (validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+        );
 
-      return {
-        ...cert,
-        status,
-        daysUntilExpiry,
-      };
-    });
+        const status = this.calculateStatus(validTo);
+
+        return {
+          ...cert,
+          validFrom,
+          validTo,
+          status,
+          daysUntilExpiry,
+        };
+      })
+    );
+
+    return updatedCertificates;
   }
 
   /**
@@ -180,6 +221,10 @@ export class SSLService {
         commonName: certInfo.commonName,
         sans: certInfo.sans,
         issuer: certInfo.issuer,
+        subject: certInfo.subject,
+        subjectDetails: certInfo.subjectDetails,
+        issuerDetails: certInfo.issuerDetails,
+        serialNumber: certInfo.serialNumber,
         certificate: certFiles.certificate,
         privateKey: certFiles.privateKey,
         chain: certFiles.chain,
@@ -229,7 +274,7 @@ export class SSLService {
     ip: string,
     userAgent: string
   ): Promise<SSLCertificateWithDomain> {
-    const { domainId, certificate, privateKey, chain, issuer = SSL_CONSTANTS.MANUAL_ISSUER } = dto;
+    const { domainId, certificate, privateKey, chain, issuer } = dto;
 
     // Check if domain exists
     const domain = await prisma.domain.findUnique({
@@ -246,26 +291,39 @@ export class SSLService {
       throw new Error('SSL certificate already exists for this domain. Use update endpoint instead.');
     }
 
-    // Parse certificate to extract information
-    // In production, use x509 parsing library
-    const now = new Date();
-    const validTo = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year default
+    // Parse certificate to extract real information
+    let certInfo;
+    try {
+      certInfo = await acmeService.parseCertificate(certificate);
+      logger.info(`Parsed manual certificate: CN=${certInfo.commonName}, Issuer=${certInfo.issuer}, Valid: ${certInfo.validFrom.toISOString()} - ${certInfo.validTo.toISOString()}`);
+    } catch (error: any) {
+      logger.error('Failed to parse manual certificate:', error);
+      throw new Error(`Invalid certificate format: ${error.message}`);
+    }
 
-    // Create certificate
+    // Use parsed information
+    const finalIssuer = issuer || certInfo.issuer || SSL_CONSTANTS.MANUAL_ISSUER;
+    const status = this.calculateStatus(certInfo.validTo);
+
+    // Create certificate with real information
     const cert = await sslRepository.create({
       domain: {
         connect: { id: domainId },
       },
-      commonName: domain.name,
-      sans: [domain.name],
-      issuer,
+      commonName: certInfo.commonName,
+      sans: certInfo.sans,
+      issuer: finalIssuer,
+      subject: certInfo.subject,
+      subjectDetails: certInfo.subjectDetails,
+      issuerDetails: certInfo.issuerDetails,
+      serialNumber: certInfo.serialNumber,
       certificate,
       privateKey,
       chain: chain || null,
-      validFrom: now,
-      validTo,
+      validFrom: certInfo.validFrom,
+      validTo: certInfo.validTo,
       autoRenew: false, // Manual certs don't auto-renew
-      status: 'valid',
+      status,
     });
 
     // Write certificate files to disk
@@ -282,7 +340,7 @@ export class SSLService {
     }
 
     // Update domain SSL expiry (DO NOT auto-enable SSL)
-    await sslRepository.updateDomainSSLExpiry(domainId, validTo);
+    await sslRepository.updateDomainSSLExpiry(domainId, certInfo.validTo);
 
     // Log activity
     await this.logActivity(
@@ -315,14 +373,46 @@ export class SSLService {
       throw new Error('SSL certificate not found');
     }
 
-    // Update certificate
-    const updatedCert = await sslRepository.update(id, {
-      ...(certificate && { certificate }),
+    // If certificate is being updated, parse it to get real info
+    let updateData: any = {
       ...(privateKey && { privateKey }),
       ...(chain !== undefined && { chain }),
       ...(autoRenew !== undefined && { autoRenew }),
       updatedAt: new Date(),
-    });
+    };
+
+    if (certificate) {
+      try {
+        const certInfo = await acmeService.parseCertificate(certificate);
+        logger.info(`Parsed updated certificate: CN=${certInfo.commonName}, Valid: ${certInfo.validFrom.toISOString()} - ${certInfo.validTo.toISOString()}`);
+        
+        const status = this.calculateStatus(certInfo.validTo);
+        
+        updateData = {
+          ...updateData,
+          certificate,
+          commonName: certInfo.commonName,
+          sans: certInfo.sans,
+          issuer: certInfo.issuer,
+          subject: certInfo.subject,
+          subjectDetails: certInfo.subjectDetails,
+          issuerDetails: certInfo.issuerDetails,
+          serialNumber: certInfo.serialNumber,
+          validFrom: certInfo.validFrom,
+          validTo: certInfo.validTo,
+          status,
+        };
+
+        // Update domain SSL expiry
+        await sslRepository.updateDomainSSLExpiry(cert.domainId, certInfo.validTo);
+      } catch (error: any) {
+        logger.error('Failed to parse updated certificate:', error);
+        throw new Error(`Invalid certificate format: ${error.message}`);
+      }
+    }
+
+    // Update certificate
+    const updatedCert = await sslRepository.update(id, updateData);
 
     // Update certificate files if changed
     if (certificate || privateKey || chain) {
@@ -445,6 +535,13 @@ export class SSLService {
 
       // Fallback: just extend expiry (placeholder)
       certInfo = {
+        commonName: cert.commonName,
+        sans: cert.sans,
+        issuer: cert.issuer,
+        subject: cert.subject,
+        subjectDetails: cert.subjectDetails,
+        issuerDetails: cert.issuerDetails,
+        serialNumber: cert.serialNumber,
         validFrom: new Date(),
         validTo: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
       };
@@ -458,6 +555,13 @@ export class SSLService {
       certificate,
       privateKey,
       chain,
+      commonName: certInfo.commonName,
+      sans: certInfo.sans,
+      issuer: certInfo.issuer,
+      subject: certInfo.subject,
+      subjectDetails: certInfo.subjectDetails as any,
+      issuerDetails: certInfo.issuerDetails as any,
+      serialNumber: certInfo.serialNumber,
       validFrom: certInfo.validFrom,
       validTo: certInfo.validTo,
       status: 'valid',

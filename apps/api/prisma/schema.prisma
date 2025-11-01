@@ -251,9 +251,15 @@ model SSLCertificate {
   commonName  String
   sans        String[] // Subject Alternative Names
   issuer      String
+  subject     String?  // Full subject string (e.g., "CN=example.com, O=Example, C=US")
   certificate String   @db.Text // PEM format
   privateKey  String   @db.Text // PEM format
   chain       String?  @db.Text // PEM format
+  
+  // Additional certificate details stored as JSON
+  subjectDetails Json? // { commonName, organization, country }
+  issuerDetails  Json? // { commonName, organization, country }
+  serialNumber   String? // Certificate serial number
 
   validFrom DateTime
   validTo   DateTime
