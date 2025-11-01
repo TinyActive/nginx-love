@@ -98,7 +98,7 @@ export class DomainsController {
         return;
       }
 
-      const { name, upstreams, loadBalancer, modsecEnabled, realIpConfig, advancedConfig } = req.body;
+      const { name, upstreams, loadBalancer, modsecEnabled, realIpConfig, advancedConfig, autoCreateSSL, sslEmail } = req.body;
 
       const domain = await domainsService.createDomain(
         {
@@ -108,6 +108,8 @@ export class DomainsController {
           modsecEnabled,
           realIpConfig,
           advancedConfig,
+          autoCreateSSL,
+          sslEmail,
         },
         req.user!.userId,
         req.user!.username,

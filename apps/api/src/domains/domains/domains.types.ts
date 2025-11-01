@@ -64,6 +64,8 @@ export interface CreateDomainInput {
   modsecEnabled?: boolean;
   realIpConfig?: RealIpConfigData;
   advancedConfig?: AdvancedConfigData;
+  autoCreateSSL?: boolean; // Auto-create SSL certificate after domain creation
+  sslEmail?: string; // Email for SSL certificate (Let's Encrypt/ZeroSSL)
 }
 
 // Domain update input
@@ -71,6 +73,8 @@ export interface UpdateDomainInput {
   name?: string;
   status?: string;
   modsecEnabled?: boolean;
+  sslEnabled?: boolean;
+  sslExpiry?: Date;
   upstreams?: CreateUpstreamData[];
   loadBalancer?: LoadBalancerConfigData;
   realIpConfig?: RealIpConfigData;

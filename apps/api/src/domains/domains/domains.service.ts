@@ -3,6 +3,7 @@ import prisma from '../../config/database';
 import { domainsRepository } from './domains.repository';
 import { nginxConfigService } from './services/nginx-config.service';
 import { nginxReloadService } from './services/nginx-reload.service';
+import { sslService } from '../ssl/ssl.service';
 import {
   DomainWithRelations,
   DomainQueryOptions,
@@ -82,7 +83,77 @@ export class DomainsService {
 
       logger.info(`Domain ${input.name} created by user ${username}`);
 
-      return updatedDomain;
+      // Store the domain to return (may be updated if SSL is auto-enabled)
+      let finalDomain = updatedDomain;
+
+      // Auto-create SSL certificate if requested
+      if (input.autoCreateSSL && input.sslEmail) {
+        try {
+          logger.info(`Auto-creating SSL certificate for ${input.name}`);
+          const sslCertificate = await sslService.issueAutoCertificate(
+            {
+              domainId: updatedDomain.id,
+              email: input.sslEmail,
+              autoRenew: true,
+            },
+            userId,
+            ip,
+            userAgent
+          );
+          logger.info(`SSL certificate successfully created for ${input.name}`);
+          
+          // Auto-enable SSL after successful certificate creation
+          try {
+            logger.info(`Auto-enabling SSL for ${input.name}`);
+            
+            // Update domain with SSL enabled
+            const enabledDomain = await domainsRepository.update(updatedDomain.id, {
+              sslEnabled: true,
+              sslExpiry: sslCertificate.validTo,
+            });
+            
+            // Ensure we have the updated domain object with SSL enabled
+            if (enabledDomain) {
+              logger.info(`Domain SSL status updated: ${enabledDomain.name} - SSL Enabled: ${enabledDomain.sslEnabled}`);
+              
+              // Regenerate nginx config with SSL enabled
+              await nginxConfigService.generateConfig(enabledDomain);
+              await nginxReloadService.reload();
+              logger.info(`SSL auto-enabled and nginx reloaded for ${input.name}`);
+              
+              // Update the final domain to return
+              finalDomain = enabledDomain;
+            }
+          } catch (enableError: any) {
+            logger.error(`Failed to auto-enable SSL for ${input.name}:`, enableError);
+          }
+          
+          // Log SSL creation activity
+          await this.logActivity(
+            userId,
+            `Auto-created and enabled SSL certificate for domain: ${input.name}`,
+            'config_change',
+            ip,
+            userAgent,
+            true
+          );
+        } catch (sslError: any) {
+          // Don't fail domain creation if SSL fails - just log the error
+          logger.error(`Failed to auto-create SSL for ${input.name}:`, sslError);
+          
+          // Log SSL creation failure
+          await this.logActivity(
+            userId,
+            `Failed to auto-create SSL certificate for domain: ${input.name} - ${sslError.message}`,
+            'config_change',
+            ip,
+            userAgent,
+            false
+          );
+        }
+      }
+
+      return finalDomain;
     } catch (error: any) {
       // Rollback: delete domain from database
       logger.error(`Failed to create domain ${input.name}, rolling back:`, error);

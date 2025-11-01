@@ -596,6 +596,7 @@ export default function Domains() {
           }}
           onSave={handleSave}
           domain={editingDomain}
+          isLoading={createDomain.isPending || updateDomain.isPending}
         />
 
         <Suspense fallback={<SkeletonTable rows={5} columns={6} title="Domains" />}>

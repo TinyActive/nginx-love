@@ -28,7 +28,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Plus, Trash2, HelpCircle, Shield, Server, Settings } from 'lucide-react';
+import { Plus, Trash2, HelpCircle, Shield, Server, Settings, RefreshCw } from 'lucide-react';
 import { Domain } from '@/types';
 import { toast } from 'sonner';
 
@@ -58,6 +58,8 @@ interface FormData {
   
   // Security
   modsecEnabled: boolean;
+  autoCreateSSL: boolean;
+  sslEmail: string;
   realIpEnabled: boolean;
   realIpCloudflare: boolean;
   healthCheckEnabled: boolean;
@@ -77,9 +79,10 @@ interface DomainDialogV2Props {
   onOpenChange: (open: boolean) => void;
   domain?: Domain | null;
   onSave: (domain: any) => void;
+  isLoading?: boolean;
 }
 
-export function DomainDialogV2({ open, onOpenChange, domain, onSave }: DomainDialogV2Props) {
+export function DomainDialogV2({ open, onOpenChange, domain, onSave, isLoading = false }: DomainDialogV2Props) {
   const {
     register,
     handleSubmit,
@@ -95,6 +98,8 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave }: DomainDia
       lbAlgorithm: 'round_robin',
       upstreams: [{ host: '', port: 80, protocol: 'http', sslVerify: true, weight: 1, maxFails: 3, failTimeout: 30 }],
       modsecEnabled: true,
+      autoCreateSSL: false,
+      sslEmail: '',
       realIpEnabled: false,
       realIpCloudflare: false,
       healthCheckEnabled: true,
@@ -119,6 +124,7 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave }: DomainDia
   });
 
   const realIpEnabled = watch('realIpEnabled');
+  const autoCreateSSL = watch('autoCreateSSL');
   const healthCheckEnabled = watch('healthCheckEnabled');
 
   // Reset form when dialog opens or domain changes
@@ -161,6 +167,8 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave }: DomainDia
           lbAlgorithm: 'round_robin',
           upstreams: [{ host: '', port: 80, protocol: 'http', sslVerify: true, weight: 1, maxFails: 3, failTimeout: 30 }],
           modsecEnabled: true,
+          autoCreateSSL: false,
+          sslEmail: '',
           realIpEnabled: false,
           realIpCloudflare: false,
           healthCheckEnabled: true,
@@ -187,8 +195,14 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave }: DomainDia
       return;
     }
 
+    // Validate SSL email if auto-create is enabled
+    if (data.autoCreateSSL && !data.sslEmail) {
+      toast.error('Email is required when auto-creating SSL certificate');
+      return;
+    }
+
     // Prepare data in API format
-    const domainData = {
+    const domainData: any = {
       name: data.name,
       status: data.status,
       modsecEnabled: data.modsecEnabled,
@@ -220,6 +234,12 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave }: DomainDia
         customLocations: data.customLocations.filter(loc => loc.path && loc.upstreams.length > 0),
       },
     };
+
+    // Add SSL auto-creation fields only when creating new domain
+    if (!domain && data.autoCreateSSL) {
+      domainData.autoCreateSSL = true;
+      domainData.sslEmail = data.sslEmail;
+    }
 
     onSave(domainData);
     // Do not close dialog here - let parent component handle it after successful save
@@ -260,6 +280,7 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave }: DomainDia
                   id="name"
                   {...register('name', { required: 'Domain name is required' })}
                   placeholder="example.com"
+                  disabled={isLoading}
                 />
                 {errors.name && (
                   <p className="text-sm text-destructive">{errors.name.message}</p>
@@ -272,6 +293,7 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave }: DomainDia
                   <Select
                     value={watch('status')}
                     onValueChange={(value) => setValue('status', value as any)}
+                    disabled={isLoading}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -288,6 +310,7 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave }: DomainDia
                   <Select
                     value={watch('lbAlgorithm')}
                     onValueChange={(value) => setValue('lbAlgorithm', value as any)}
+                    disabled={isLoading}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -309,6 +332,7 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave }: DomainDia
                     variant="outline"
                     size="sm"
                     onClick={() => appendUpstream({ host: '', port: 80, protocol: 'http', sslVerify: true, weight: 1, maxFails: 3, failTimeout: 30 })}
+                    disabled={isLoading}
                   >
                     <Plus className="h-4 w-4 mr-1" />
                     Add Backend
@@ -447,6 +471,54 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave }: DomainDia
                   )}
                 />
               </div>
+
+              {!domain && (
+                <>
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <Label htmlFor="autoSSL">Auto-create SSL Certificate</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Automatically issue Let's Encrypt/ZeroSSL certificate after creating domain
+                      </p>
+                    </div>
+                    <Controller
+                      name="autoCreateSSL"
+                      control={control}
+                      render={({ field }) => (
+                        <Switch
+                          id="autoSSL"
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      )}
+                    />
+                  </div>
+
+                  {autoCreateSSL && (
+                    <div className="ml-4 border-l-2 pl-4 space-y-2">
+                      <Label htmlFor="sslEmail">Email for SSL Certificate *</Label>
+                      <Input
+                        id="sslEmail"
+                        type="email"
+                        {...register('sslEmail', { 
+                          required: autoCreateSSL ? 'Email is required for SSL certificate' : false,
+                          pattern: {
+                            value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                            message: 'Invalid email address'
+                          }
+                        })}
+                        placeholder="admin@example.com"
+                      />
+                      {errors.sslEmail && (
+                        <p className="text-sm text-destructive">{errors.sslEmail.message}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        This email will be used for SSL certificate notifications and renewal
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
 
               <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
@@ -929,11 +1001,23 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave }: DomainDia
           </Tabs>
 
           <DialogFooter className="mt-6">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => onOpenChange(false)}
+              disabled={isLoading}
+            >
               Cancel
             </Button>
-            <Button type="submit">
-              {domain ? 'Update Domain' : 'Create Domain'}
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  {domain ? 'Updating...' : 'Creating...'}
+                </>
+              ) : (
+                domain ? 'Update Domain' : 'Create Domain'
+              )}
             </Button>
           </DialogFooter>
         </form>

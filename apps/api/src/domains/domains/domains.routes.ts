@@ -24,6 +24,21 @@ const createDomainValidation = [
   body('upstreams.*.port')
     .isInt({ min: 1, max: 65535 })
     .withMessage('Upstream port must be between 1 and 65535'),
+  body('autoCreateSSL')
+    .optional()
+    .isBoolean()
+    .withMessage('autoCreateSSL must be a boolean'),
+  body('sslEmail')
+    .optional()
+    .isEmail()
+    .withMessage('Invalid email format'),
+  // Custom validation: if autoCreateSSL is true, sslEmail is required
+  body('sslEmail').custom((value, { req }) => {
+    if (req.body.autoCreateSSL === true && !value) {
+      throw new Error('SSL email is required when auto-creating SSL certificate');
+    }
+    return true;
+  }),
 ];
 
 const updateDomainValidation = [
