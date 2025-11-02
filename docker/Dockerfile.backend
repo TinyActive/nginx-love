@@ -27,7 +27,7 @@ RUN cd apps/api && pnpm prisma:generate
 RUN pnpm --filter @nginx-love/api build
 
 # Production stage
-FROM vouu/nginx-modsecurity-base
+FROM vouu/nginx-modsecurity-base:ubuntu2404
 
 RUN apt-get update && apt-get install -y curl ca-certificates gnupg && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \

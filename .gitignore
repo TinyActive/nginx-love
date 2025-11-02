@@ -1,11 +1,17 @@
 # Logs
 logs
+!apps/api/src/domains/logs
+!apps/web/src/components/pages/Logs.tsx
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+
+# But allow component directories named 'logs'
+!apps/web/src/components/logs/
+!apps/api/src/domains/logs/
 
 # Dependencies
 node_modules

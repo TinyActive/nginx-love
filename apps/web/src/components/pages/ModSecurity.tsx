@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Shield, Plus } from 'lucide-react';
+import { Shield, Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -15,6 +15,16 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { CustomRuleDialog } from '@/components/modsec/CustomRuleDialog';
 import { toast } from 'sonner';
 import {
@@ -24,11 +34,15 @@ import {
   useToggleCrsRule,
   useToggleModSecRule,
   useSetGlobalModSec,
+  useDeleteModSecRule,
 } from '@/queries/modsec.query-options';
+import type { ModSecurityCustomRule } from '@/types';
 
 export default function ModSecurity() {
   const { t } = useTranslation();
   const [customRuleDialogOpen, setCustomRuleDialogOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<ModSecurityCustomRule | null>(null);
+  const [deletingRuleId, setDeletingRuleId] = useState<string | null>(null);
   
   // Queries
   const { data: crsRules = [] } = useCrsRules();
@@ -39,6 +53,7 @@ export default function ModSecurity() {
   const toggleCrsRuleMutation = useToggleCrsRule();
   const toggleCustomRuleMutation = useToggleModSecRule();
   const setGlobalModSecMutation = useSetGlobalModSec();
+  const deleteCustomRuleMutation = useDeleteModSecRule();
   
   const globalModSecEnabled = globalSettings?.enabled ?? true;
 
@@ -66,6 +81,30 @@ export default function ModSecurity() {
       toast.success(`Rule "${name}" ${!currentState ? 'enabled' : 'disabled'}`);
     } catch (error) {
       toast.error('Failed to toggle rule');
+    }
+  };
+
+  const handleEditRule = (rule: ModSecurityCustomRule) => {
+    setEditingRule(rule);
+    setCustomRuleDialogOpen(true);
+  };
+
+  const handleDeleteRule = async () => {
+    if (!deletingRuleId) return;
+
+    try {
+      await deleteCustomRuleMutation.mutateAsync(deletingRuleId);
+      toast.success('Custom rule deleted successfully');
+      setDeletingRuleId(null);
+    } catch (error) {
+      toast.error('Failed to delete custom rule');
+    }
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setCustomRuleDialogOpen(open);
+    if (!open) {
+      setEditingRule(null);
     }
   };
 
@@ -180,12 +219,13 @@ export default function ModSecurity() {
                       <TableHead>Description</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Enable</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {customRules.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                           No custom rules. Click "Add Custom Rule" to create one.
                         </TableCell>
                       </TableRow>
@@ -210,6 +250,24 @@ export default function ModSecurity() {
                               onCheckedChange={() => handleCustomRuleToggle(rule.id, rule.name, rule.enabled)}
                             />
                           </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditRule(rule)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDeletingRuleId(rule.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       ))
                     )}
@@ -223,8 +281,26 @@ export default function ModSecurity() {
 
       <CustomRuleDialog
         open={customRuleDialogOpen}
-        onOpenChange={setCustomRuleDialogOpen}
+        onOpenChange={handleDialogClose}
+        editRule={editingRule}
       />
+
+      <AlertDialog open={!!deletingRuleId} onOpenChange={(open) => !open && setDeletingRuleId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Custom Rule</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this custom rule? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteRule} className="bg-destructive hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

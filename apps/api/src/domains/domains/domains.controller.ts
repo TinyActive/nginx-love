@@ -98,7 +98,7 @@ export class DomainsController {
         return;
       }
 
-      const { name, upstreams, loadBalancer, modsecEnabled, realIpConfig, advancedConfig } = req.body;
+      const { name, upstreams, loadBalancer, modsecEnabled, realIpConfig, advancedConfig, autoCreateSSL, sslEmail } = req.body;
 
       const domain = await domainsService.createDomain(
         {
@@ -108,6 +108,8 @@ export class DomainsController {
           modsecEnabled,
           realIpConfig,
           advancedConfig,
+          autoCreateSSL,
+          sslEmail,
         },
         req.user!.userId,
         req.user!.username,
@@ -124,6 +126,17 @@ export class DomainsController {
       logger.error('Create domain error:', error);
 
       if (error.message === 'Domain already exists') {
+        res.status(409).json({
+          success: false,
+          message: error.message,
+        });
+        return;
+      }
+
+      // Handle nginx validation errors
+      if (error.message.includes('Nginx configuration validation failed') ||
+          error.message.includes('Nginx reload failed') ||
+          error.message.includes('Invalid nginx configuration')) {
         res.status(400).json({
           success: false,
           message: error.message,
@@ -133,7 +146,7 @@ export class DomainsController {
 
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: error.message || 'Internal server error',
       });
     }
   }
@@ -188,9 +201,20 @@ export class DomainsController {
         return;
       }
 
+      // Handle nginx validation errors
+      if (error.message.includes('Nginx configuration validation failed') ||
+          error.message.includes('Nginx reload failed') ||
+          error.message.includes('Invalid nginx configuration')) {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+        });
+        return;
+      }
+
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: error.message || 'Internal server error',
       });
     }
   }

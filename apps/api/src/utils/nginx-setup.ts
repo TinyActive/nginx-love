@@ -10,7 +10,7 @@ const ACME_CHALLENGE_SNIPPET = `/etc/nginx/snippets/acme-challenge.conf`;
 const WEBROOT_PATH = `/var/www/html`;
 const ACME_CHALLENGE_PATH = `${WEBROOT_PATH}/.well-known/acme-challenge`;
 
-const ACME_SNIPPET_CONTENT = `# ACME Challenge for Let's Encrypt
+const ACME_SNIPPET_CONTENT = `# ACME Challenge for ZeroSSL/Let's Encrypt
 # Include this in your server blocks to enable webroot validation
 
 location ^~ /.well-known/acme-challenge/ {

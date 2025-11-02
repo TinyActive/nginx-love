@@ -229,6 +229,14 @@ export class DomainsRepository {
           input.modsecEnabled !== undefined
             ? input.modsecEnabled
             : currentDomain.modsecEnabled,
+        sslEnabled:
+          input.sslEnabled !== undefined
+            ? input.sslEnabled
+            : currentDomain.sslEnabled,
+        sslExpiry:
+          input.sslExpiry !== undefined
+            ? input.sslExpiry
+            : currentDomain.sslExpiry,
         realIpEnabled:
           input.realIpConfig?.realIpEnabled !== undefined
             ? input.realIpConfig.realIpEnabled

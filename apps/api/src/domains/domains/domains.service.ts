@@ -3,6 +3,7 @@ import prisma from '../../config/database';
 import { domainsRepository } from './domains.repository';
 import { nginxConfigService } from './services/nginx-config.service';
 import { nginxReloadService } from './services/nginx-reload.service';
+import { sslService } from '../ssl/ssl.service';
 import {
   DomainWithRelations,
   DomainQueryOptions,
@@ -51,31 +52,125 @@ export class DomainsService {
     // Create domain
     const domain = await domainsRepository.create(input);
 
-    // Generate nginx configuration
-    await nginxConfigService.generateConfig(domain);
+    try {
+      // Generate nginx configuration (includes validation)
+      await nginxConfigService.generateConfig(domain);
 
-    // Update domain status to active
-    const updatedDomain = await domainsRepository.updateStatus(domain.id, 'active');
+      // Update domain status to active
+      const updatedDomain = await domainsRepository.updateStatus(domain.id, 'active');
 
-    // Enable configuration
-    await nginxConfigService.enableConfig(domain.name);
+      // Enable configuration
+      await nginxConfigService.enableConfig(domain.name);
 
-    // Auto-reload nginx (silent mode)
-    await nginxReloadService.autoReload(true);
+      // Auto-reload nginx
+      const reloadResult = await nginxReloadService.reload();
+      if (!reloadResult.success) {
+        // Rollback: delete domain and config
+        await nginxConfigService.deleteConfig(domain.name);
+        await domainsRepository.delete(domain.id);
+        throw new Error(`Nginx reload failed: ${reloadResult.error || 'Unknown error'}`);
+      }
 
-    // Log activity
-    await this.logActivity(
-      userId,
-      `Created domain: ${input.name}`,
-      'config_change',
-      ip,
-      userAgent,
-      true
-    );
+      // Log activity
+      await this.logActivity(
+        userId,
+        `Created domain: ${input.name}`,
+        'config_change',
+        ip,
+        userAgent,
+        true
+      );
 
-    logger.info(`Domain ${input.name} created by user ${username}`);
+      logger.info(`Domain ${input.name} created by user ${username}`);
 
-    return updatedDomain;
+      // Store the domain to return (may be updated if SSL is auto-enabled)
+      let finalDomain = updatedDomain;
+
+      // Auto-create SSL certificate if requested
+      if (input.autoCreateSSL && input.sslEmail) {
+        try {
+          logger.info(`Auto-creating SSL certificate for ${input.name}`);
+          const sslCertificate = await sslService.issueAutoCertificate(
+            {
+              domainId: updatedDomain.id,
+              email: input.sslEmail,
+              autoRenew: true,
+            },
+            userId,
+            ip,
+            userAgent
+          );
+          logger.info(`SSL certificate successfully created for ${input.name}`);
+          
+          // Auto-enable SSL after successful certificate creation
+          try {
+            logger.info(`Auto-enabling SSL for ${input.name}`);
+            
+            // Update domain with SSL enabled
+            const enabledDomain = await domainsRepository.update(updatedDomain.id, {
+              sslEnabled: true,
+              sslExpiry: sslCertificate.validTo,
+            });
+            
+            // Ensure we have the updated domain object with SSL enabled
+            if (enabledDomain) {
+              logger.info(`Domain SSL status updated: ${enabledDomain.name} - SSL Enabled: ${enabledDomain.sslEnabled}`);
+              
+              // Regenerate nginx config with SSL enabled
+              await nginxConfigService.generateConfig(enabledDomain);
+              await nginxReloadService.reload();
+              logger.info(`SSL auto-enabled and nginx reloaded for ${input.name}`);
+              
+              // Update the final domain to return
+              finalDomain = enabledDomain;
+            }
+          } catch (enableError: any) {
+            logger.error(`Failed to auto-enable SSL for ${input.name}:`, enableError);
+          }
+          
+          // Log SSL creation activity
+          await this.logActivity(
+            userId,
+            `Auto-created and enabled SSL certificate for domain: ${input.name}`,
+            'config_change',
+            ip,
+            userAgent,
+            true
+          );
+        } catch (sslError: any) {
+          // Don't fail domain creation if SSL fails - just log the error
+          logger.error(`Failed to auto-create SSL for ${input.name}:`, sslError);
+          
+          // Log SSL creation failure
+          await this.logActivity(
+            userId,
+            `Failed to auto-create SSL certificate for domain: ${input.name} - ${sslError.message}`,
+            'config_change',
+            ip,
+            userAgent,
+            false
+          );
+        }
+      }
+
+      return finalDomain;
+    } catch (error: any) {
+      // Rollback: delete domain from database
+      logger.error(`Failed to create domain ${input.name}, rolling back:`, error);
+      try {
+        await nginxConfigService.deleteConfig(domain.name);
+        await domainsRepository.delete(domain.id);
+        logger.info(`Rolled back domain creation for ${input.name}`);
+      } catch (rollbackError) {
+        logger.error(`Failed to rollback domain creation:`, rollbackError);
+      }
+      
+      // Re-throw with user-friendly message
+      if (error.message.includes('Invalid nginx configuration')) {
+        throw new Error(`Nginx configuration validation failed: ${error.message}`);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -110,39 +205,92 @@ export class DomainsService {
     userAgent: string
   ): Promise<DomainWithRelations> {
     // Check if domain exists
-    const domain = await domainsRepository.findById(id);
-    if (!domain) {
+    const originalDomain = await domainsRepository.findById(id);
+    if (!originalDomain) {
       throw new Error('Domain not found');
     }
 
-    // Update domain
-    await domainsRepository.update(id, input);
+    // Store original data for rollback
+    const originalData: UpdateDomainInput = {
+      name: originalDomain.name,
+      status: originalDomain.status,
+      modsecEnabled: originalDomain.modsecEnabled,
+      upstreams: originalDomain.upstreams.map(u => ({
+        host: u.host,
+        port: u.port,
+        protocol: u.protocol,
+        sslVerify: u.sslVerify,
+        weight: u.weight,
+        maxFails: u.maxFails,
+        failTimeout: u.failTimeout,
+      })),
+      loadBalancer: originalDomain.loadBalancer ? {
+        algorithm: originalDomain.loadBalancer.algorithm,
+        healthCheckEnabled: originalDomain.loadBalancer.healthCheckEnabled,
+        healthCheckInterval: originalDomain.loadBalancer.healthCheckInterval,
+        healthCheckTimeout: originalDomain.loadBalancer.healthCheckTimeout,
+        healthCheckPath: originalDomain.loadBalancer.healthCheckPath,
+      } : undefined,
+    };
 
-    // Get updated domain with relations
-    const updatedDomain = await domainsRepository.findById(id);
-    if (!updatedDomain) {
-      throw new Error('Failed to fetch updated domain');
+    try {
+      // Update domain
+      await domainsRepository.update(id, input);
+
+      // Get updated domain with relations
+      const updatedDomain = await domainsRepository.findById(id);
+      if (!updatedDomain) {
+        throw new Error('Failed to fetch updated domain');
+      }
+
+      // Regenerate nginx config (includes validation and backup)
+      await nginxConfigService.generateConfig(updatedDomain);
+
+      // Auto-reload nginx
+      const reloadResult = await nginxReloadService.reload();
+      if (!reloadResult.success) {
+        // Rollback: restore original domain data
+        await domainsRepository.update(id, originalData);
+        const restoredDomain = await domainsRepository.findById(id);
+        if (restoredDomain) {
+          await nginxConfigService.generateConfig(restoredDomain);
+        }
+        throw new Error(`Nginx reload failed: ${reloadResult.error || 'Unknown error'}`);
+      }
+
+      // Log activity
+      await this.logActivity(
+        userId,
+        `Updated domain: ${updatedDomain.name}`,
+        'config_change',
+        ip,
+        userAgent,
+        true
+      );
+
+      logger.info(`Domain ${updatedDomain.name} updated by user ${username}`);
+
+      return updatedDomain;
+    } catch (error: any) {
+      // Rollback: restore original domain data
+      logger.error(`Failed to update domain ${originalDomain.name}, rolling back:`, error);
+      try {
+        await domainsRepository.update(id, originalData);
+        const restoredDomain = await domainsRepository.findById(id);
+        if (restoredDomain) {
+          await nginxConfigService.generateConfig(restoredDomain);
+        }
+        logger.info(`Rolled back domain update for ${originalDomain.name}`);
+      } catch (rollbackError) {
+        logger.error(`Failed to rollback domain update:`, rollbackError);
+      }
+      
+      // Re-throw with user-friendly message
+      if (error.message.includes('Invalid nginx configuration')) {
+        throw new Error(`Nginx configuration validation failed: ${error.message}`);
+      }
+      throw error;
     }
-
-    // Regenerate nginx config
-    await nginxConfigService.generateConfig(updatedDomain);
-
-    // Auto-reload nginx
-    await nginxReloadService.autoReload(true);
-
-    // Log activity
-    await this.logActivity(
-      userId,
-      `Updated domain: ${updatedDomain.name}`,
-      'config_change',
-      ip,
-      userAgent,
-      true
-    );
-
-    logger.info(`Domain ${updatedDomain.name} updated by user ${username}`);
-
-    return updatedDomain;
   }
 
   /**

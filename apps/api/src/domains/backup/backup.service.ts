@@ -14,6 +14,7 @@ import {
   SSLCertificateFiles,
 } from './backup.types';
 import { CreateBackupScheduleDto, UpdateBackupScheduleDto } from './dto';
+import { backupSchedulerService } from './services/backup-scheduler.service';
 
 const execAsync = promisify(exec);
 
@@ -110,15 +111,25 @@ export class BackupService {
    * Create backup schedule
    */
   async createBackupSchedule(dto: CreateBackupScheduleDto, userId?: string) {
+    // Calculate nextRun from cron expression
+    let nextRun: Date | undefined;
+    try {
+      nextRun = backupSchedulerService.calculateNextRun(dto.schedule);
+    } catch (error) {
+      logger.warn('Failed to calculate nextRun for new schedule:', error);
+    }
+
     const newSchedule = await backupRepository.createSchedule({
       name: dto.name,
       schedule: dto.schedule,
       enabled: dto.enabled ?? true,
+      nextRun,
     });
 
     logger.info(`Backup schedule created: ${dto.name}`, {
       userId,
       scheduleId: newSchedule.id,
+      nextRun: nextRun?.toISOString(),
     });
 
     return newSchedule;
@@ -136,6 +147,15 @@ export class BackupService {
     if (dto.name) updateData.name = dto.name;
     if (dto.schedule) updateData.schedule = dto.schedule;
     if (dto.enabled !== undefined) updateData.enabled = dto.enabled;
+
+    // Recalculate nextRun if cron expression changed
+    if (dto.schedule) {
+      try {
+        updateData.nextRun = backupSchedulerService.calculateNextRun(dto.schedule);
+      } catch (error) {
+        logger.warn('Failed to calculate nextRun for updated schedule:', error);
+      }
+    }
 
     const updatedSchedule = await backupRepository.updateSchedule(id, updateData);
 
@@ -161,9 +181,20 @@ export class BackupService {
       throw new Error('Backup schedule not found');
     }
 
-    const updated = await backupRepository.updateSchedule(id, {
+    const updateData: any = {
       enabled: !schedule.enabled,
-    });
+    };
+
+    // If enabling, calculate nextRun
+    if (!schedule.enabled) {
+      try {
+        updateData.nextRun = backupSchedulerService.calculateNextRun(schedule.schedule);
+      } catch (error) {
+        logger.warn('Failed to calculate nextRun when enabling schedule:', error);
+      }
+    }
+
+    const updated = await backupRepository.updateSchedule(id, updateData);
 
     logger.info(`Backup schedule toggled: ${id} (enabled: ${updated.enabled})`, {
       userId,

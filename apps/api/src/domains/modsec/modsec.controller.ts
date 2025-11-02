@@ -200,10 +200,21 @@ export class ModSecController {
         return;
       }
 
+      // Handle validation errors (rule ID duplicates, nginx config errors)
+      if (error.message.includes('Rule ID(s) already exist') ||
+          error.message.includes('Nginx configuration test failed') ||
+          error.message.includes('Nginx reload failed')) {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+        });
+        return;
+      }
+
       logger.error('Add custom rule error:', error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: error.message || 'Internal server error',
       });
     }
   }
@@ -254,10 +265,21 @@ export class ModSecController {
         return;
       }
 
+      // Handle validation errors (rule ID duplicates, nginx config errors)
+      if (error.message.includes('Rule ID(s) already exist') ||
+          error.message.includes('Nginx configuration test failed') ||
+          error.message.includes('Nginx reload failed')) {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+        });
+        return;
+      }
+
       logger.error('Update ModSec rule error:', error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: error.message || 'Internal server error',
       });
     }
   }
@@ -348,6 +370,39 @@ export class ModSecController {
       });
     } catch (error) {
       logger.error('Set global ModSec error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+      });
+    }
+  }
+
+  /**
+   * Reinitialize ModSecurity configuration
+   * This will update main.conf with any missing includes
+   */
+  async reinitializeConfig(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const result = await modSecService.reinitializeConfig();
+
+      logger.info('ModSecurity configuration reinitialized', {
+        userId: req.user?.userId,
+        success: result.success,
+      });
+
+      if (result.success) {
+        res.json({
+          success: true,
+          message: result.message,
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      logger.error('Reinitialize ModSec config error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',

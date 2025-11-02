@@ -46,8 +46,8 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
   // Use TanStack Query to fetch domains
   const { data: domainsResponse, isLoading: domainsLoading, error: domainsError } = useDomains();
   
-  // Filter domains without SSL certificate
-  const domainsWithoutSSL = domainsResponse?.data?.filter(d => !d.sslEnabled) || [];
+  // Filter domains without SSL certificate - check both sslCertificate object and sslEnabled flag
+  const domainsWithoutSSL = domainsResponse?.data?.filter(d => !d.sslCertificate && !d.sslEnabled) || [];
 
   const issueAutoSSL = useIssueAutoSSL();
   const uploadManualSSL = useUploadManualSSL();
@@ -58,6 +58,109 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
       toast.error('Failed to load domains');
     }
   }, [domainsError]);
+
+  // Validate certificate format and structure
+  const validateCertificate = (cert: string, type: 'certificate' | 'privateKey' | 'chain'): { valid: boolean; error?: string } => {
+    if (!cert.trim()) {
+      return { valid: false, error: `${type} is empty` };
+    }
+
+    // Define expected PEM headers/footers
+    const patterns = {
+      certificate: {
+        begin: '-----BEGIN CERTIFICATE-----',
+        end: '-----END CERTIFICATE-----',
+        name: 'Certificate'
+      },
+      privateKey: {
+        begin: /-----BEGIN (RSA |EC |ENCRYPTED )?PRIVATE KEY-----/,
+        end: /-----END (RSA |EC |ENCRYPTED )?PRIVATE KEY-----/,
+        name: 'Private Key'
+      },
+      chain: {
+        begin: '-----BEGIN CERTIFICATE-----',
+        end: '-----END CERTIFICATE-----',
+        name: 'Certificate Chain'
+      }
+    };
+
+    const pattern = patterns[type];
+    
+    // Check for BEGIN marker
+    const hasBegin = pattern.begin instanceof RegExp 
+      ? pattern.begin.test(cert)
+      : cert.includes(pattern.begin);
+    
+    if (!hasBegin) {
+      return { valid: false, error: `${pattern.name} must start with proper PEM header` };
+    }
+
+    // Check for END marker
+    const hasEnd = pattern.end instanceof RegExp
+      ? pattern.end.test(cert)
+      : cert.includes(pattern.end);
+    
+    if (!hasEnd) {
+      return { valid: false, error: `${pattern.name} must end with proper PEM footer` };
+    }
+
+    // Check for suspicious content (basic XSS/injection prevention)
+    const suspiciousPatterns = [
+      /<script/i,
+      /javascript:/i,
+      /on\w+\s*=/i, // event handlers like onclick=
+      /<iframe/i,
+      /eval\(/i,
+      /document\./i,
+      /window\./i,
+    ];
+
+    for (const suspicious of suspiciousPatterns) {
+      if (suspicious.test(cert)) {
+        return { valid: false, error: `${pattern.name} contains suspicious content` };
+      }
+    }
+
+    // Validate base64 content between headers
+    const base64Pattern = /^[A-Za-z0-9+/=\s\r\n-]+$/;
+    const lines = cert.split('\n').filter(line => 
+      !line.includes('-----BEGIN') && 
+      !line.includes('-----END') &&
+      line.trim() !== ''
+    );
+    
+    for (const line of lines) {
+      if (!base64Pattern.test(line.trim())) {
+        return { valid: false, error: `${pattern.name} contains invalid characters (expected base64)` };
+      }
+    }
+
+    return { valid: true };
+  };
+
+  // Validate domain name matches certificate
+  const validateDomainMatch = async (domainName: string, certificate: string): Promise<{ valid: boolean; error?: string }> => {
+    try {
+      // Extract CN and SANs from certificate (basic parsing)
+      // This is a simplified check - full validation happens on backend
+      const certLines = certificate.split('\n');
+      
+      // Just check if domain name appears in certificate (basic sanity check)
+      const certContent = certificate.toLowerCase();
+      const domain = domainName.toLowerCase();
+      
+      if (!certContent.includes(domain)) {
+        return { 
+          valid: false, 
+          error: `Certificate may not match domain "${domainName}". Please verify the certificate is correct.` 
+        };
+      }
+
+      return { valid: true };
+    } catch (error) {
+      return { valid: true }; // Allow if parsing fails - backend will validate
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,6 +175,39 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
         toast.error('Certificate and private key are required');
         return;
       }
+
+      // Validate certificate format
+      const certValidation = validateCertificate(formData.certificate, 'certificate');
+      if (!certValidation.valid) {
+        toast.error(certValidation.error || 'Invalid certificate format');
+        return;
+      }
+
+      // Validate private key format
+      const keyValidation = validateCertificate(formData.privateKey, 'privateKey');
+      if (!keyValidation.valid) {
+        toast.error(keyValidation.error || 'Invalid private key format');
+        return;
+      }
+
+      // Validate chain if provided
+      if (formData.chain && formData.chain.trim()) {
+        const chainValidation = validateCertificate(formData.chain, 'chain');
+        if (!chainValidation.valid) {
+          toast.error(chainValidation.error || 'Invalid certificate chain format');
+          return;
+        }
+      }
+
+      // Validate domain match
+      const selectedDomain = domainsResponse?.data?.find(d => d.id === formData.domainId);
+      if (selectedDomain) {
+        const domainMatchValidation = await validateDomainMatch(selectedDomain.name, formData.certificate);
+        if (!domainMatchValidation.valid) {
+          toast.warning(domainMatchValidation.error || 'Domain validation warning');
+          // Note: We show warning but allow to continue - backend will do final validation
+        }
+      }
     }
 
     try {
@@ -81,7 +217,7 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
           email: formData.email || undefined,
           autoRenew: formData.autoRenew,
         });
-        toast.success("Let's Encrypt certificate issued successfully");
+        toast.success("SSL certificate issued successfully (ZeroSSL)");
       } else {
         await uploadManualSSL.mutateAsync({
           domainId: formData.domainId,
@@ -148,15 +284,15 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
 
           <Tabs value={method} onValueChange={(v) => setMethod(v as 'auto' | 'manual')}>
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="auto">Auto (Let's Encrypt)</TabsTrigger>
+              <TabsTrigger value="auto">Auto (ZeroSSL/Let's Encrypt)</TabsTrigger>
               <TabsTrigger value="manual">Manual Upload</TabsTrigger>
             </TabsList>
 
             <TabsContent value="auto" className="space-y-4">
               <div className="rounded-lg bg-primary/10 p-4 border border-primary/20">
-                <h4 className="font-medium mb-2">Let's Encrypt Auto-SSL</h4>
+                <h4 className="font-medium mb-2">ZeroSSL/Let's Encrypt Auto-SSL</h4>
                 <p className="text-sm text-muted-foreground">
-                  Automatically obtain and renew SSL certificates from Let's Encrypt.
+                  Automatically obtain and renew SSL certificates from ZeroSSL or Let's Encrypt.
                   Certificates will be issued within minutes and auto-renewed before expiry.
                 </p>
               </div>

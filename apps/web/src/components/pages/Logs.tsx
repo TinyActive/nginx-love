@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ColumnDef,
@@ -62,9 +62,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LogEntry } from "@/types";
-import {
-  downloadLogs,
-} from "@/services/logs.service";
+import { downloadLogs } from "@/services/logs.service";
 import { useToast } from "@/hooks/use-toast";
 import { SkeletonStatsCard, SkeletonTable } from "@/components/ui/skeletons";
 import {
@@ -73,73 +71,309 @@ import {
   useSuspenseLogs,
   useLogs
 } from "@/queries/logs.query-options";
+import { LogDetailsDialog } from "@/components/logs/LogDetailsDialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-// Component for fast-loading statistics data
+// Constants
+const LEVEL_OPTIONS = [
+  { value: "all", label: "All Levels" },
+  { value: "info", label: "Info" },
+  { value: "warning", label: "Warning" },
+  { value: "error", label: "Error" },
+] as const;
+
+const TYPE_OPTIONS = [
+  { value: "all", label: "All Types" },
+  { value: "access", label: "Access" },
+  { value: "error", label: "Error" },
+  { value: "system", label: "System" },
+] as const;
+
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50] as const;
+
+const STATS_CONFIG = [
+  { key: "total", label: "Total Logs", color: "", description: "All log entries" },
+  { key: "info", label: "Info Logs", color: "text-blue-500", description: "Information messages", path: "byLevel.info" },
+  { key: "warning", label: "Warning Logs", color: "text-yellow-500", description: "Warning messages", path: "byLevel.warning" },
+  { key: "error", label: "Error Logs", color: "text-red-500", description: "Error messages", path: "byLevel.error" },
+] as const;
+
+// Helper functions
+const getLevelColor = (level: string): "destructive" | "default" | "secondary" | "outline" => {
+  const colorMap = {
+    error: "destructive" as const,
+    warning: "outline" as const,
+    info: "default" as const,
+  };
+  return colorMap[level as keyof typeof colorMap] || "secondary";
+};
+
+const getTypeColor = (type: string) => {
+  const colorMap = {
+    access: "default" as const,
+    error: "destructive" as const,
+    system: "secondary" as const,
+  };
+  return colorMap[type as keyof typeof colorMap] || "outline";
+};
+
+// Get nested value from object path
+const getNestedValue = (obj: any, path: string) => {
+  return path.split('.').reduce((acc, part) => acc?.[part], obj);
+};
+
+// Build filter parameters helper
+const buildFilterParams = (filters: {
+  level: string;
+  type: string;
+  domain: string;
+  search: string;
+  ruleId: string;
+  uniqueId: string;
+  page?: number;
+  limit?: number;
+}) => {
+  const params: any = {};
+  
+  if (filters.page) params.page = filters.page;
+  if (filters.limit) params.limit = filters.limit;
+  
+  const filterConfigs = [
+    { key: 'level', value: filters.level, exclude: 'all' },
+    { key: 'type', value: filters.type, exclude: 'all' },
+    { key: 'domain', value: filters.domain, exclude: 'all' },
+    { key: 'search', value: filters.search },
+    { key: 'ruleId', value: filters.ruleId },
+    { key: 'uniqueId', value: filters.uniqueId },
+  ];
+
+  filterConfigs.forEach(({ key, value, exclude }) => {
+    if (value && value !== exclude) params[key] = value;
+  });
+  
+  return params;
+};
+
+// Truncatable text component
+const TruncatableText = ({ text, maxLength = 40 }: { text: string; maxLength?: number }) => {
+  if (text.length <= maxLength) return <div>{text}</div>;
+  
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="truncate cursor-help">
+          {text.substring(0, maxLength)}...
+        </div>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-md break-all">
+        {text}
+      </TooltipContent>
+    </Tooltip>
+  );
+};
+
+// Log details renderer component
+const LogDetailsCell = ({ log }: { log: LogEntry }) => {
+  const details = [
+    { condition: log.ip, label: "IP", value: log.ip },
+    { 
+      condition: log.method && log.path, 
+      value: `${log.method} ${log.path}`,
+      truncate: true 
+    },
+    { condition: log.statusCode, label: "Status", value: log.statusCode },
+    { condition: log.responseTime, label: "RT", value: `${log.responseTime}ms` },
+    { 
+      condition: log.ruleId, 
+      label: "Rule ID", 
+      value: log.ruleId, 
+      className: "font-semibold text-red-600" 
+    },
+    { condition: log.severity, label: "Severity", value: log.severity },
+    { 
+      condition: log.tags?.length, 
+      label: "Tags", 
+      value: log.tags?.join(', '),
+      truncate: true 
+    },
+    { condition: log.uri, label: "URI", value: log.uri, truncate: true },
+  ].filter(detail => detail.condition);
+
+  return (
+    <div className="text-xs text-muted-foreground space-y-1 max-w-xs">
+      {details.map((detail, idx) => {
+        const content = detail.label ? `${detail.label}: ${detail.value}` : detail.value;
+        const displayContent = detail.truncate ? (
+          <TruncatableText text={content} />
+        ) : (
+          <div className={detail.className}>{content}</div>
+        );
+
+        return <div key={idx}>{displayContent}</div>;
+      })}
+    </div>
+  );
+};
+
+// Statistics card component
+const StatCard = ({ stat, value }: { stat: typeof STATS_CONFIG[number]; value: number }) => (
+  <Card>
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardTitle className="text-sm font-medium">{stat.label}</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className={`text-2xl font-bold ${stat.color}`}>
+        {value.toLocaleString()}
+      </div>
+      <p className="text-xs text-muted-foreground mt-1">
+        {stat.description}
+      </p>
+    </CardContent>
+  </Card>
+);
+
+// Statistics component
 const LogStatistics = () => {
   const { data: stats } = useSuspenseLogStatistics();
   
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Logs</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
-            {stats.total.toLocaleString()}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            All log entries
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Info Logs</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-blue-500">
-            {stats.byLevel.info.toLocaleString()}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Information messages
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Warning Logs</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-yellow-500">
-            {stats.byLevel.warning.toLocaleString()}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Warning messages
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Error Logs</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-red-500">
-            {stats.byLevel.error.toLocaleString()}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Error messages
-          </p>
-        </CardContent>
-      </Card>
+      {STATS_CONFIG.map((stat) => {
+        const value = stat.path 
+          ? getNestedValue(stats, stat.path)
+          : stats[stat.key as keyof typeof stats];
+        return <StatCard key={stat.key} stat={stat} value={value} />;
+      })}
     </div>
   );
 };
 
-// Component for deferred log entries data
+// Custom event dispatcher hook
+const useCustomEvent = (eventName: string, handler: (value: any) => void) => {
+  useEffect(() => {
+    const handleEvent = (e: any) => handler(e.detail);
+    window.addEventListener(eventName, handleEvent);
+    return () => window.removeEventListener(eventName, handleEvent);
+  }, [eventName, handler]);
+};
+
+const dispatchCustomEvent = (eventName: string, value: any) => {
+  window.dispatchEvent(new CustomEvent(eventName, { detail: value }));
+};
+
+// Filter component
+const FilterInput = ({ 
+  placeholder, 
+  value, 
+  eventName,
+  className = ""
+}: { 
+  placeholder: string; 
+  value: string; 
+  eventName: string;
+  className?: string;
+}) => (
+  <Input
+    placeholder={placeholder}
+    value={value}
+    onChange={(e) => dispatchCustomEvent(eventName, e.target.value)}
+    onPaste={(e) => {
+      e.preventDefault();
+      const text = e.clipboardData.getData('text/plain');
+      dispatchCustomEvent(eventName, text);
+    }}
+    className={className}
+  />
+);
+
+// Filter select component
+const FilterSelect = ({
+  value,
+  options,
+  eventName,
+  className = "",
+  placeholder = "Select"
+}: {
+  value: string;
+  options: readonly { value: string; label: string }[];
+  eventName: string;
+  className?: string;
+  placeholder?: string;
+}) => (
+  <Select value={value} onValueChange={(val) => dispatchCustomEvent(eventName, val)}>
+    <SelectTrigger className={className}>
+      <SelectValue placeholder={placeholder} />
+    </SelectTrigger>
+    <SelectContent>
+      {options.map((option) => (
+        <SelectItem key={option.value} value={option.value}>
+          {option.label}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+);
+
+// Skeleton row component
+const SkeletonRow = ({ columnCount }: { columnCount: number }) => (
+  <TableRow>
+    <TableCell className="font-mono text-xs">
+      <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+    </TableCell>
+    <TableCell>
+      <div className="h-6 w-16 bg-gray-200 rounded animate-pulse"></div>
+    </TableCell>
+    <TableCell>
+      <div className="h-6 w-16 bg-gray-200 rounded animate-pulse"></div>
+    </TableCell>
+    <TableCell>
+      <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+    </TableCell>
+    <TableCell>
+      <div className="h-6 w-20 bg-gray-200 rounded animate-pulse"></div>
+    </TableCell>
+    <TableCell>
+      <div className="h-4 bg-gray-200 rounded animate-pulse w-full"></div>
+    </TableCell>
+    <TableCell>
+      <div className="space-y-1">
+        <div className="h-3 bg-gray-200 rounded animate-pulse w-3/4"></div>
+        <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2"></div>
+      </div>
+    </TableCell>
+  </TableRow>
+);
+
+// Pagination button component
+const PaginationButton = ({
+  onClick,
+  disabled,
+  icon: Icon,
+  label,
+  className = ""
+}: {
+  onClick: () => void;
+  disabled: boolean;
+  icon: any;
+  label: string;
+  className?: string;
+}) => (
+  <Button
+    variant="outline"
+    className={`h-8 w-8 p-0 ${className}`}
+    onClick={onClick}
+    disabled={disabled}
+  >
+    <span className="sr-only">{label}</span>
+    <Icon className="h-4 w-4" />
+  </Button>
+);
+
+// Log entries component
 const LogEntries = ({
   page,
   limit,
@@ -147,6 +381,8 @@ const LogEntries = ({
   level,
   type,
   domain,
+  ruleId,
+  uniqueId,
   setPage,
   setLimit,
   sorting,
@@ -158,9 +394,10 @@ const LogEntries = ({
   rowSelection,
   setRowSelection,
   autoRefresh,
-  setAutoRefresh,
   toast,
-  onRefetch
+  onRefetch,
+  selectedLog,
+  setSelectedLog
 }: {
   page: number;
   limit: number;
@@ -168,6 +405,8 @@ const LogEntries = ({
   level: string;
   type: string;
   domain: string;
+  ruleId: string;
+  uniqueId: string;
   setPage: (page: number) => void;
   setLimit: (limit: number) => void;
   sorting: SortingState;
@@ -179,105 +418,51 @@ const LogEntries = ({
   rowSelection: Record<string, boolean>;
   setRowSelection: (selection: Record<string, boolean>) => void;
   autoRefresh: boolean;
-  setAutoRefresh: (refresh: boolean) => void;
   toast: any;
   onRefetch: (refetch: () => Promise<any>) => void;
+  selectedLog: LogEntry | null;
+  setSelectedLog: (log: LogEntry | null) => void;
 }) => {
   const [isPageChanging, setIsPageChanging] = useState(false);
-  // Build query parameters
-  const params: any = {
-    page,
-    limit,
-  };
+  
+  const stableUniqueId = useMemo(() => uniqueId ? String(uniqueId) : "", [uniqueId]);
 
-  if (level !== "all") {
-    params.level = level;
-  }
-  if (type !== "all") {
-    params.type = type;
-  }
-  if (domain !== "all") {
-    params.domain = domain;
-  }
-  if (search) {
-    params.search = search;
-  }
+  const params = useMemo(() => 
+    buildFilterParams({
+      level, type, domain, search, ruleId,
+      uniqueId: stableUniqueId,
+      page, limit
+    }),
+    [page, limit, level, type, domain, search, ruleId, stableUniqueId]
+  );
 
-  // Use regular query instead of suspense query for better control
   const { data: logsResponse, refetch, isFetching, isLoading } = useLogs(params);
   const logs = logsResponse?.data || [];
   const pagination = logsResponse?.pagination || { total: 0, totalPages: 1 };
   
-  // Get domains for filter
   const { data: domains } = useSuspenseAvailableDomains();
   
-  // Pass refetch function to parent component
   useEffect(() => {
     onRefetch(refetch);
   }, [refetch, onRefetch]);
   
-  // Auto refresh effect
   useEffect(() => {
     if (!autoRefresh) return;
-
-    const interval = setInterval(() => {
-      refetch();
-    }, 5000); // Refresh every 5 seconds
-
+    const interval = setInterval(refetch, 5000);
     return () => clearInterval(interval);
   }, [autoRefresh, refetch]);
 
-  // Update page changing state based on isFetching
   useEffect(() => {
-    setIsPageChanging(isFetching && !isLoading); // Only show skeleton when refetching, not initial load
+    setIsPageChanging(isFetching && !isLoading);
   }, [isFetching, isLoading]);
 
-  const getLevelColor = (
-    level: string
-  ): "destructive" | "default" | "secondary" | "outline" => {
-    switch (level) {
-      case "error":
-        return "destructive";
-      case "warning":
-        return "outline";
-      case "info":
-        return "default";
-      default:
-        return "secondary";
-    }
-  };
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "access":
-        return "default";
-      case "error":
-        return "destructive";
-      case "system":
-        return "secondary";
-      default:
-        return "outline";
-    }
-  };
-
-  const handleDownloadLogs = async () => {
+  const handleDownloadLogs = useCallback(async () => {
     try {
-      const params: any = { limit: 1000 };
-
-      if (level !== "all") {
-        params.level = level;
-      }
-      if (type !== "all") {
-        params.type = type;
-      }
-      if (domain !== "all") {
-        params.domain = domain;
-      }
-      if (search) {
-        params.search = search;
-      }
-
-      await downloadLogs(params);
+      const downloadParams = buildFilterParams({
+        level, type, domain, search, ruleId, uniqueId,
+        limit: 1000
+      });
+      await downloadLogs(downloadParams);
       toast({
         title: "Success",
         description: "Logs downloaded successfully",
@@ -290,9 +475,9 @@ const LogEntries = ({
         variant: "destructive",
       });
     }
-  };
+  }, [level, type, domain, search, ruleId, uniqueId, toast]);
 
-  // Define columns for the table
+  // Define columns
   const columns: ColumnDef<LogEntry>[] = [
     {
       accessorKey: "timestamp",
@@ -320,9 +505,6 @@ const LogEntries = ({
           {row.getValue("level")}
         </Badge>
       ),
-      filterFn: (row, id, value) => {
-        return value === "all" || row.getValue(id) === value;
-      },
     },
     {
       accessorKey: "type",
@@ -332,16 +514,11 @@ const LogEntries = ({
           {row.getValue("type")}
         </Badge>
       ),
-      filterFn: (row, id, value) => {
-        return value === "all" || row.getValue(id) === value;
-      },
     },
     {
       accessorKey: "source",
       header: "Source",
-      cell: ({ row }) => (
-        <div className="font-medium">{row.getValue("source")}</div>
-      ),
+      cell: ({ row }) => <div className="font-medium">{row.getValue("source")}</div>,
     },
     {
       accessorKey: "domain",
@@ -349,48 +526,39 @@ const LogEntries = ({
       cell: ({ row }) => {
         const domain = row.getValue("domain") as string;
         return domain ? (
-          <Badge variant="outline" className="font-mono">
-            {domain}
-          </Badge>
+          <Badge variant="outline" className="font-mono">{domain}</Badge>
         ) : (
           <span className="text-muted-foreground text-xs">-</span>
         );
-      },
-      filterFn: (row, id, value) => {
-        return value === "all" || row.getValue(id) === value;
       },
     },
     {
       accessorKey: "message",
       header: "Message",
-      cell: ({ row }) => (
-        <div className="max-w-md truncate" title={row.getValue("message")}>
-          {row.getValue("message")}
-        </div>
-      ),
-    },
-    {
-      accessorKey: "details",
-      header: "Details",
       cell: ({ row }) => {
         const log = row.original;
+        const displayMessage = log.fullMessage || log.message;
+        const hasMore = log.fullMessage && log.fullMessage.length > log.message.length;
+        
         return (
-          <div className="text-xs text-muted-foreground">
-            {log.ip && <div>IP: {log.ip}</div>}
-            {log.method && log.path && (
-              <div>
-                {log.method} {log.path}
+          <div className="max-w-md" title={displayMessage}>
+            <div className="truncate">{log.message}</div>
+            {hasMore && (
+              <div className="text-xs text-muted-foreground mt-1">
+                Click for full details
               </div>
             )}
-            {log.statusCode && <div>Status: {log.statusCode}</div>}
-            {log.responseTime && <div>RT: {log.responseTime}ms</div>}
           </div>
         );
       },
     },
+    {
+      accessorKey: "details",
+      header: "Details",
+      cell: ({ row }) => <LogDetailsCell log={row.original} />,
+    },
   ];
 
-  // Create table instance
   const table = useReactTable({
     data: logs,
     columns,
@@ -410,10 +578,7 @@ const LogEntries = ({
       columnFilters,
       columnVisibility,
       rowSelection,
-      pagination: {
-        pageIndex: page - 1,
-        pageSize: limit,
-      },
+      pagination: { pageIndex: page - 1, pageSize: limit },
     },
   });
 
@@ -427,105 +592,79 @@ const LogEntries = ({
       </CardHeader>
       <CardContent>
         {/* Filters */}
-        <div className="flex flex-col gap-4 mb-6 lg:flex-row lg:items-center">
-          {/* Search */}
-          <div className="relative flex-1">
+        <div className="flex flex-col gap-3 mb-6 lg:flex-row lg:items-center lg:flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
+            <FilterInput
               placeholder="Search logs..."
               value={search}
-              onChange={(e) => {
-                // This will be handled by the parent component
-                const event = new CustomEvent('searchChange', { detail: e.target.value });
-                window.dispatchEvent(event);
-              }}
+              eventName="searchChange"
               className="pl-10"
             />
           </div>
 
-          {/* Filters */}
-          <div className="flex flex-wrap gap-2">
-            <Select
-              value={domain}
-              onValueChange={(value) => {
-                // This will be handled by the parent component
-                const event = new CustomEvent('domainChange', { detail: value });
-                window.dispatchEvent(event);
-              }}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by domain" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Domains</SelectItem>
-                {domains.map((domain) => (
-                  <SelectItem key={domain.name} value={domain.name}>
-                    {domain.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <FilterInput
+            placeholder="Rule ID..."
+            value={ruleId}
+            eventName="ruleIdChange"
+            className="w-full lg:w-[180px]"
+          />
 
-            <Select value={level} onValueChange={(value) => {
-              // This will be handled by the parent component
-              const event = new CustomEvent('levelChange', { detail: value });
-              window.dispatchEvent(event);
-            }}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Filter by level" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Levels</SelectItem>
-                <SelectItem value="info">Info</SelectItem>
-                <SelectItem value="warning">Warning</SelectItem>
-                <SelectItem value="error">Error</SelectItem>
-              </SelectContent>
-            </Select>
+          <FilterInput
+            placeholder="Unique ID..."
+            value={uniqueId || ""}
+            eventName="uniqueIdChange"
+            className="w-full lg:w-[180px]"
+          />
 
-            <Select value={type} onValueChange={(value) => {
-              // This will be handled by the parent component
-              const event = new CustomEvent('typeChange', { detail: value });
-              window.dispatchEvent(event);
-            }}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Filter by type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="access">Access</SelectItem>
-                <SelectItem value="error">Error</SelectItem>
-                <SelectItem value="system">System</SelectItem>
-              </SelectContent>
-            </Select>
+          <Select value={domain} onValueChange={(val) => dispatchCustomEvent('domainChange', val)}>
+            <SelectTrigger className="w-full lg:w-[160px]">
+              <SelectValue placeholder="Domain" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Domains</SelectItem>
+              {domains.map((d) => (
+                <SelectItem key={d.name} value={d.name}>{d.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="ml-auto">
-                  Columns <ChevronDown className="ml-2 h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {table
-                  .getAllColumns()
-                  .filter((column) => column.getCanHide())
-                  .map((column) => {
-                    return (
-                      <DropdownMenuCheckboxItem
-                        key={column.id}
-                        className="capitalize"
-                        checked={column.getIsVisible()}
-                        onCheckedChange={(value) =>
-                          column.toggleVisibility(!!value)
-                        }
-                      >
-                        {column.id}
-                      </DropdownMenuCheckboxItem>
-                    );
-                  })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <FilterSelect
+            value={level}
+            options={LEVEL_OPTIONS}
+            eventName="levelChange"
+            className="w-full lg:w-[120px]"
+          />
+
+          <FilterSelect
+            value={type}
+            options={TYPE_OPTIONS}
+            eventName="typeChange"
+            className="w-full lg:w-[120px]"
+          />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                Columns <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {table.getAllColumns().filter((col) => col.getCanHide()).map((col) => (
+                <DropdownMenuCheckboxItem
+                  key={col.id}
+                  className="capitalize"
+                  checked={col.getIsVisible()}
+                  onCheckedChange={(value) => col.toggleVisibility(!!value)}
+                >
+                  {col.id}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
+
+        {/* Table */}
         <div className="rounded-md border">
           <Table>
             <TableHeader>
@@ -533,12 +672,7 @@ const LogEntries = ({
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
                     <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -546,96 +680,25 @@ const LogEntries = ({
             </TableHeader>
             <TableBody>
               {(isLoading || isPageChanging) ? (
-                // Show skeleton rows for initial load or page changes
-                Array.from({ length: limit }).map((_, index) => (
-                  <TableRow key={`skeleton-${index}`}>
-                    <TableCell className="font-mono text-xs">
-                      <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="h-6 w-16 bg-gray-200 rounded animate-pulse"></div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="h-6 w-16 bg-gray-200 rounded animate-pulse"></div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="h-6 w-20 bg-gray-200 rounded animate-pulse"></div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="h-4 bg-gray-200 rounded animate-pulse w-full"></div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="h-3 bg-gray-200 rounded animate-pulse w-3/4"></div>
-                        <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2"></div>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                Array.from({ length: limit }).map((_, i) => <SkeletonRow key={i} columnCount={columns.length} />)
               ) : logs.length > 0 ? (
                 logs.map((log, index) => (
                   <TableRow
                     key={log.id || index}
-                    data-state={
-                      rowSelection[String(log.id || index)] && "selected"
-                    }
+                    data-state={rowSelection[String(log.id || index)] && "selected"}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => setSelectedLog(log)}
                   >
-                    <TableCell className="font-mono text-xs">
-                      {new Date(log.timestamp).toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getLevelColor(log.level)}>
-                        {log.level}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getTypeColor(log.type)}>
-                        {log.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {log.source}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {log.domain ? (
-                        <Badge variant="outline" className="font-mono">
-                          {log.domain}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">
-                          -
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell
-                      className="max-w-md truncate"
-                      title={log.message}
-                    >
-                      {log.message}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {log.ip && <div>IP: {log.ip}</div>}
-                      {log.method && log.path && (
-                        <div>
-                          {log.method} {log.path}
-                        </div>
-                      )}
-                      {log.statusCode && <div>Status: {log.statusCode}</div>}
-                      {log.responseTime && (
-                        <div>RT: {log.responseTime}ms</div>
-                      )}
-                    </TableCell>
+                    {table.getRowModel().rows[index]?.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="h-24 text-center"
-                  >
+                  <TableCell colSpan={columns.length} className="h-24 text-center">
                     No logs found.
                   </TableCell>
                 </TableRow>
@@ -654,19 +717,15 @@ const LogEntries = ({
                 value={`${limit}`}
                 onValueChange={(value) => {
                   setLimit(Number(value));
-                  setPage(1); // Reset to first page when changing page size
+                  setPage(1);
                 }}
               >
                 <SelectTrigger className="h-8 w-[70px]">
-                  <SelectValue
-                    placeholder={table.getState().pagination.pageSize}
-                  />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent side="top">
-                  {[10, 20, 30, 40, 50].map((pageSize) => (
-                    <SelectItem key={pageSize} value={`${pageSize}`}>
-                      {pageSize}
-                    </SelectItem>
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <SelectItem key={size} value={`${size}`}>{size}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -675,42 +734,14 @@ const LogEntries = ({
               Page {page} of {pagination.totalPages || 1}
             </div>
             <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                className="hidden h-8 w-8 p-0 lg:flex"
-                onClick={() => setPage(1)}
-                disabled={page === 1}
-              >
-                <span className="sr-only">Go to first page</span>
-                <ChevronsLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                className="h-8 w-8 p-0"
-                onClick={() => setPage(page - 1)}
-                disabled={page === 1}
-              >
-                <span className="sr-only">Go to previous page</span>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                className="h-8 w-8 p-0"
-                onClick={() => setPage(page + 1)}
-                disabled={page === (pagination.totalPages || 1)}
-              >
-                <span className="sr-only">Go to next page</span>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                className="hidden h-8 w-8 p-0 lg:flex"
-                onClick={() => setPage(pagination.totalPages || 1)}
-                disabled={page === (pagination.totalPages || 1)}
-              >
-                <span className="sr-only">Go to last page</span>
-                <ChevronsRight className="h-4 w-4" />
-              </Button>
+              {[
+                { icon: ChevronsLeft, onClick: () => setPage(1), disabled: page === 1, label: "Go to first page", className: "hidden lg:flex" },
+                { icon: ChevronLeft, onClick: () => setPage(page - 1), disabled: page === 1, label: "Go to previous page" },
+                { icon: ChevronRight, onClick: () => setPage(page + 1), disabled: page === pagination.totalPages, label: "Go to next page" },
+                { icon: ChevronsRight, onClick: () => setPage(pagination.totalPages || 1), disabled: page === pagination.totalPages, label: "Go to last page", className: "hidden lg:flex" },
+              ].map((btn, idx) => (
+                <PaginationButton key={idx} {...btn} />
+              ))}
             </div>
           </div>
         </div>
@@ -719,36 +750,39 @@ const LogEntries = ({
   );
 };
 
-// Main Logs component
+// Main component
 const Logs = () => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [logsRefetch, setLogsRefetch] = useState<(() => Promise<any>) | null>(null);
   const [isReloading, setIsReloading] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
 
-  // URL state management with nuqs
+  // URL state
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1));
-  const [limit, setLimit] = useQueryState(
-    "limit",
-    parseAsInteger.withDefault(10)
-  );
-  const [search, setSearch] = useQueryState(
-    "search",
-    parseAsString.withDefault("")
-  );
-  const [level, setLevel] = useQueryState(
-    "level",
-    parseAsString.withDefault("all")
-  );
-  const [type, setType] = useQueryState(
-    "type",
-    parseAsString.withDefault("all")
-  );
-  const [domain, setDomain] = useQueryState(
-    "domain",
-    parseAsString.withDefault("all")
-  );
+  const [limit, setLimit] = useQueryState("limit", parseAsInteger.withDefault(10));
+  const [search, setSearch] = useQueryState("search", parseAsString.withDefault(""));
+  const [level, setLevel] = useQueryState("level", parseAsString.withDefault("all"));
+  const [type, setType] = useQueryState("type", parseAsString.withDefault("all"));
+  const [domain, setDomain] = useQueryState("domain", parseAsString.withDefault("all"));
+  const [ruleId, setRuleId] = useQueryState("ruleId", parseAsString.withDefault(""));
+  
+  const [uniqueId, setUniqueIdState] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return new URLSearchParams(window.location.search).get('uniqueId') || "";
+    }
+    return "";
+  });
+  
+  const setUniqueId = useCallback((value: string) => {
+    setUniqueIdState(value);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      value ? url.searchParams.set('uniqueId', value) : url.searchParams.delete('uniqueId');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
 
   // Table state
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -756,49 +790,22 @@ const Logs = () => {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
 
-  // Handle custom events for filter changes from LogEntries component
-  useEffect(() => {
-    const handleSearchChange = (e: any) => setSearch(e.detail);
-    const handleDomainChange = (e: any) => setDomain(e.detail);
-    const handleLevelChange = (e: any) => setLevel(e.detail);
-    const handleTypeChange = (e: any) => setType(e.detail);
+  // Custom event handlers
+  useCustomEvent('searchChange', setSearch);
+  useCustomEvent('domainChange', setDomain);
+  useCustomEvent('levelChange', setLevel);
+  useCustomEvent('typeChange', setType);
+  useCustomEvent('ruleIdChange', setRuleId);
+  useCustomEvent('uniqueIdChange', setUniqueId);
 
-    window.addEventListener('searchChange', handleSearchChange);
-    window.addEventListener('domainChange', handleDomainChange);
-    window.addEventListener('levelChange', handleLevelChange);
-    window.addEventListener('typeChange', handleTypeChange);
-
-    return () => {
-      window.removeEventListener('searchChange', handleSearchChange);
-      window.removeEventListener('domainChange', handleDomainChange);
-      window.removeEventListener('levelChange', handleLevelChange);
-      window.removeEventListener('typeChange', handleTypeChange);
-    };
-  }, [setSearch, setDomain, setLevel, setType]);
-
-
-  const handleDownloadLogs = async () => {
+  const handleDownloadLogs = useCallback(async () => {
     try {
-      const params: any = { limit: 1000 };
-
-      if (level !== "all") {
-        params.level = level;
-      }
-      if (type !== "all") {
-        params.type = type;
-      }
-      if (domain !== "all") {
-        params.domain = domain;
-      }
-      if (search) {
-        params.search = search;
-      }
-
-      await downloadLogs(params);
-      toast({
-        title: "Success",
-        description: "Logs downloaded successfully",
+      const downloadParams = buildFilterParams({
+        level, type, domain, search, ruleId, uniqueId,
+        limit: 1000
       });
+      await downloadLogs(downloadParams);
+      toast({ title: "Success", description: "Logs downloaded successfully" });
     } catch (error: any) {
       console.error("Failed to download logs:", error);
       toast({
@@ -807,11 +814,10 @@ const Logs = () => {
         variant: "destructive",
       });
     }
-  };
+  }, [level, type, domain, search, ruleId, uniqueId, toast]);
 
   return (
     <div className="space-y-6">
-      {/* Header with action buttons */}
       <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">
@@ -830,9 +836,7 @@ const Logs = () => {
             size="sm"
             onClick={() => setAutoRefresh(!autoRefresh)}
           >
-            <RefreshCw
-              className={`h-4 w-4 mr-2 ${autoRefresh ? "animate-spin" : ""}`}
-            />
+            <RefreshCw className={`h-4 w-4 mr-2 ${autoRefresh ? "animate-spin" : ""}`} />
             Auto Refresh
           </Button>
           <Button
@@ -852,30 +856,21 @@ const Logs = () => {
             <RefreshCw className={`h-4 w-4 mr-2 ${isReloading ? "animate-spin" : ""}`} />
             Reload
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownloadLogs}
-          >
+          <Button variant="outline" size="sm" onClick={handleDownloadLogs}>
             <Download className="h-4 w-4 mr-2" />
             Download
           </Button>
         </div>
       </div>
 
-      {/* Fast-loading statistics data - loaded immediately via route loader */}
       <Suspense fallback={
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <SkeletonStatsCard />
-          <SkeletonStatsCard />
-          <SkeletonStatsCard />
-          <SkeletonStatsCard />
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonStatsCard key={i} />)}
         </div>
       }>
         <LogStatistics />
       </Suspense>
 
-      {/* Deferred log entries data - loaded after initial render */}
       <LogEntries
         page={page}
         limit={limit}
@@ -883,6 +878,8 @@ const Logs = () => {
         level={level}
         type={type}
         domain={domain}
+        ruleId={ruleId}
+        uniqueId={uniqueId || ""}
         setPage={setPage}
         setLimit={setLimit}
         sorting={sorting}
@@ -894,9 +891,16 @@ const Logs = () => {
         rowSelection={rowSelection}
         setRowSelection={setRowSelection}
         autoRefresh={autoRefresh}
-        setAutoRefresh={setAutoRefresh}
         toast={toast}
         onRefetch={(refetch) => setLogsRefetch(() => refetch)}
+        selectedLog={selectedLog}
+        setSelectedLog={setSelectedLog}
+      />
+
+      <LogDetailsDialog
+        log={selectedLog}
+        open={!!selectedLog}
+        onOpenChange={(open) => !open && setSelectedLog(null)}
       />
     </div>
   );

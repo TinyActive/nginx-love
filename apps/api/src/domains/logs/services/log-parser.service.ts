@@ -70,7 +70,7 @@ export function parseErrorLogLine(line: string, index: number): ParsedLogEntry |
 
     if (!match) return null;
 
-    const [, timeStr, levelStr, message] = match;
+    const [, timeStr, levelStr, fullMessageText] = match;
 
     // Parse time: 2025/03/29 14:35:18
     const timestamp = timeStr.replace(/\//g, '-').replace(' ', 'T') + 'Z';
@@ -89,8 +89,14 @@ export function parseErrorLogLine(line: string, index: number): ParsedLogEntry |
     const level = levelMap[levelStr] || 'error';
 
     // Extract IP if present
-    const ipMatch = message.match(/client: ([\d.]+)/);
+    const ipMatch = fullMessageText.match(/client: ([\d.]+)/);
     const ip = ipMatch ? ipMatch[1] : undefined;
+
+    // Check if this is a ModSecurity error log entry
+    if (fullMessageText.includes('ModSecurity:')) {
+      // Use ModSecurity parser for better extraction
+      return parseModSecLogLine(line, index);
+    }
 
     return {
       id: `error_${Date.now()}_${index}`,
@@ -98,7 +104,8 @@ export function parseErrorLogLine(line: string, index: number): ParsedLogEntry |
       level,
       type: 'error',
       source: 'nginx',
-      message: message.substring(0, 200), // Truncate long messages
+      message: fullMessageText.substring(0, 500), // Show more context but still truncate for display
+      fullMessage: fullMessageText, // Store complete message
       ip
     };
   } catch (error) {
@@ -109,49 +116,105 @@ export function parseErrorLogLine(line: string, index: number): ParsedLogEntry |
 
 /**
  * Parse ModSecurity audit log line
- * Format varies, look for key patterns
+ * Format varies, look for key patterns and extract all relevant fields
  */
 export function parseModSecLogLine(line: string, index: number): ParsedLogEntry | null {
   try {
     // ModSecurity logs are complex, extract key info
     if (!line.includes('ModSecurity:')) return null;
 
-    // Extract timestamp if present
+    // Extract timestamp - supports both nginx error log and ModSec audit log formats
     let timestamp = new Date().toISOString();
-    const timeMatch = line.match(/\[(\d{2}\/\w{3}\/\d{4}:\d{2}:\d{2}:\d{2})/);
-    if (timeMatch) {
-      const [, timeStr] = timeMatch;
-      // Parse: 29/Mar/2025:14:35:22
-      const timeParts = timeStr.match(/(\d+)\/(\w+)\/(\d+):(\d+):(\d+):(\d+)/);
-      if (timeParts) {
-        const [, day, monthStr, year, hour, min, sec] = timeParts;
-        const months: { [key: string]: string } = {
-          Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
-          Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12'
-        };
-        const month = months[monthStr] || '01';
-        timestamp = `${year}-${month}-${day.padStart(2, '0')}T${hour}:${min}:${sec}Z`;
+    
+    // Try nginx error log format first: 2025/10/24 06:22:01
+    const nginxTimeMatch = line.match(/^(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+    if (nginxTimeMatch) {
+      const [, year, month, day, hour, min, sec] = nginxTimeMatch;
+      timestamp = `${year}-${month}-${day}T${hour}:${min}:${sec}Z`;
+    } else {
+      // Try ModSec audit log format: [29/Mar/2025:14:35:22]
+      const auditTimeMatch = line.match(/\[(\d{2}\/\w{3}\/\d{4}:\d{2}:\d{2}:\d{2})/);
+      if (auditTimeMatch) {
+        const [, timeStr] = auditTimeMatch;
+        const timeParts = timeStr.match(/(\d+)\/(\w+)\/(\d+):(\d+):(\d+):(\d+)/);
+        if (timeParts) {
+          const [, day, monthStr, year, hour, min, sec] = timeParts;
+          const months: { [key: string]: string } = {
+            Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
+            Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12'
+          };
+          const month = months[monthStr] || '01';
+          timestamp = `${year}-${month}-${day.padStart(2, '0')}T${hour}:${min}:${sec}Z`;
+        }
       }
     }
 
-    // Extract message
+    // Extract Rule ID - [id "942100"]
+    const ruleIdMatch = line.match(/\[id "([^"]+)"\]/);
+    const ruleId = ruleIdMatch ? ruleIdMatch[1] : undefined;
+
+    // Extract message (msg) - [msg "SQL Injection Attack Detected via libinjection"]
     const msgMatch = line.match(/\[msg "([^"]+)"\]/);
-    const message = msgMatch ? msgMatch[1] : line.substring(0, 200);
+    const message = msgMatch ? msgMatch[1] : 'ModSecurity Alert';
 
-    // Extract IP
-    const ipMatch = line.match(/\[client ([\d.]+)\]/) || line.match(/\[hostname "([\d.]+)"\]/);
-    const ip = ipMatch ? ipMatch[1] : undefined;
+    // Extract severity - [severity "2"]
+    const severityMatch = line.match(/\[severity "([^"]+)"\]/);
+    const severity = severityMatch ? severityMatch[1] : undefined;
 
-    // Extract request info
+    // Extract all tags - [tag "application-multi"] [tag "language-multi"] ...
+    const tagMatches = line.matchAll(/\[tag "([^"]+)"\]/g);
+    const tags: string[] = [];
+    for (const match of tagMatches) {
+      tags.push(match[1]);
+    }
+
+    // Extract client IP - from [client 52.186.182.85]
+    const clientIpMatch = line.match(/\[client ([\d.]+)(?::\d+)?\]/);
+    const ip = clientIpMatch ? clientIpMatch[1] : undefined;
+    
+    // Extract hostname/domain separately - from [hostname "domain.com"]
+    const hostnameMatch = line.match(/\[hostname "([^"]+)"\]/);
+    const hostname = hostnameMatch ? hostnameMatch[1] : undefined;
+
+    // Extract URI - [uri "/device.rsp"]
+    const uriMatch = line.match(/\[uri "([^"]+)"\]/);
+    const uri = uriMatch ? uriMatch[1] : undefined;
+
+    // Extract unique ID - [unique_id "176094161071.529267"]
+    const uniqueIdMatch = line.match(/\[unique_id "([^"]+)"\]/);
+    const uniqueId = uniqueIdMatch ? uniqueIdMatch[1] : undefined;
+
+    // Extract file - [file "/etc/nginx/modsec/coreruleset/rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"]
+    const fileMatch = line.match(/\[file "([^"]+)"\]/);
+    const file = fileMatch ? fileMatch[1] : undefined;
+
+    // Extract line number - [line "46"]
+    const lineMatch = line.match(/\[line "([^"]+)"\]/);
+    const lineNumber = lineMatch ? lineMatch[1] : undefined;
+
+    // Extract data field if present - [data "..."]
+    const dataMatch = line.match(/\[data "([^"]+)"\]/);
+    const data = dataMatch ? dataMatch[1] : undefined;
+
+    // Extract request info from log line
     const methodMatch = line.match(/"(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS) ([^"]+)"/);
     const method = methodMatch ? methodMatch[1] : undefined;
-    const path = methodMatch ? methodMatch[2] : undefined;
+    const path = methodMatch ? methodMatch[2] : (uri || undefined);
 
-    // Determine level
+    // Determine level based on content
     let level: 'info' | 'warning' | 'error' = 'warning';
     if (line.includes('Access denied') || line.includes('blocked')) {
       level = 'error';
+    } else if (line.includes('Warning')) {
+      level = 'warning';
     }
+
+    // Extract status code
+    const statusMatch = line.match(/with code (\d+)/);
+    const statusCode = statusMatch ? parseInt(statusMatch[1]) : undefined;
+
+    // Store full message without truncation
+    const fullMessage = line;
 
     return {
       id: `modsec_${Date.now()}_${index}`,
@@ -160,10 +223,22 @@ export function parseModSecLogLine(line: string, index: number): ParsedLogEntry 
       type: 'error',
       source: 'modsecurity',
       message: `ModSecurity: ${message}`,
+      fullMessage, // Complete log without truncation
       ip,
+      domain: hostname, // Use domain field for consistency with nginx logs
+      hostname, // Keep hostname for backward compatibility
       method,
       path,
-      statusCode: line.includes('403') ? 403 : undefined
+      statusCode,
+      // ModSecurity specific fields
+      ruleId,
+      severity,
+      tags,
+      uri,
+      uniqueId,
+      file,
+      line: lineNumber,
+      data
     };
   } catch (error) {
     logger.warn(`Failed to parse ModSecurity log line: ${line}`);

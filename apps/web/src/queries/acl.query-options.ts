@@ -19,6 +19,12 @@ export const aclQueryOptions = {
     queryKey: aclQueryKeys.detail(id),
     queryFn: () => aclService.getById(id),
   }),
+
+  // Preview ACL configuration
+  preview: {
+    queryKey: [...aclQueryKeys.lists(), 'preview'],
+    queryFn: aclService.preview,
+  },
 };
 
 // Suspense query options for ACL rules
@@ -172,6 +178,10 @@ export const useToggleAclRule = () => {
 
 export const useApplyAclRules = () => {
   return useMutation(aclMutationOptions.apply);
+};
+
+export const usePreviewAclConfig = () => {
+  return useQuery(aclQueryOptions.preview);
 };
 
 // Hook to preload ACL rules data

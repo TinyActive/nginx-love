@@ -112,41 +112,49 @@ async function checkUpstreamHealth(): Promise<UpstreamStatus[]> {
 
 /**
  * Check SSL certificate expiry
+ * Query directly from SSLCertificate table instead of parsing files
  */
 async function checkSSLCertificates(): Promise<SSLCertificateInfo[]> {
   const certInfo: SSLCertificateInfo[] = [];
 
   try {
-    const domains = await prisma.domain.findMany({
-      where: {
-        sslEnabled: true
-      }
+    // Query all SSL certificates from database
+    const certificates = await prisma.sSLCertificate.findMany({
+      include: {
+        domain: {
+          select: {
+            name: true,
+          },
+        },
+      },
     });
 
-    for (const domain of domains) {
+    const now = new Date();
+    
+    for (const cert of certificates) {
       try {
-        const sslDir = process.env.SSL_DIR || '/etc/nginx/ssl';
-        const certPath = path.join(sslDir, domain.name, 'fullchain.pem');
+        // Calculate days remaining from database validTo field
+        const daysRemaining = Math.ceil(
+          (cert.validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+        );
 
-        if (fs.existsSync(certPath)) {
-          const { stdout } = await execAsync(`openssl x509 -enddate -noout -in ${certPath}`);
-          const endDateStr = stdout.match(/notAfter=(.+)/)?.[1];
+        certInfo.push({
+          domain: cert.domain.name,
+          daysRemaining,
+        });
 
-          if (endDateStr) {
-            const endDate = new Date(endDateStr);
-            const now = new Date();
-            const daysRemaining = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-            certInfo.push({
-              domain: domain.name,
-              daysRemaining
-            });
-          }
+        // Log certificate info for debugging
+        if (daysRemaining <= 30) {
+          logger.debug(
+            `SSL Certificate ${cert.domain.name}: ${daysRemaining} days remaining (expires: ${cert.validTo.toISOString()})`
+          );
         }
       } catch (error) {
-        logger.error(`Failed to check SSL for ${domain.name}:`, error);
+        logger.error(`Failed to process SSL certificate for ${cert.domain.name}:`, error);
       }
     }
+
+    logger.debug(`Processed ${certInfo.length} SSL certificate(s) from database`);
   } catch (error) {
     logger.error('Failed to check SSL certificates:', error);
   }

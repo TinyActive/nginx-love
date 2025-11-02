@@ -234,7 +234,7 @@ ${realIpBlock}
     # Include ACL rules (IP whitelist/blacklist)
     include /etc/nginx/conf.d/acl-rules.conf;
 
-    # Include ACME challenge location for Let's Encrypt
+    # Include ACME challenge location for ZeroSSL/Let's Encrypt
     include /etc/nginx/snippets/acme-challenge.conf;
 
     # Redirect HTTP to HTTPS
@@ -257,7 +257,7 @@ ${accessListsBlock}
     # Include ACL rules (IP whitelist/blacklist)
     include /etc/nginx/conf.d/acl-rules.conf;
 
-    # Include ACME challenge location for Let's Encrypt
+    # Include ACME challenge location for ZeroSSL/Let's Encrypt
     include /etc/nginx/snippets/acme-challenge.conf;
 
     ${domain.modsecEnabled ? 'modsecurity on;' : 'modsecurity off;'}

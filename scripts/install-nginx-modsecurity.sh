@@ -9,9 +9,9 @@
 set -e
 
 # Configuration
-NGINX_VERSION="1.24.0"
-MODSECURITY_VERSION="3.0.12"
-MODSECURITY_NGINX_VERSION="1.0.3"
+NGINX_VERSION="1.28.0"
+MODSECURITY_VERSION="3.0.14"
+MODSECURITY_NGINX_VERSION="1.0.4"
 INSTALL_LOG="/var/log/nginx-modsecurity-install.log"
 INSTALL_STATUS_FILE="/var/run/nginx-modsecurity-install.status"
 NGINX_CONFIG_DIR="/etc/nginx"

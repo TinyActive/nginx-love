@@ -527,15 +527,23 @@ export default function Domains() {
     try {
       if (editingDomain) {
         await updateDomain.mutateAsync({ id: editingDomain.id, data: domainData });
-        toast.success(`Domain ${domainData.name} updated`);
+        toast.success(`Domain ${domainData.name} updated successfully`);
+        // Only close dialog on success
+        setDialogOpen(false);
+        setEditingDomain(null);
       } else {
         await createDomain.mutateAsync(domainData);
-        toast.success(`Domain ${domainData.name} created`);
+        toast.success(`Domain ${domainData.name} created successfully`);
+        // Only close dialog on success
+        setDialogOpen(false);
+        setEditingDomain(null);
       }
-      setDialogOpen(false);
-      setEditingDomain(null);
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save domain');
+      const errorMessage = error?.response?.data?.message || error.message || 'Failed to save domain';
+      toast.error(errorMessage, {
+        duration: 5000,
+      });
+      // Do not close dialog on error - keep form open for user to fix issues
     }
   };
 
@@ -588,6 +596,7 @@ export default function Domains() {
           }}
           onSave={handleSave}
           domain={editingDomain}
+          isLoading={createDomain.isPending || updateDomain.isPending}
         />
 
         <Suspense fallback={<SkeletonTable rows={5} columns={6} title="Domains" />}>

@@ -1,4 +1,5 @@
 import { body, param, query } from 'express-validator';
+import { isValidIpOrCidr } from '../../acl/utils/validators';
 
 /**
  * Validation rules for creating an access list
@@ -38,8 +39,13 @@ export const createAccessListValidation = [
   body('allowedIps.*')
     .optional()
     .trim()
-    .matches(/^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/)
-    .withMessage('Each IP must be a valid IPv4 address or CIDR notation'),
+    .custom((value) => {
+      if (!value) return true;
+      if (!isValidIpOrCidr(value)) {
+        throw new Error('Invalid IP address or CIDR notation. Examples: 192.168.1.1 or 192.168.1.0/24');
+      }
+      return true;
+    }),
   
   body('authUsers')
     .optional()
@@ -125,8 +131,13 @@ export const updateAccessListValidation = [
   body('allowedIps.*')
     .optional()
     .trim()
-    .matches(/^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/)
-    .withMessage('Each IP must be a valid IPv4 address or CIDR notation'),
+    .custom((value) => {
+      if (!value) return true;
+      if (!isValidIpOrCidr(value)) {
+        throw new Error('Invalid IP address or CIDR notation. Examples: 192.168.1.1 or 192.168.1.0/24');
+      }
+      return true;
+    }),
   
   body('authUsers')
     .optional()

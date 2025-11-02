@@ -4,6 +4,7 @@ import { authenticate, authorize } from '../../middleware/auth';
 import {
   getSSLCertificates,
   getSSLCertificate,
+  getSSLSystemInfo,
   issueAutoSSL,
   uploadManualSSL,
   updateSSLCertificate,
@@ -15,6 +16,13 @@ const router = express.Router();
 
 // All SSL routes require authentication
 router.use(authenticate);
+
+/**
+ * @route   GET /api/ssl/system-info
+ * @desc    Get SSL system information (CA server, etc.)
+ * @access  Private (all roles)
+ */
+router.get('/system-info', getSSLSystemInfo);
 
 /**
  * @route   GET /api/ssl
@@ -32,7 +40,7 @@ router.get('/:id', getSSLCertificate);
 
 /**
  * @route   POST /api/ssl/auto
- * @desc    Issue Let's Encrypt certificate (auto)
+ * @desc    Issue ZeroSSL/Let's Encrypt certificate (auto)
  * @access  Private (admin, moderator)
  */
 router.post(

@@ -4,6 +4,50 @@ import { body, param, query } from 'express-validator';
  * Validation rules for NLB endpoints
  */
 
+/**
+ * Validate host (IP address or hostname)
+ */
+function isValidHost(host: string): boolean {
+  if (!host || host.trim().length === 0) {
+    return false;
+  }
+
+  host = host.trim();
+
+  // IPv4 validation - strict format
+  const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+  if (ipv4Regex.test(host)) {
+    return true;
+  }
+  
+  // IPv6 validation (simplified)
+  const ipv6Regex = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}$|^[0-9a-fA-F]{1,4}::(?:[0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}$/;
+  if (ipv6Regex.test(host)) {
+    return true;
+  }
+  
+  // If it looks like an IP but failed validation, reject it
+  // This catches malformed IPs like "888880.8832884"
+  if (/^[\d.]+$/.test(host)) {
+    return false; // Only digits and dots but not valid IP
+  }
+  
+  // Hostname validation (RFC 1123)
+  const hostnameRegex = /^(?=.{1,253}$)(?:(?!-)[A-Za-z0-9-]{1,63}(?<!-)\.)*(?!-)[A-Za-z0-9-]{1,63}(?<!-)$/;
+  
+  // Additional check: hostname labels cannot be all numeric
+  if (hostnameRegex.test(host)) {
+    const labels = host.split('.');
+    const allNumeric = labels.every(label => /^\d+$/.test(label));
+    if (allNumeric) {
+      return false;
+    }
+    return true;
+  }
+  
+  return false;
+}
+
 // Upstream validation
 export const upstreamValidation = [
   body('host')
@@ -11,7 +55,13 @@ export const upstreamValidation = [
     .notEmpty()
     .withMessage('Host is required')
     .isString()
-    .withMessage('Host must be a string'),
+    .withMessage('Host must be a string')
+    .custom((value) => {
+      if (!isValidHost(value)) {
+        throw new Error('Invalid host. Must be a valid IP address (IPv4/IPv6) or hostname');
+      }
+      return true;
+    }),
   body('port')
     .isInt({ min: 1, max: 65535 })
     .withMessage('Port must be between 1 and 65535'),
@@ -72,7 +122,13 @@ export const createNLBValidation = [
   body('upstreams.*.host')
     .trim()
     .notEmpty()
-    .withMessage('Upstream host is required'),
+    .withMessage('Upstream host is required')
+    .custom((value) => {
+      if (!isValidHost(value)) {
+        throw new Error('Invalid host. Must be a valid IP address (IPv4/IPv6) or hostname');
+      }
+      return true;
+    }),
   body('upstreams.*.port')
     .isInt({ min: 1, max: 65535 })
     .withMessage('Upstream port must be between 1 and 65535'),
@@ -188,7 +244,13 @@ export const updateNLBValidation = [
     .optional()
     .trim()
     .notEmpty()
-    .withMessage('Upstream host is required'),
+    .withMessage('Upstream host is required')
+    .custom((value) => {
+      if (value && !isValidHost(value)) {
+        throw new Error('Invalid host. Must be a valid IP address (IPv4/IPv6) or hostname');
+      }
+      return true;
+    }),
   body('upstreams.*.port')
     .optional()
     .isInt({ min: 1, max: 65535 })

@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict HSe4dguUwBDZrj8QIG2xyEWjmOQgS4w4fvXgtdyMePj5Lb5ji6Q8MuGmZaKXBwM
+\restrict Ja8Ez06uTkV3bbgCLHkKUNFYLealBnqkolQeklBuytPSGrge66OaqewWRxvUy7m
 
 -- Dumped from database version 15.14
 -- Dumped by pg_dump version 15.14
@@ -806,9 +806,41 @@ CREATE TABLE public.ssl_certificates (
     "autoRenew" boolean DEFAULT true NOT NULL,
     status public."SSLStatus" DEFAULT 'valid'::public."SSLStatus" NOT NULL,
     "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL
+    "updatedAt" timestamp(3) without time zone NOT NULL,
+    subject text,
+    "subjectDetails" jsonb,
+    "issuerDetails" jsonb,
+    "serialNumber" text
 );
 
+
+
+--
+-- Name: COLUMN ssl_certificates.subject; Type: COMMENT; Schema: public; Owner: nginx_love_user
+--
+
+COMMENT ON COLUMN public.ssl_certificates.subject IS 'Full subject string from certificate (e.g., CN=example.com, O=Example, C=US)';
+
+
+--
+-- Name: COLUMN ssl_certificates."subjectDetails"; Type: COMMENT; Schema: public; Owner: nginx_love_user
+--
+
+COMMENT ON COLUMN public.ssl_certificates."subjectDetails" IS 'Parsed subject details as JSON: {commonName, organization, country}';
+
+
+--
+-- Name: COLUMN ssl_certificates."issuerDetails"; Type: COMMENT; Schema: public; Owner: nginx_love_user
+--
+
+COMMENT ON COLUMN public.ssl_certificates."issuerDetails" IS 'Parsed issuer details as JSON: {commonName, organization, country}';
+
+
+--
+-- Name: COLUMN ssl_certificates."serialNumber"; Type: COMMENT; Schema: public; Owner: nginx_love_user
+--
+
+COMMENT ON COLUMN public.ssl_certificates."serialNumber" IS 'Certificate serial number';
 
 
 --
@@ -962,23 +994,24 @@ ALTER TABLE ONLY public.config_versions ALTER COLUMN version SET DEFAULT nextval
 --
 
 COPY public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) FROM stdin;
-4498fb05-c1aa-4046-a06f-a20c1387cd77	52f51d0c3871786adabd525433fb601834dc12c011e66737dedc7ff87ce6f85f	2025-10-15 05:28:47.204889+00	20250930140957_initial_setup	\N	\N	2025-10-15 05:28:47.016397+00	1
-9b7ced16-34a3-4a01-9688-426748986013	bf64c880e3efeeca15993664d9a046d87aa6b457258ab4da11f4b20bdfdcd520	2025-10-15 05:28:48.03233+00	20251009081041_add_real_ip_config	\N	\N	2025-10-15 05:28:48.013598+00	1
-31cc2f30-a519-497d-bf1b-fc5cc754119a	dc878ea3eee4e078d8304194e2c17c4cc334cff6fba509cfcbcfa9ef1c1d1c74	2025-10-15 05:28:47.38078+00	20250930155130_add_domain_management	\N	\N	2025-10-15 05:28:47.20825+00	1
-111aaab2-af45-4886-81fd-039330227662	85ef35e80b41bf91b69854dc7711a9eb017804578bcf9fca362c2ffdc0a6c1ab	2025-10-15 05:28:47.396294+00	20250930165732_add_upstream_https_support	\N	\N	2025-10-15 05:28:47.383602+00	1
-4a186565-0995-4ce4-8a56-d2fccc727688	3cdf7355c7d5d791f16d7b2a061a7e7fd228ff718b90e0167ffeea695e56c2df	2025-10-15 05:28:47.482757+00	20251001083220_separate_crs_and_custom_rules	\N	\N	2025-10-15 05:28:47.39916+00	1
-3fda4c9a-9c44-4f13-9159-41b9d0c69469	683ac9d4e416439c11b2732d0583395ee3496cef7d3d9129b91215409d96c9e5	2025-10-15 05:28:48.184586+00	20251011072500_add_network_load_balancer	\N	\N	2025-10-15 05:28:48.041873+00	1
-3d6ba5d7-379b-4aa6-ac78-8a5d5456eae4	122d743a0403e77ad7e0ed9447f5b8826f2fbdbc55612d936eff004dd13c2eec	2025-10-15 05:28:47.490225+00	20251001083755_separate_crs_and_custom_rules	\N	\N	2025-10-15 05:28:47.485246+00	1
-ebdbaa84-3f8b-4008-8417-33820f65bbd5	97e03fac137c6999ddb4e0e02e99ac83e09abc9547e3cd9b71df1a375ae2c639	2025-10-15 05:28:47.67568+00	20251001163237_add_performance_metrics	\N	\N	2025-10-15 05:28:47.492796+00	1
-5ece69a0-14c7-4e54-8204-5b675a4797fb	d62ebb21a74bfe6d27089020c012f0485b01cee7ac2a62f9cf2898023788c1a0	2025-10-15 05:28:47.754687+00	20251002030304_add_alert_history	\N	\N	2025-10-15 05:28:47.694533+00	1
-0bb7127b-1037-4546-b888-d20366985aea	bd6031d2954eabc078e45724e69e3953070f5ecb6b651c124f3a4f67aa4d7224	2025-10-15 05:28:48.225296+00	20251014043307_add_domain_advanced_settings	\N	\N	2025-10-15 05:28:48.189611+00	1
-fe9d3c73-7267-4768-84c7-979b748b13a4	c52aeec6f10e1008a2684a58ead83b6fde907f382a4b4dff12f786e56576065c	2025-10-15 05:28:47.826251+00	20251006033542_add_backup_feature	\N	\N	2025-10-15 05:28:47.764741+00	1
-16eb25c2-98b1-4cf1-b981-1136be90c21d	832894d3ca4a4d59108162c05ee9b41b7c0f7febbfe263c6dbaaf6c31d51cedd	2025-10-15 05:28:47.925332+00	20251006084450_add_slave_node_feature	\N	\N	2025-10-15 05:28:47.829598+00	1
-5a87db85-e0ba-4a98-9a95-8a454440ff70	72bb704fa65ff06af156dab94e86bf9afd17b49da905306c56772c331609c249	2025-10-15 05:28:47.956682+00	20251006092848_add_system_config_and_node_mode	\N	\N	2025-10-15 05:28:47.930276+00	1
-df6f2aa5-946a-4cf2-a445-eee08035bc6c	71e447af2387cca8523e79c2058d0602dd2180bbc89e73f0e8852bf7b39840cd	2025-10-15 05:28:48.375853+00	20251014102338_add_access_lists_management	\N	\N	2025-10-15 05:28:48.228986+00	1
-e9da21b6-b69f-4617-bdea-4765e40b19a9	3e93e0b05e4852855cd3ed3f8cf8a354295b2167381489a76ff4c541ab774adf	2025-10-15 05:28:47.9758+00	20251007145737_make_activity_log_user_id_optional	\N	\N	2025-10-15 05:28:47.966739+00	1
-048e47b5-ba88-4dcd-b30f-58e7f901da41	56ffe8075275105c06c497b4c19c225f8da03eeedae6db084d54ebd3b8039c64	2025-10-15 05:28:48.00059+00	20251008110124_add_first_login_flag	\N	\N	2025-10-15 05:28:47.978448+00	1
-36553bfb-7cdb-459d-853a-35b02fd00121	122d743a0403e77ad7e0ed9447f5b8826f2fbdbc55612d936eff004dd13c2eec	2025-10-15 05:28:48.011013+00	20251009081000_add_real_ip_config	\N	\N	2025-10-15 05:28:48.003514+00	1
+5eb6c1fd-c696-4609-8510-899760c0ef36	52f51d0c3871786adabd525433fb601834dc12c011e66737dedc7ff87ce6f85f	2025-11-01 15:08:22.6952+00	20250930140957_initial_setup	\N	\N	2025-11-01 15:08:22.405399+00	1
+8b3a0e23-b986-42f1-bc4d-b0ef5bf7021d	bf64c880e3efeeca15993664d9a046d87aa6b457258ab4da11f4b20bdfdcd520	2025-11-01 15:08:23.927046+00	20251009081041_add_real_ip_config	\N	\N	2025-11-01 15:08:23.911212+00	1
+8f25f737-76e3-4079-bbb5-b07fc1ffa00b	dc878ea3eee4e078d8304194e2c17c4cc334cff6fba509cfcbcfa9ef1c1d1c74	2025-11-01 15:08:23.009989+00	20250930155130_add_domain_management	\N	\N	2025-11-01 15:08:22.716009+00	1
+031024cb-11e0-44f9-891f-bba3f85c45a5	85ef35e80b41bf91b69854dc7711a9eb017804578bcf9fca362c2ffdc0a6c1ab	2025-11-01 15:08:23.060484+00	20250930165732_add_upstream_https_support	\N	\N	2025-11-01 15:08:23.021992+00	1
+af870ee0-9d48-4722-bc41-08bfb8fcf710	3cdf7355c7d5d791f16d7b2a061a7e7fd228ff718b90e0167ffeea695e56c2df	2025-11-01 15:08:23.20595+00	20251001083220_separate_crs_and_custom_rules	\N	\N	2025-11-01 15:08:23.071349+00	1
+626ac946-cbe6-4f77-8ab2-c69a44bfcb0a	683ac9d4e416439c11b2732d0583395ee3496cef7d3d9129b91215409d96c9e5	2025-11-01 15:08:24.071676+00	20251011072500_add_network_load_balancer	\N	\N	2025-11-01 15:08:23.931646+00	1
+cd69ba0d-e25a-4718-82e5-14802402af08	122d743a0403e77ad7e0ed9447f5b8826f2fbdbc55612d936eff004dd13c2eec	2025-11-01 15:08:23.242989+00	20251001083755_separate_crs_and_custom_rules	\N	\N	2025-11-01 15:08:23.21295+00	1
+de8f7d6d-35c0-4def-845d-416a4a16d92d	97e03fac137c6999ddb4e0e02e99ac83e09abc9547e3cd9b71df1a375ae2c639	2025-11-01 15:08:23.456261+00	20251001163237_add_performance_metrics	\N	\N	2025-11-01 15:08:23.247794+00	1
+3fe8015c-d663-4375-a5a0-75a4a9d01b88	d62ebb21a74bfe6d27089020c012f0485b01cee7ac2a62f9cf2898023788c1a0	2025-11-01 15:08:23.534443+00	20251002030304_add_alert_history	\N	\N	2025-11-01 15:08:23.460505+00	1
+11315e5f-557a-4fc2-91a7-8a20d3ef6db6	bd6031d2954eabc078e45724e69e3953070f5ecb6b651c124f3a4f67aa4d7224	2025-11-01 15:08:24.099776+00	20251014043307_add_domain_advanced_settings	\N	\N	2025-11-01 15:08:24.075876+00	1
+8d1fe1e5-8bbb-4105-b6bb-28a66831b314	c52aeec6f10e1008a2684a58ead83b6fde907f382a4b4dff12f786e56576065c	2025-11-01 15:08:23.627283+00	20251006033542_add_backup_feature	\N	\N	2025-11-01 15:08:23.538623+00	1
+24e00f0d-1df5-44e9-a4f6-b8d2d141f42f	832894d3ca4a4d59108162c05ee9b41b7c0f7febbfe263c6dbaaf6c31d51cedd	2025-11-01 15:08:23.778284+00	20251006084450_add_slave_node_feature	\N	\N	2025-11-01 15:08:23.630426+00	1
+8f96f83f-e76e-40f6-907f-85723342ca79	72bb704fa65ff06af156dab94e86bf9afd17b49da905306c56772c331609c249	2025-11-01 15:08:23.828208+00	20251006092848_add_system_config_and_node_mode	\N	\N	2025-11-01 15:08:23.781858+00	1
+d8c142ff-2562-43e7-af91-318f96940a1f	71e447af2387cca8523e79c2058d0602dd2180bbc89e73f0e8852bf7b39840cd	2025-11-01 15:08:24.33301+00	20251014102338_add_access_lists_management	\N	\N	2025-11-01 15:08:24.117242+00	1
+8cdc6a95-3802-4450-b8e3-186ea5864dd2	3e93e0b05e4852855cd3ed3f8cf8a354295b2167381489a76ff4c541ab774adf	2025-11-01 15:08:23.851204+00	20251007145737_make_activity_log_user_id_optional	\N	\N	2025-11-01 15:08:23.83217+00	1
+b2cfe87c-dab2-48bd-ad23-aa054656575d	56ffe8075275105c06c497b4c19c225f8da03eeedae6db084d54ebd3b8039c64	2025-11-01 15:08:23.874055+00	20251008110124_add_first_login_flag	\N	\N	2025-11-01 15:08:23.855382+00	1
+6e10c728-e204-4d5a-9df0-49844466dc9a	122d743a0403e77ad7e0ed9447f5b8826f2fbdbc55612d936eff004dd13c2eec	2025-11-01 15:08:23.907444+00	20251009081000_add_real_ip_config	\N	\N	2025-11-01 15:08:23.887034+00	1
+dfdd12e4-6af6-4e9d-8370-44e251914b0a	6555337fe8426bf4b825360c50793215833e7cdfc11fbeefa191ad80dfa94515	2025-11-01 15:08:24.36905+00	20251101000000_add_ssl_certificate_details	\N	\N	2025-11-01 15:08:24.340954+00	1
 \.
 
 
@@ -1019,11 +1052,11 @@ COPY public.acl_rules (id, name, type, "conditionField", "conditionOperator", "c
 --
 
 COPY public.activity_logs (id, "userId", action, type, ip, "userAgent", details, success, "timestamp") FROM stdin;
-cmgrjwb000006e30tw01b3grn	cmgrjwav90000e30tiji45nn3	User logged in	login	192.168.1.100	Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36	\N	t	2025-10-15 04:28:54.19
-cmgrjwb000007e30teykhj5r1	cmgrjwav90000e30tiji45nn3	Updated domain configuration for api.example.com	config_change	192.168.1.100	Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36	Modified SSL settings and upstream configuration	t	2025-10-15 03:28:54.19
-cmgrjwb000008e30tf5jnmjed	cmgrjwav90000e30tiji45nn3	Failed login attempt	security	203.0.113.42	Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36	Invalid password	f	2025-10-14 05:28:54.19
-cmgrjwb000009e30tk8bnycly	cmgrjwav90000e30tiji45nn3	Created new ACL rule	user_action	192.168.1.100	Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36	Added IP blacklist rule for 192.168.1.200	t	2025-10-13 05:28:54.19
-cmgrjwb00000ae30twnuqz0mn	cmgrjwav90000e30tiji45nn3	Changed account password	security	192.168.1.100	Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36	\N	t	2025-10-12 05:28:54.19
+cmhgf35s10006lbznpxr9a35p	cmhgf35mt0000lbznnikdfcyd	User logged in	login	192.168.1.100	Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36	\N	t	2025-11-01 14:08:30.335
+cmhgf35s10007lbzncu5btgju	cmhgf35mt0000lbznnikdfcyd	Updated domain configuration for api.example.com	config_change	192.168.1.100	Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36	Modified SSL settings and upstream configuration	t	2025-11-01 13:08:30.335
+cmhgf35s10008lbzn2jvpuyki	cmhgf35mt0000lbznnikdfcyd	Failed login attempt	security	203.0.113.42	Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36	Invalid password	f	2025-10-31 15:08:30.335
+cmhgf35s10009lbznhziznevs	cmhgf35mt0000lbznnikdfcyd	Created new ACL rule	user_action	192.168.1.100	Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36	Added IP blacklist rule for 192.168.1.200	t	2025-10-30 15:08:30.335
+cmhgf35s1000albznrmcwyefg	cmhgf35mt0000lbznnikdfcyd	Changed account password	security	192.168.1.100	Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36	\N	t	2025-10-29 15:08:30.335
 \.
 
 
@@ -1104,16 +1137,16 @@ COPY public.load_balancer_configs (id, "domainId", algorithm, "healthCheckEnable
 --
 
 COPY public.modsec_crs_rules (id, "domainId", "ruleFile", name, category, description, enabled, paranoia, "createdAt", "updatedAt") FROM stdin;
-cmgrjwb07000be30tpg5wbyuo	\N	REQUEST-942-APPLICATION-ATTACK-SQLI.conf	SQL Injection Protection	SQLi	Detects SQL injection attempts using OWASP CRS detection rules	t	1	2025-10-15 05:28:54.199	2025-10-15 05:28:54.199
-cmgrjwb07000ce30tl8zgdlt2	\N	REQUEST-941-APPLICATION-ATTACK-XSS.conf	XSS Attack Prevention	XSS	Blocks cross-site scripting attacks	t	1	2025-10-15 05:28:54.199	2025-10-15 05:28:54.199
-cmgrjwb07000de30tsnjti0sk	\N	REQUEST-932-APPLICATION-ATTACK-RCE.conf	RCE Detection	RCE	Remote code execution prevention	t	1	2025-10-15 05:28:54.199	2025-10-15 05:28:54.199
-cmgrjwb07000ee30tz84jw1ok	\N	REQUEST-930-APPLICATION-ATTACK-LFI.conf	LFI Protection	LFI	Local file inclusion prevention	f	1	2025-10-15 05:28:54.199	2025-10-15 05:28:54.199
-cmgrjwb07000fe30tn2z6bnwx	\N	REQUEST-943-APPLICATION-ATTACK-SESSION-FIXATION.conf	Session Fixation	SESSION-FIXATION	Prevents session fixation attacks	t	1	2025-10-15 05:28:54.199	2025-10-15 05:28:54.199
-cmgrjwb07000ge30teu92ui2l	\N	REQUEST-933-APPLICATION-ATTACK-PHP.conf	PHP Attacks	PHP	PHP-specific attack prevention	t	1	2025-10-15 05:28:54.199	2025-10-15 05:28:54.199
-cmgrjwb07000he30tr2qcjmwr	\N	REQUEST-920-PROTOCOL-ENFORCEMENT.conf	Protocol Attacks	PROTOCOL-ATTACK	HTTP protocol attack prevention	t	1	2025-10-15 05:28:54.199	2025-10-15 05:28:54.199
-cmgrjwb07000ie30t4jq2jpm6	\N	RESPONSE-950-DATA-LEAKAGES.conf	Data Leakage	DATA-LEAKAGES	Prevents sensitive data leakage	f	1	2025-10-15 05:28:54.199	2025-10-15 05:28:54.199
-cmgrjwb07000je30tzl0dvu6p	\N	REQUEST-934-APPLICATION-ATTACK-GENERIC.conf	SSRF Protection	SSRF	Server-side request forgery prevention (part of generic attacks)	t	1	2025-10-15 05:28:54.199	2025-10-15 05:28:54.199
-cmgrjwb07000ke30thty5cvvr	\N	RESPONSE-955-WEB-SHELLS.conf	Web Shell Detection	WEB-SHELL	Detects web shell uploads	t	1	2025-10-15 05:28:54.199	2025-10-15 05:28:54.199
+cmhgf35sl000blbznsrhmkpqr	\N	REQUEST-942-APPLICATION-ATTACK-SQLI.conf	SQL Injection Protection	SQLi	Detects SQL injection attempts using OWASP CRS detection rules	t	1	2025-11-01 15:08:30.357	2025-11-01 15:08:30.357
+cmhgf35sl000clbzncst8c61e	\N	REQUEST-941-APPLICATION-ATTACK-XSS.conf	XSS Attack Prevention	XSS	Blocks cross-site scripting attacks	t	1	2025-11-01 15:08:30.357	2025-11-01 15:08:30.357
+cmhgf35sl000dlbznan480lyn	\N	REQUEST-932-APPLICATION-ATTACK-RCE.conf	RCE Detection	RCE	Remote code execution prevention	t	1	2025-11-01 15:08:30.357	2025-11-01 15:08:30.357
+cmhgf35sl000elbzn4bcz7td4	\N	REQUEST-930-APPLICATION-ATTACK-LFI.conf	LFI Protection	LFI	Local file inclusion prevention	f	1	2025-11-01 15:08:30.357	2025-11-01 15:08:30.357
+cmhgf35sl000flbznommzzvry	\N	REQUEST-943-APPLICATION-ATTACK-SESSION-FIXATION.conf	Session Fixation	SESSION-FIXATION	Prevents session fixation attacks	t	1	2025-11-01 15:08:30.357	2025-11-01 15:08:30.357
+cmhgf35sl000glbzn5ek9o3vj	\N	REQUEST-933-APPLICATION-ATTACK-PHP.conf	PHP Attacks	PHP	PHP-specific attack prevention	t	1	2025-11-01 15:08:30.357	2025-11-01 15:08:30.357
+cmhgf35sl000hlbznpon1ssnv	\N	REQUEST-920-PROTOCOL-ENFORCEMENT.conf	Protocol Attacks	PROTOCOL-ATTACK	HTTP protocol attack prevention	t	1	2025-11-01 15:08:30.357	2025-11-01 15:08:30.357
+cmhgf35sl000ilbznnk7pmc2e	\N	RESPONSE-950-DATA-LEAKAGES.conf	Data Leakage	DATA-LEAKAGES	Prevents sensitive data leakage	f	1	2025-11-01 15:08:30.357	2025-11-01 15:08:30.357
+cmhgf35sl000jlbznvjih09tt	\N	REQUEST-934-APPLICATION-ATTACK-GENERIC.conf	SSRF Protection	SSRF	Server-side request forgery prevention (part of generic attacks)	t	1	2025-11-01 15:08:30.357	2025-11-01 15:08:30.357
+cmhgf35sl000klbznbsj1ebgk	\N	RESPONSE-955-WEB-SHELLS.conf	Web Shell Detection	WEB-SHELL	Detects web shell uploads	t	1	2025-11-01 15:08:30.357	2025-11-01 15:08:30.357
 \.
 
 
@@ -1193,7 +1226,7 @@ COPY public.slave_nodes (id, name, host, port, "apiKey", status, "lastSeen", ver
 -- Data for Name: ssl_certificates; Type: TABLE DATA; Schema: public; Owner: nginx_love_user
 --
 
-COPY public.ssl_certificates (id, "domainId", "commonName", sans, issuer, certificate, "privateKey", chain, "validFrom", "validTo", "autoRenew", status, "createdAt", "updatedAt") FROM stdin;
+COPY public.ssl_certificates (id, "domainId", "commonName", sans, issuer, certificate, "privateKey", chain, "validFrom", "validTo", "autoRenew", status, "createdAt", "updatedAt", subject, "subjectDetails", "issuerDetails", "serialNumber") FROM stdin;
 \.
 
 
@@ -1234,9 +1267,9 @@ COPY public.upstreams (id, "domainId", host, port, weight, "maxFails", "failTime
 --
 
 COPY public.user_profiles (id, "userId", bio, location, website, "createdAt", "updatedAt") FROM stdin;
-cmgrjwav90001e30tcqvsqkzy	cmgrjwav90000e30tiji45nn3	System administrator with full access	\N	\N	2025-10-15 05:28:54.021	2025-10-15 05:28:54.021
-cmgrjwaxn0003e30ttgch6dov	cmgrjwaxn0002e30tre1eimxn	System operator	\N	\N	2025-10-15 05:28:54.107	2025-10-15 05:28:54.107
-cmgrjwazs0005e30tp3tp1y8i	cmgrjwazs0004e30tangzpfr6	Read-only access user	\N	\N	2025-10-15 05:28:54.185	2025-10-15 05:28:54.185
+cmhgf35mt0001lbznh32wzzcc	cmhgf35mt0000lbznnikdfcyd	System administrator with full access	\N	\N	2025-11-01 15:08:30.149	2025-11-01 15:08:30.149
+cmhgf35pc0003lbznwxjfo9rn	cmhgf35pc0002lbzngnmlqr5p	System operator	\N	\N	2025-11-01 15:08:30.24	2025-11-01 15:08:30.24
+cmhgf35rr0005lbznvyxm6g6f	cmhgf35rr0004lbznsq0nccbx	Read-only access user	\N	\N	2025-11-01 15:08:30.328	2025-11-01 15:08:30.328
 \.
 
 
@@ -1253,9 +1286,9 @@ COPY public.user_sessions (id, "userId", "sessionId", ip, "userAgent", device, l
 --
 
 COPY public.users (id, username, email, password, "fullName", role, status, avatar, phone, timezone, language, "createdAt", "updatedAt", "lastLogin", "isFirstLogin") FROM stdin;
-cmgrjwav90000e30tiji45nn3	admin	admin@example.com	$2b$10$/mGISEIG0XWY9LnpPpCjB.XBy8XSYu5ftU6PBhc4XINaGNAF/mBcC	System Administrator	admin	active	https://api.dicebear.com/7.x/avataaars/svg?seed=admin	+84 123 456 789	Asia/Ho_Chi_Minh	vi	2025-10-15 05:28:54.021	2025-10-15 05:28:54.021	2025-10-15 05:28:54.019	t
-cmgrjwaxn0002e30tre1eimxn	operator	operator@example.com	$2b$10$Af9hBL15.30Drwa6PbdYqe7r.3LT79HwRXmTacJnv2U37nKlMdfaO	System Operator	moderator	inactive	https://api.dicebear.com/7.x/avataaars/svg?seed=operator	+84 987 654 321	Asia/Ho_Chi_Minh	en	2025-10-15 05:28:54.107	2025-10-15 05:28:54.107	2025-10-14 05:28:54.106	t
-cmgrjwazs0004e30tangzpfr6	viewer	viewer@example.com	$2b$10$qxmI9m5DlCMexO0zXStLFOB.SBZsfhhhdrxPojLCu5HOemTmhg.fq	Read Only User	viewer	inactive	https://api.dicebear.com/7.x/avataaars/svg?seed=viewer	\N	Asia/Singapore	en	2025-10-15 05:28:54.185	2025-10-15 05:28:54.185	2025-10-13 05:28:54.183	t
+cmhgf35mt0000lbznnikdfcyd	admin	admin@example.com	$2b$10$wZkz64Gb2OehxAgZGbEsVepVHe7rmcKE5lg67bSdd4Wez3cUViuaG	System Administrator	admin	active	https://api.dicebear.com/7.x/avataaars/svg?seed=admin	+84 123 456 789	Asia/Ho_Chi_Minh	vi	2025-11-01 15:08:30.149	2025-11-01 15:08:30.149	2025-11-01 15:08:30.146	t
+cmhgf35pc0002lbzngnmlqr5p	operator	operator@example.com	$2b$10$FyULLPb3z06XpeSii52kSuhz2eGMvUzgaHF4gHancn8IzdRh5NbOq	System Operator	moderator	inactive	https://api.dicebear.com/7.x/avataaars/svg?seed=operator	+84 987 654 321	Asia/Ho_Chi_Minh	en	2025-11-01 15:08:30.24	2025-11-01 15:08:30.24	2025-10-31 15:08:30.238	t
+cmhgf35rr0004lbznsq0nccbx	viewer	viewer@example.com	$2b$10$F3VSNTim13S9dravEBbRKuPMOQ3pv3388NarKD6.PdcEAo7ANO7Fy	Read Only User	viewer	inactive	https://api.dicebear.com/7.x/avataaars/svg?seed=viewer	\N	Asia/Singapore	en	2025-11-01 15:08:30.328	2025-11-01 15:08:30.328	2025-10-30 15:08:30.326	t
 \.
 
 
@@ -2099,5 +2132,5 @@ ALTER TABLE ONLY public.user_sessions
 -- PostgreSQL database dump complete
 --
 
-\unrestrict HSe4dguUwBDZrj8QIG2xyEWjmOQgS4w4fvXgtdyMePj5Lb5ji6Q8MuGmZaKXBwM
+\unrestrict Ja8Ez06uTkV3bbgCLHkKUNFYLealBnqkolQeklBuytPSGrge66OaqewWRxvUy7m
 

@@ -7,6 +7,7 @@ import { AuthRequest } from '../../middleware/auth';
 import logger from '../../utils/logger';
 import { DashboardService } from './dashboard.service';
 import { GetMetricsQueryDto, GetRecentAlertsQueryDto } from './dto';
+import { dashboardAnalyticsService } from './services/dashboard-analytics.service';
 
 const dashboardService = new DashboardService();
 
@@ -79,6 +80,199 @@ export const getRecentAlerts = async (
     res.status(500).json({
       success: false,
       message: 'Failed to get recent alerts',
+    });
+  }
+};
+
+/**
+ * Get request trend analytics (auto-refresh every 5s)
+ */
+export const getRequestTrend = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { interval = 5 } = req.query;
+    const intervalSeconds = Math.max(5, Math.min(60, Number(interval)));
+
+    const trend = await dashboardAnalyticsService.getRequestTrend(intervalSeconds);
+
+    res.json({
+      success: true,
+      data: trend,
+    });
+  } catch (error) {
+    logger.error('Get request trend error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get request trend',
+    });
+  }
+};
+
+/**
+ * Get slow requests from performance monitoring
+ */
+export const getSlowRequests = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { limit = 10 } = req.query;
+    const slowRequests = await dashboardAnalyticsService.getSlowRequests(Number(limit));
+
+    res.json({
+      success: true,
+      data: slowRequests,
+    });
+  } catch (error) {
+    logger.error('Get slow requests error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get slow requests',
+    });
+  }
+};
+
+/**
+ * Get latest attack statistics (top 5 in 24h)
+ */
+export const getLatestAttackStats = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { limit = 5 } = req.query;
+    const attacks = await dashboardAnalyticsService.getLatestAttacks(Number(limit));
+
+    res.json({
+      success: true,
+      data: attacks,
+    });
+  } catch (error) {
+    logger.error('Get latest attack stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get latest attack statistics',
+    });
+  }
+};
+
+/**
+ * Get latest security news/events
+ */
+export const getLatestNews = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { limit = 20 } = req.query;
+    const news = await dashboardAnalyticsService.getLatestNews(Number(limit));
+
+    res.json({
+      success: true,
+      data: news,
+    });
+  } catch (error) {
+    logger.error('Get latest news error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get latest news',
+    });
+  }
+};
+
+/**
+ * Get request analytics (top IPs by period)
+ */
+export const getRequestAnalytics = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { period = 'day' } = req.query;
+    const validPeriod = ['day', 'week', 'month'].includes(period as string) 
+      ? (period as 'day' | 'week' | 'month') 
+      : 'day';
+
+    const analytics = await dashboardAnalyticsService.getRequestAnalytics(validPeriod);
+
+    res.json({
+      success: true,
+      data: analytics,
+    });
+  } catch (error) {
+    logger.error('Get request analytics error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get request analytics',
+    });
+  }
+};
+
+/**
+ * Get attack vs normal request ratio
+ */
+export const getAttackRatio = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const ratio = await dashboardAnalyticsService.getAttackRatio();
+
+    res.json({
+      success: true,
+      data: ratio,
+    });
+  } catch (error) {
+    logger.error('Get attack ratio error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get attack ratio',
+    });
+  }
+};
+
+/**
+ * Get complete dashboard analytics
+ */
+export const getDashboardAnalytics = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const [
+      requestTrend,
+      slowRequests,
+      latestAttacks,
+      latestNews,
+      requestAnalytics,
+      attackRatio,
+    ] = await Promise.all([
+      dashboardAnalyticsService.getRequestTrend(5),
+      dashboardAnalyticsService.getSlowRequests(10),
+      dashboardAnalyticsService.getLatestAttacks(5),
+      dashboardAnalyticsService.getLatestNews(20),
+      dashboardAnalyticsService.getRequestAnalytics('day'),
+      dashboardAnalyticsService.getAttackRatio(),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        requestTrend,
+        slowRequests,
+        latestAttacks,
+        latestNews,
+        requestAnalytics,
+        attackRatio,
+      },
+    });
+  } catch (error) {
+    logger.error('Get dashboard analytics error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get dashboard analytics',
     });
   }
 };

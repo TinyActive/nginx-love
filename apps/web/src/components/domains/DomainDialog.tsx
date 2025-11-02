@@ -181,7 +181,7 @@ export function DomainDialog({ open, onOpenChange, domain, onSave }: DomainDialo
     };
 
     onSave(domainData);
-    onOpenChange(false);
+    // Do not close dialog here - let parent component handle it after successful save
   };
 
   const addUpstream = () => {

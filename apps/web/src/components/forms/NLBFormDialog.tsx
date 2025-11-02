@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { useCreateNLB, useUpdateNLB } from '@/queries/nlb.query-options';
-import { NetworkLoadBalancer, CreateNLBInput, NLBUpstream } from '@/types';
+import { NetworkLoadBalancer, CreateNLBInput } from '@/types';
+import {
+  validateNLBConfig,
+  isValidNLBName,
+  validateUpstreamHost,
+  getValidationHints,
+  checkConfigurationWarnings,
+} from '@/utils/nlb-validators';
 import {
   Dialog,
   DialogContent,
@@ -30,7 +37,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Trash2, HelpCircle } from 'lucide-react';
+import { Plus, Trash2, HelpCircle, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface NLBFormDialogProps {
@@ -46,6 +53,8 @@ export default function NLBFormDialog({ isOpen, onClose, nlb, mode }: NLBFormDia
   const { toast } = useToast();
   const createMutation = useCreateNLB();
   const updateMutation = useUpdateNLB();
+  const [configWarnings, setConfigWarnings] = useState<string[]>([]);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const {
     register,
@@ -82,6 +91,27 @@ export default function NLBFormDialog({ isOpen, onClose, nlb, mode }: NLBFormDia
   });
 
   const protocol = watch('protocol');
+  const upstreams = watch('upstreams');
+  const proxyTimeout = watch('proxyTimeout');
+  const proxyConnectTimeout = watch('proxyConnectTimeout');
+  const healthCheckEnabled = watch('healthCheckEnabled');
+  const healthCheckInterval = watch('healthCheckInterval');
+  const healthCheckTimeout = watch('healthCheckTimeout');
+
+  // Check for configuration warnings whenever form values change
+  useEffect(() => {
+    if (upstreams && upstreams.length > 0) {
+      const warnings = checkConfigurationWarnings({
+        upstreams: upstreams,
+        proxyTimeout: proxyTimeout || 3,
+        proxyConnectTimeout: proxyConnectTimeout || 1,
+        healthCheckEnabled: healthCheckEnabled || false,
+        healthCheckInterval: healthCheckInterval,
+        healthCheckTimeout: healthCheckTimeout,
+      });
+      setConfigWarnings(warnings);
+    }
+  }, [upstreams, proxyTimeout, proxyConnectTimeout, healthCheckEnabled, healthCheckInterval, healthCheckTimeout]);
 
   useEffect(() => {
     if (isOpen && nlb && mode === 'edit') {
@@ -136,6 +166,65 @@ export default function NLBFormDialog({ isOpen, onClose, nlb, mode }: NLBFormDia
 
   const onSubmit = async (data: FormData) => {
     try {
+      // Validate complete configuration before submission
+      const validation = validateNLBConfig({
+        name: data.name,
+        port: Number(data.port),
+        upstreams: data.upstreams.map(u => ({
+          host: u.host,
+          port: Number(u.port),
+          weight: Number(u.weight),
+          maxFails: Number(u.maxFails),
+          failTimeout: Number(u.failTimeout),
+          maxConns: Number(u.maxConns),
+          backup: Boolean(u.backup),
+          down: Boolean(u.down),
+        })),
+        proxyTimeout: Number(data.proxyTimeout),
+        proxyConnectTimeout: Number(data.proxyConnectTimeout),
+        proxyNextUpstreamTimeout: Number(data.proxyNextUpstreamTimeout),
+        proxyNextUpstreamTries: Number(data.proxyNextUpstreamTries),
+        healthCheckEnabled: Boolean(data.healthCheckEnabled),
+        healthCheckInterval: Number(data.healthCheckInterval),
+        healthCheckTimeout: Number(data.healthCheckTimeout),
+        healthCheckRises: Number(data.healthCheckRises),
+        healthCheckFalls: Number(data.healthCheckFalls),
+      });
+
+      if (!validation.valid) {
+        const errorMessages = Object.entries(validation.errors)
+          .map(([field, error]) => {
+            // Format field names to be more user-friendly
+            const fieldNames: Record<string, string> = {
+              name: 'Name',
+              port: 'Port',
+              upstreams: 'Upstreams',
+              proxyTimeout: 'Proxy Timeout',
+              proxyConnectTimeout: 'Proxy Connect Timeout',
+              proxyNextUpstreamTimeout: 'Next Upstream Timeout',
+              proxyNextUpstreamTries: 'Next Upstream Tries',
+              healthCheckInterval: 'Health Check Interval',
+              healthCheckTimeout: 'Health Check Timeout',
+              healthCheckRises: 'Health Check Rises',
+              healthCheckFalls: 'Health Check Falls',
+            };
+            const friendlyField = fieldNames[field] || field;
+            return `${friendlyField}: ${error}`;
+          });
+        
+        setValidationErrors(errorMessages);
+        
+        toast({
+          title: 'Configuration Error',
+          description: `Please fix ${errorMessages.length} validation error${errorMessages.length > 1 ? 's' : ''} before submitting.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Clear validation errors if everything is valid
+      setValidationErrors([]);
+
       // Convert all string numbers to actual numbers
       const processedData = {
         ...data,
@@ -177,18 +266,41 @@ export default function NLBFormDialog({ isOpen, onClose, nlb, mode }: NLBFormDia
       }
       onClose();
     } catch (error: any) {
-      const message = error.response?.data?.message;
-      let description = `Failed to ${mode} NLB`;
+      console.error('NLB submission error:', error);
       
-      if (message?.includes('already exists')) {
-        description = 'An NLB with this name already exists';
-      } else if (message) {
-        description = message;
+      const response = error.response?.data;
+      let errorMessages: string[] = [];
+      let title = 'Error';
+      
+      // Handle validation errors from backend
+      if (response?.errors && Array.isArray(response.errors)) {
+        title = 'Validation Error';
+        errorMessages = response.errors.map((err: any) => {
+          if (err.msg && err.path) {
+            return `${err.path}: ${err.msg}`;
+          }
+          return err.msg || err.message || 'Unknown error';
+        });
+        setValidationErrors(errorMessages);
+      } else if (response?.message) {
+        // Handle single error message
+        if (response.message.includes('already exists')) {
+          errorMessages = ['An NLB with this name already exists. Please choose a different name.'];
+        } else if (response.message.includes('host not found') || response.message.includes('Invalid host')) {
+          errorMessages = ['Invalid upstream host. Please check your IP address or hostname format.'];
+        } else if (response.message.includes('nginx')) {
+          errorMessages = ['Nginx configuration error: ' + response.message];
+        } else {
+          errorMessages = [response.message];
+        }
+        setValidationErrors(errorMessages);
+      } else {
+        errorMessages = [`Failed to ${mode} NLB. Please check your configuration and try again.`];
       }
 
       toast({
-        title: 'Error',
-        description,
+        title,
+        description: errorMessages[0] || `Failed to ${mode} NLB`,
         variant: 'destructive',
       });
     }
@@ -197,6 +309,14 @@ export default function NLBFormDialog({ isOpen, onClose, nlb, mode }: NLBFormDia
   const addUpstream = () => {
     append({ host: '', port: 80, weight: 1, maxFails: 3, failTimeout: 10, maxConns: 0, backup: false, down: false });
   };
+
+  // Clear validation errors when dialog closes
+  useEffect(() => {
+    if (!isOpen) {
+      setValidationErrors([]);
+      setConfigWarnings([]);
+    }
+  }, [isOpen]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -209,6 +329,31 @@ export default function NLBFormDialog({ isOpen, onClose, nlb, mode }: NLBFormDia
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)}>
+          {/* Validation Errors Alert */}
+          {validationErrors.length > 0 && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <h4 className="text-sm font-medium text-red-800 mb-2">
+                    Configuration Errors ({validationErrors.length})
+                  </h4>
+                  <ul className="text-sm text-red-700 space-y-1">
+                    {validationErrors.map((error, idx) => (
+                      <li key={idx} className="flex items-start gap-1">
+                        <span className="text-red-600 font-bold">•</span>
+                        <span>{error}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-red-600 mt-2">
+                    Please fix these errors before submitting the form.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <Tabs defaultValue="basic" className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="basic">Basic</TabsTrigger>
@@ -221,12 +366,21 @@ export default function NLBFormDialog({ isOpen, onClose, nlb, mode }: NLBFormDia
                 <Label htmlFor="name">Name *</Label>
                 <Input
                   id="name"
-                  {...register('name', { required: 'Name is required' })}
-                  placeholder="my-nlb"
+                  {...register('name', {
+                    required: 'Name is required',
+                    validate: (value) => {
+                      const validation = isValidNLBName(value);
+                      return validation.valid || validation.error || 'Invalid name';
+                    },
+                  })}
+                  placeholder="my-load-balancer"
                 />
                 {errors.name && (
                   <p className="text-sm text-destructive">{errors.name.message}</p>
                 )}
+                <p className="text-xs text-muted-foreground">
+                  {getValidationHints('name')}
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -249,11 +403,15 @@ export default function NLBFormDialog({ isOpen, onClose, nlb, mode }: NLBFormDia
                       required: 'Port is required',
                       min: { value: 10000, message: 'Port must be ≥ 10000' },
                       max: { value: 65535, message: 'Port must be ≤ 65535' },
+                      valueAsNumber: true,
                     })}
                   />
                   {errors.port && (
                     <p className="text-sm text-destructive">{errors.port.message}</p>
                   )}
+                  <p className="text-xs text-muted-foreground">
+                    {getValidationHints('port')}
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -326,12 +484,21 @@ export default function NLBFormDialog({ isOpen, onClose, nlb, mode }: NLBFormDia
                           <Input
                             {...register(`upstreams.${index}.host`, {
                               required: 'Host is required',
+                              validate: (value) => {
+                                const validation = validateUpstreamHost(value);
+                                return validation.valid || validation.error || 'Invalid host';
+                              },
                             })}
-                            placeholder="192.168.1.100"
+                            placeholder="192.168.1.100 or backend.example.com"
                           />
                           {errors.upstreams?.[index]?.host && (
                             <p className="text-sm text-destructive">
                               {errors.upstreams[index]?.host?.message}
+                            </p>
+                          )}
+                          {!errors.upstreams?.[index]?.host && (
+                            <p className="text-xs text-muted-foreground">
+                              {getValidationHints('host')}
                             </p>
                           )}
                         </div>
@@ -342,10 +509,16 @@ export default function NLBFormDialog({ isOpen, onClose, nlb, mode }: NLBFormDia
                             type="number"
                             {...register(`upstreams.${index}.port`, {
                               required: 'Port is required',
-                              min: 1,
-                              max: 65535,
+                              min: { value: 1, message: 'Port must be ≥ 1' },
+                              max: { value: 65535, message: 'Port must be ≤ 65535' },
+                              valueAsNumber: true,
                             })}
                           />
+                          {errors.upstreams?.[index]?.port && (
+                            <p className="text-sm text-destructive">
+                              {errors.upstreams[index]?.port?.message}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -355,26 +528,50 @@ export default function NLBFormDialog({ isOpen, onClose, nlb, mode }: NLBFormDia
                           <Input
                             type="number"
                             {...register(`upstreams.${index}.weight`, {
-                              min: 1,
-                              max: 100,
+                              min: { value: 1, message: 'Weight must be ≥ 1' },
+                              max: { value: 100, message: 'Weight must be ≤ 100' },
+                              valueAsNumber: true,
                             })}
                           />
+                          {errors.upstreams?.[index]?.weight && (
+                            <p className="text-xs text-destructive">
+                              {errors.upstreams[index]?.weight?.message}
+                            </p>
+                          )}
                         </div>
 
                         <div className="space-y-2">
                           <Label>Max Fails</Label>
                           <Input
                             type="number"
-                            {...register(`upstreams.${index}.maxFails`, { min: 0 })}
+                            {...register(`upstreams.${index}.maxFails`, {
+                              min: { value: 0, message: 'Max fails must be ≥ 0' },
+                              max: { value: 100, message: 'Max fails must be ≤ 100' },
+                              valueAsNumber: true,
+                            })}
                           />
+                          {errors.upstreams?.[index]?.maxFails && (
+                            <p className="text-xs text-destructive">
+                              {errors.upstreams[index]?.maxFails?.message}
+                            </p>
+                          )}
                         </div>
 
                         <div className="space-y-2">
                           <Label>Fail Timeout (s)</Label>
                           <Input
                             type="number"
-                            {...register(`upstreams.${index}.failTimeout`, { min: 1 })}
+                            {...register(`upstreams.${index}.failTimeout`, {
+                              min: { value: 1, message: 'Fail timeout must be ≥ 1' },
+                              max: { value: 3600, message: 'Fail timeout must be ≤ 3600' },
+                              valueAsNumber: true,
+                            })}
                           />
+                          {errors.upstreams?.[index]?.failTimeout && (
+                            <p className="text-xs text-destructive">
+                              {errors.upstreams[index]?.failTimeout?.message}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -383,9 +580,18 @@ export default function NLBFormDialog({ isOpen, onClose, nlb, mode }: NLBFormDia
                           <Label>Max Connections</Label>
                           <Input
                             type="number"
-                            {...register(`upstreams.${index}.maxConns`, { min: 0 })}
+                            {...register(`upstreams.${index}.maxConns`, {
+                              min: { value: 0, message: 'Max connections must be ≥ 0' },
+                              max: { value: 100000, message: 'Max connections must be ≤ 100000' },
+                              valueAsNumber: true,
+                            })}
                             placeholder="0 = unlimited"
                           />
+                          {errors.upstreams?.[index]?.maxConns && (
+                            <p className="text-xs text-destructive">
+                              {errors.upstreams[index]?.maxConns?.message}
+                            </p>
+                          )}
                         </div>
 
                         <TooltipProvider>
@@ -448,6 +654,25 @@ export default function NLBFormDialog({ isOpen, onClose, nlb, mode }: NLBFormDia
                   At least one upstream is required
                 </p>
               )}
+
+              {/* Configuration Warnings */}
+              {configWarnings.length > 0 && (
+                <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="text-sm font-medium text-yellow-800 mb-2">
+                        Configuration Warnings
+                      </h4>
+                      <ul className="text-sm text-yellow-700 space-y-1">
+                        {configWarnings.map((warning, idx) => (
+                          <li key={idx}>• {warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="advanced" className="space-y-4">
@@ -456,12 +681,38 @@ export default function NLBFormDialog({ isOpen, onClose, nlb, mode }: NLBFormDia
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Proxy Timeout (s)</Label>
-                    <Input type="number" {...register('proxyTimeout', { min: 1 })} />
+                    <Input
+                      type="number"
+                      {...register('proxyTimeout', {
+                        min: { value: 1, message: 'Proxy timeout must be ≥ 1' },
+                        max: { value: 3600, message: 'Proxy timeout must be ≤ 3600' },
+                        valueAsNumber: true,
+                      })}
+                    />
+                    {errors.proxyTimeout && (
+                      <p className="text-xs text-destructive">{errors.proxyTimeout.message}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {getValidationHints('proxyTimeout')}
+                    </p>
                   </div>
 
                   <div className="space-y-2">
                     <Label>Proxy Connect Timeout (s)</Label>
-                    <Input type="number" {...register('proxyConnectTimeout', { min: 1 })} />
+                    <Input
+                      type="number"
+                      {...register('proxyConnectTimeout', {
+                        min: { value: 1, message: 'Proxy connect timeout must be ≥ 1' },
+                        max: { value: 300, message: 'Proxy connect timeout must be ≤ 300' },
+                        valueAsNumber: true,
+                      })}
+                    />
+                    {errors.proxyConnectTimeout && (
+                      <p className="text-xs text-destructive">{errors.proxyConnectTimeout.message}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {getValidationHints('proxyConnectTimeout')}
+                    </p>
                   </div>
                 </div>
 
@@ -487,18 +738,32 @@ export default function NLBFormDialog({ isOpen, onClose, nlb, mode }: NLBFormDia
                     <Label>Next Upstream Timeout (s)</Label>
                     <Input
                       type="number"
-                      {...register('proxyNextUpstreamTimeout', { min: 0 })}
+                      {...register('proxyNextUpstreamTimeout', {
+                        min: { value: 0, message: 'Timeout must be ≥ 0' },
+                        max: { value: 3600, message: 'Timeout must be ≤ 3600' },
+                        valueAsNumber: true,
+                      })}
                       placeholder="0 = disabled"
                     />
+                    {errors.proxyNextUpstreamTimeout && (
+                      <p className="text-xs text-destructive">{errors.proxyNextUpstreamTimeout.message}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <Label>Next Upstream Tries</Label>
                     <Input
                       type="number"
-                      {...register('proxyNextUpstreamTries', { min: 0 })}
+                      {...register('proxyNextUpstreamTries', {
+                        min: { value: 0, message: 'Tries must be ≥ 0' },
+                        max: { value: 100, message: 'Tries must be ≤ 100' },
+                        valueAsNumber: true,
+                      })}
                       placeholder="0 = unlimited"
                     />
+                    {errors.proxyNextUpstreamTries && (
+                      <p className="text-xs text-destructive">{errors.proxyNextUpstreamTries.message}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -525,25 +790,68 @@ export default function NLBFormDialog({ isOpen, onClose, nlb, mode }: NLBFormDia
                     <Label>Check Interval (s)</Label>
                     <Input
                       type="number"
-                      {...register('healthCheckInterval', { min: 5 })}
+                      {...register('healthCheckInterval', {
+                        min: { value: 5, message: 'Interval must be ≥ 5' },
+                        max: { value: 3600, message: 'Interval must be ≤ 3600' },
+                        valueAsNumber: true,
+                      })}
                     />
+                    {errors.healthCheckInterval && (
+                      <p className="text-xs text-destructive">{errors.healthCheckInterval.message}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {getValidationHints('healthCheckInterval')}
+                    </p>
                   </div>
 
                   <div className="space-y-2">
                     <Label>Check Timeout (s)</Label>
-                    <Input type="number" {...register('healthCheckTimeout', { min: 1 })} />
+                    <Input
+                      type="number"
+                      {...register('healthCheckTimeout', {
+                        min: { value: 1, message: 'Timeout must be ≥ 1' },
+                        max: { value: 300, message: 'Timeout must be ≤ 300' },
+                        valueAsNumber: true,
+                      })}
+                    />
+                    {errors.healthCheckTimeout && (
+                      <p className="text-xs text-destructive">{errors.healthCheckTimeout.message}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {getValidationHints('healthCheckTimeout')}
+                    </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 mt-4">
                   <div className="space-y-2">
                     <Label>Rises (successful checks)</Label>
-                    <Input type="number" {...register('healthCheckRises', { min: 1 })} />
+                    <Input
+                      type="number"
+                      {...register('healthCheckRises', {
+                        min: { value: 1, message: 'Rises must be ≥ 1' },
+                        max: { value: 10, message: 'Rises must be ≤ 10' },
+                        valueAsNumber: true,
+                      })}
+                    />
+                    {errors.healthCheckRises && (
+                      <p className="text-xs text-destructive">{errors.healthCheckRises.message}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <Label>Falls (failed checks)</Label>
-                    <Input type="number" {...register('healthCheckFalls', { min: 1 })} />
+                    <Input
+                      type="number"
+                      {...register('healthCheckFalls', {
+                        min: { value: 1, message: 'Falls must be ≥ 1' },
+                        max: { value: 10, message: 'Falls must be ≤ 10' },
+                        valueAsNumber: true,
+                      })}
+                    />
+                    {errors.healthCheckFalls && (
+                      <p className="text-xs text-destructive">{errors.healthCheckFalls.message}</p>
+                    )}
                   </div>
                 </div>
               </div>

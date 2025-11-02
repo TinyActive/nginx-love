@@ -4,6 +4,33 @@ import logger from '../../utils/logger';
 import { validationResult } from 'express-validator';
 import { sslService } from './ssl.service';
 import { IssueAutoSSLDto, UploadManualSSLDto, UpdateSSLDto } from './dto';
+import { acmeService } from './services/acme.service';
+
+/**
+ * Get SSL system information (CA server, etc.)
+ */
+export const getSSLSystemInfo = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const defaultCA = acmeService.getDefaultCA();
+    const isAcmeInstalled = await acmeService.isAcmeInstalled();
+
+    res.json({
+      success: true,
+      data: {
+        defaultCA,
+        caServerOptions: ['zerossl', 'letsencrypt'],
+        isAcmeInstalled,
+        supportedIssuers: ['ZeroSSL', "Let's Encrypt"],
+      },
+    });
+  } catch (error) {
+    logger.error('Get SSL system info error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    });
+  }
+};
 
 /**
  * Get all SSL certificates
@@ -56,7 +83,7 @@ export const getSSLCertificate = async (req: AuthRequest, res: Response): Promis
 };
 
 /**
- * Issue Let's Encrypt certificate (auto)
+ * Issue ZeroSSL/Let's Encrypt certificate (auto)
  */
 export const issueAutoSSL = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -303,6 +330,11 @@ export const renewSSLCertificate = async (req: AuthRequest, res: Response): Prom
           message: error.message,
         });
       } else if (error.message.includes('Only Let')) {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+        });
+      } else if (error.message.includes('not yet eligible')) {
         res.status(400).json({
           success: false,
           message: error.message,

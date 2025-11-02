@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -23,7 +23,16 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
+import {
+  validateAccessListName,
+  validateAccessListIp,
+  validateUsername,
+  validatePassword,
+  getAccessListHints,
+  getAccessListExample
+} from '@/utils/access-list-validators';
 import {
   useCreateAccessList,
   useUpdateAccessList,
@@ -75,6 +84,20 @@ export function AccessListFormDialog({
   const [selectedDomains, setSelectedDomains] = useState<string[]>([]);
   const [originalDomainIds, setOriginalDomainIds] = useState<string[]>([]); // Track original domains for edit mode
 
+  // Validation states
+  const [nameValidation, setNameValidation] = useState<{ valid: boolean; error?: string }>({ valid: true });
+  const [ipValidations, setIpValidations] = useState<Record<number, { valid: boolean; error?: string }>>({});
+  const [userValidations, setUserValidations] = useState<Record<number, { username: { valid: boolean; error?: string }; password: { valid: boolean; error?: string } }>>({});
+
+  // Validate name in real-time
+  useEffect(() => {
+    if (formData.name.trim().length > 0) {
+      setNameValidation(validateAccessListName(formData.name));
+    } else {
+      setNameValidation({ valid: true });
+    }
+  }, [formData.name]);
+
   // Reset form when dialog opens or access list changes
   useEffect(() => {
     if (open) {
@@ -120,6 +143,10 @@ export function AccessListFormDialog({
         setSelectedDomains([]);
         setOriginalDomainIds([]); // Reset original domains
       }
+      // Reset validations
+      setNameValidation({ valid: true });
+      setIpValidations({});
+      setUserValidations({});
     }
   }, [open, accessList]);
 
@@ -280,6 +307,18 @@ export function AccessListFormDialog({
     const newIps = [...allowedIps];
     newIps[index] = value;
     setAllowedIps(newIps);
+
+    // Validate IP in real-time
+    if (value.trim().length > 0) {
+      const validation = validateAccessListIp(value);
+      setIpValidations(prev => ({ ...prev, [index]: validation }));
+    } else {
+      setIpValidations(prev => {
+        const newValidations = { ...prev };
+        delete newValidations[index];
+        return newValidations;
+      });
+    }
   };
 
   const addAuthUser = () => {
@@ -301,6 +340,31 @@ export function AccessListFormDialog({
     const newUsers = [...authUsers];
     (newUsers[index] as any)[field] = value;
     setAuthUsers(newUsers);
+
+    // Validate username/password in real-time
+    if (field === 'username' && typeof value === 'string') {
+      if (value.trim().length > 0) {
+        const validation = validateUsername(value);
+        setUserValidations(prev => ({
+          ...prev,
+          [index]: {
+            username: validation,
+            password: prev[index]?.password || { valid: true }
+          }
+        }));
+      }
+    } else if (field === 'password' && typeof value === 'string') {
+      if (value.trim().length > 0) {
+        const validation = validatePassword(value, !isEditMode);
+        setUserValidations(prev => ({
+          ...prev,
+          [index]: {
+            username: prev[index]?.username || { valid: true },
+            password: validation
+          }
+        }));
+      }
+    }
   };
 
   const toggleDomainSelection = (domainId: string) => {
@@ -338,16 +402,29 @@ export function AccessListFormDialog({
           <div className="space-y-4">
             <div>
               <Label htmlFor="name">Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-                placeholder="e.g., admin-panel-access"
-                disabled={isPending}
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  placeholder={getAccessListExample('name')}
+                  disabled={isPending}
+                  required
+                  className={!nameValidation.valid && formData.name.trim().length > 0 ? 'border-red-500' : nameValidation.valid && formData.name.trim().length > 0 ? 'border-green-500' : ''}
+                />
+                {nameValidation.valid && formData.name.trim().length > 0 && (
+                  <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+                )}
+                {!nameValidation.valid && formData.name.trim().length > 0 && (
+                  <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
+                )}
+              </div>
+              {!nameValidation.valid && nameValidation.error && (
+                <p className="text-xs text-red-500 mt-1">{nameValidation.error}</p>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">{getAccessListHints('name')}</p>
             </div>
 
             <div>
@@ -430,29 +507,46 @@ export function AccessListFormDialog({
                   </div>
 
                   {allowedIps.map((ip, index) => (
-                    <div key={index} className="flex gap-2">
-                      <Input
-                        value={ip}
-                        onChange={(e) => updateIpField(index, e.target.value)}
-                        placeholder="e.g., 192.168.1.1 or 10.0.0.0/24"
-                        disabled={isPending}
-                      />
-                      {allowedIps.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => removeIpField(index)}
-                          disabled={isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                    <div key={index} className="space-y-1">
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Input
+                            value={ip}
+                            onChange={(e) => updateIpField(index, e.target.value)}
+                            placeholder={getAccessListExample('ip')}
+                            disabled={isPending}
+                            className={ipValidations[index] && !ipValidations[index].valid ? 'border-red-500' : ipValidations[index]?.valid ? 'border-green-500' : ''}
+                          />
+                          {ipValidations[index]?.valid && ip.trim().length > 0 && (
+                            <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+                          )}
+                          {ipValidations[index] && !ipValidations[index].valid && (
+                            <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
+                          )}
+                        </div>
+                        {allowedIps.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => removeIpField(index)}
+                            disabled={isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      {ipValidations[index] && !ipValidations[index].valid && ipValidations[index].error && (
+                        <p className="text-xs text-red-500">{ipValidations[index].error}</p>
                       )}
                     </div>
                   ))}
-                  <p className="text-xs text-muted-foreground">
-                    Enter IP addresses or CIDR notation (e.g., 192.168.1.0/24)
-                  </p>
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Hint:</strong> {getAccessListHints('ip')}
+                    </AlertDescription>
+                  </Alert>
                 </div>
               )}
 
@@ -496,15 +590,27 @@ export function AccessListFormDialog({
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <Label className="text-xs">Username (min 3 chars)</Label>
-                          <Input
-                            value={user.username}
-                            onChange={(e) =>
-                              updateAuthUser(index, 'username', e.target.value)
-                            }
-                            placeholder="username"
-                            disabled={isPending}
-                            minLength={3}
-                          />
+                          <div className="relative">
+                            <Input
+                              value={user.username}
+                              onChange={(e) =>
+                                updateAuthUser(index, 'username', e.target.value)
+                              }
+                              placeholder={getAccessListExample('username')}
+                              disabled={isPending}
+                              minLength={3}
+                              className={userValidations[index]?.username && !userValidations[index].username.valid ? 'border-red-500' : userValidations[index]?.username?.valid ? 'border-green-500' : ''}
+                            />
+                            {userValidations[index]?.username?.valid && user.username.trim().length > 0 && (
+                              <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+                            )}
+                            {userValidations[index]?.username && !userValidations[index].username.valid && (
+                              <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
+                            )}
+                          </div>
+                          {userValidations[index]?.username && !userValidations[index].username.valid && userValidations[index].username.error && (
+                            <p className="text-xs text-red-500 mt-1">{userValidations[index].username.error}</p>
+                          )}
                         </div>
 
                         <div>

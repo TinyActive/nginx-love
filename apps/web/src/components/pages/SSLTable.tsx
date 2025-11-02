@@ -35,13 +35,30 @@ export function SSLTable() {
     certificateId: '',
   });
 
-  const handleRenew = async (id: string) => {
+  const handleRenew = async (id: string, daysUntilExpiry?: number) => {
     try {
       setRenewingId(id);
+      
+      // Check if certificate is eligible for renewal
+      if (daysUntilExpiry !== undefined && daysUntilExpiry > 30) {
+        toast.warning(
+          `Certificate is not yet eligible for renewal. It expires in ${daysUntilExpiry} days. Renewal is only allowed when less than 30 days remain.`
+        );
+        setRenewingId(null);
+        return;
+      }
+      
       await renewMutation.mutateAsync(id);
-      toast.success('Certificate renewed successfully');
+      toast.success('SSL certificate renewed successfully! The new certificate has been applied.');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to renew certificate');
+      const errorMessage = error.response?.data?.message || 'Failed to renew certificate';
+      
+      // Check if error is about eligibility
+      if (errorMessage.includes('not yet eligible') || errorMessage.includes('less than 30 days')) {
+        toast.warning(errorMessage);
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setRenewingId(null);
     }
@@ -108,7 +125,7 @@ export function SSLTable() {
               No SSL certificates found. Add one to get started.
             </div>
             <div className="text-sm text-muted-foreground">
-              You can issue a free Let's Encrypt certificate or upload a manual certificate for your domains.
+              You can issue a free ZeroSSL/Let's Encrypt certificate or upload a manual certificate for your domains.
             </div>
           </div>
         ) : (
@@ -145,12 +162,17 @@ export function SSLTable() {
                     <TableCell>{getStatusBadge(cert.status)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        {cert.issuer === "Let's Encrypt" && (
+                        {(cert.issuer === "Let's Encrypt" || cert.issuer === "ZeroSSL") && (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleRenew(cert.id)}
+                            onClick={() => handleRenew(cert.id, cert.daysUntilExpiry)}
                             disabled={renewingId === cert.id}
+                            title={
+                              cert.daysUntilExpiry !== undefined && cert.daysUntilExpiry > 30
+                                ? `Certificate expires in ${cert.daysUntilExpiry} days. Renewal available when less than 30 days remain.`
+                                : 'Renew SSL certificate'
+                            }
                           >
                             {renewingId === cert.id ? (
                               <RefreshCw className="h-4 w-4 animate-spin" />

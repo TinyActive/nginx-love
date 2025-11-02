@@ -4,6 +4,7 @@ export { default as Account } from './Account';
 export { default as Alerts } from './Alerts';
 export { default as Backup } from './Backup';
 export { default as Dashboard } from './Dashboard';
+export { default as DashboardNew } from './DashboardNew';
 export { default as Domains } from './Domains';
 export { default as Login } from './Login';
 export { default as Logs } from './Logs';

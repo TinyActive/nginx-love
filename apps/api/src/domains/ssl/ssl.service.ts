@@ -100,24 +100,69 @@ export class SSLService {
 
   /**
    * Get all SSL certificates with computed status
+   * Re-parse certificates to ensure accurate dates
    */
   async getAllCertificates(): Promise<SSLCertificateWithStatus[]> {
     const certificates = await sslRepository.findAll();
 
     const now = new Date();
-    return certificates.map(cert => {
-      const daysUntilExpiry = Math.floor(
-        (cert.validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-      );
+    const updatedCertificates = await Promise.all(
+      certificates.map(async (cert) => {
+        // Re-parse certificate to get accurate dates if needed
+        let validTo = cert.validTo;
+        let validFrom = cert.validFrom;
+        
+        try {
+          // Parse certificate content to get real dates
+          const certInfo = await acmeService.parseCertificate(cert.certificate);
+          validTo = certInfo.validTo;
+          validFrom = certInfo.validFrom;
+          
+          // Update database if dates are different
+          if (
+            validTo.getTime() !== cert.validTo.getTime() ||
+            validFrom.getTime() !== cert.validFrom.getTime()
+          ) {
+            logger.info(`Updating certificate dates for ${cert.domain.name}: ${validFrom.toISOString()} - ${validTo.toISOString()}`);
+            const updateData: any = {
+              validFrom,
+              validTo,
+              commonName: certInfo.commonName,
+              sans: certInfo.sans,
+              issuer: certInfo.issuer || cert.issuer,
+              status: this.calculateStatus(validTo),
+            };
+            
+            // Add optional fields if they exist
+            if (certInfo.subject) updateData.subject = certInfo.subject;
+            if (certInfo.subjectDetails) updateData.subjectDetails = certInfo.subjectDetails;
+            if (certInfo.issuerDetails) updateData.issuerDetails = certInfo.issuerDetails;
+            if (certInfo.serialNumber) updateData.serialNumber = certInfo.serialNumber;
+            
+            await sslRepository.update(cert.id, updateData);
+          }
+        } catch (error) {
+          logger.warn(`Failed to re-parse certificate for ${cert.domain.name}:`, error);
+          // Use existing dates from database
+        }
 
-      const status = this.calculateStatus(cert.validTo);
+        const daysUntilExpiry = Math.floor(
+          (validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+        );
 
-      return {
-        ...cert,
-        status,
-        daysUntilExpiry,
-      };
-    });
+        const status = this.calculateStatus(validTo);
+
+        return {
+          ...cert,
+          validFrom,
+          validTo,
+          status,
+          daysUntilExpiry,
+        };
+      })
+    );
+
+    return updatedCertificates;
   }
 
   /**
@@ -173,7 +218,7 @@ export class SSLService {
       logger.info(`SSL certificate issued successfully for ${domain.name}`);
 
       // Create SSL certificate in database
-      const sslCertificate = await sslRepository.create({
+      const createData: any = {
         domain: {
           connect: { id: domainId },
         },
@@ -187,7 +232,15 @@ export class SSLService {
         validTo: certInfo.validTo,
         autoRenew,
         status: 'valid',
-      });
+      };
+      
+      // Add optional fields if they exist
+      if (certInfo.subject) createData.subject = certInfo.subject;
+      if (certInfo.subjectDetails) createData.subjectDetails = certInfo.subjectDetails;
+      if (certInfo.issuerDetails) createData.issuerDetails = certInfo.issuerDetails;
+      if (certInfo.serialNumber) createData.serialNumber = certInfo.serialNumber;
+      
+      const sslCertificate = await sslRepository.create(createData);
 
       // Update domain SSL expiry (DO NOT auto-enable SSL)
       await sslRepository.updateDomainSSLExpiry(domainId, sslCertificate.validTo);
@@ -229,7 +282,7 @@ export class SSLService {
     ip: string,
     userAgent: string
   ): Promise<SSLCertificateWithDomain> {
-    const { domainId, certificate, privateKey, chain, issuer = SSL_CONSTANTS.MANUAL_ISSUER } = dto;
+    const { domainId, certificate, privateKey, chain, issuer } = dto;
 
     // Check if domain exists
     const domain = await prisma.domain.findUnique({
@@ -246,27 +299,86 @@ export class SSLService {
       throw new Error('SSL certificate already exists for this domain. Use update endpoint instead.');
     }
 
-    // Parse certificate to extract information
-    // In production, use x509 parsing library
-    const now = new Date();
-    const validTo = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year default
+    // Validate certificate and private key formats
+    let certInfo;
+    try {
+      certInfo = await acmeService.parseCertificate(certificate);
+      logger.info(`Parsed manual certificate: CN=${certInfo.commonName}, Issuer=${certInfo.issuer}, Valid: ${certInfo.validFrom.toISOString()} - ${certInfo.validTo.toISOString()}`);
+    } catch (error: any) {
+      logger.error('Failed to parse manual certificate:', error);
+      throw new Error(`Invalid certificate format: ${error.message}`);
+    }
 
-    // Create certificate
-    const cert = await sslRepository.create({
+    // Validate private key matches certificate
+    try {
+      const isValidKeyPair = await acmeService.validateKeyPair(certificate, privateKey);
+      if (!isValidKeyPair) {
+        throw new Error('Private key does not match the certificate. Please ensure you upload the correct key pair.');
+      }
+    } catch (error: any) {
+      if (error.message.includes('does not match')) {
+        throw error;
+      }
+      logger.warn('Key pair validation could not be completed, proceeding with caution:', error.message);
+      // Continue - nginx will validate when loading
+    }
+
+    // Validate domain name matches certificate (CN or SANs)
+    const domainMatches = 
+      certInfo.commonName.toLowerCase() === domain.name.toLowerCase() ||
+      certInfo.sans.some(san => san.toLowerCase() === domain.name.toLowerCase()) ||
+      certInfo.commonName.toLowerCase() === `*.${domain.name.toLowerCase()}` ||
+      certInfo.sans.some(san => san.toLowerCase() === `*.${domain.name.toLowerCase()}`);
+
+    if (!domainMatches) {
+      logger.warn(`Certificate domain mismatch: Certificate is for "${certInfo.commonName}" (SANs: ${certInfo.sans.join(', ')}) but domain is "${domain.name}"`);
+      throw new Error(
+        `Certificate domain mismatch: This certificate is for "${certInfo.commonName}" but you selected domain "${domain.name}". Please upload the correct certificate.`
+      );
+    }
+
+    // Validate certificate is not expired
+    const now = new Date();
+    if (certInfo.validTo < now) {
+      throw new Error(`Certificate has already expired on ${certInfo.validTo.toISOString()}. Please upload a valid certificate.`);
+    }
+
+    // Warn if certificate is expiring soon
+    const daysUntilExpiry = Math.floor(
+      (certInfo.validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (daysUntilExpiry < 30) {
+      logger.warn(`Uploaded certificate for ${domain.name} expires in ${daysUntilExpiry} days`);
+    }
+
+    // Use parsed information
+    const finalIssuer = issuer || certInfo.issuer || SSL_CONSTANTS.MANUAL_ISSUER;
+    const status = this.calculateStatus(certInfo.validTo);
+
+    // Create certificate with real information
+    const createData: any = {
       domain: {
         connect: { id: domainId },
       },
-      commonName: domain.name,
-      sans: [domain.name],
-      issuer,
+      commonName: certInfo.commonName,
+      sans: certInfo.sans,
+      issuer: finalIssuer,
       certificate,
       privateKey,
       chain: chain || null,
-      validFrom: now,
-      validTo,
+      validFrom: certInfo.validFrom,
+      validTo: certInfo.validTo,
       autoRenew: false, // Manual certs don't auto-renew
-      status: 'valid',
-    });
+      status,
+    };
+    
+    // Add optional fields if they exist
+    if (certInfo.subject) createData.subject = certInfo.subject;
+    if (certInfo.subjectDetails) createData.subjectDetails = certInfo.subjectDetails;
+    if (certInfo.issuerDetails) createData.issuerDetails = certInfo.issuerDetails;
+    if (certInfo.serialNumber) createData.serialNumber = certInfo.serialNumber;
+    
+    const cert = await sslRepository.create(createData);
 
     // Write certificate files to disk
     try {
@@ -282,7 +394,7 @@ export class SSLService {
     }
 
     // Update domain SSL expiry (DO NOT auto-enable SSL)
-    await sslRepository.updateDomainSSLExpiry(domainId, validTo);
+    await sslRepository.updateDomainSSLExpiry(domainId, certInfo.validTo);
 
     // Log activity
     await this.logActivity(
@@ -315,14 +427,46 @@ export class SSLService {
       throw new Error('SSL certificate not found');
     }
 
-    // Update certificate
-    const updatedCert = await sslRepository.update(id, {
-      ...(certificate && { certificate }),
+    // If certificate is being updated, parse it to get real info
+    let updateData: any = {
       ...(privateKey && { privateKey }),
       ...(chain !== undefined && { chain }),
       ...(autoRenew !== undefined && { autoRenew }),
       updatedAt: new Date(),
-    });
+    };
+
+    if (certificate) {
+      try {
+        const certInfo = await acmeService.parseCertificate(certificate);
+        logger.info(`Parsed updated certificate: CN=${certInfo.commonName}, Valid: ${certInfo.validFrom.toISOString()} - ${certInfo.validTo.toISOString()}`);
+        
+        const status = this.calculateStatus(certInfo.validTo);
+        
+        updateData = {
+          ...updateData,
+          certificate,
+          commonName: certInfo.commonName,
+          sans: certInfo.sans,
+          issuer: certInfo.issuer,
+          subject: certInfo.subject,
+          subjectDetails: certInfo.subjectDetails,
+          issuerDetails: certInfo.issuerDetails,
+          serialNumber: certInfo.serialNumber,
+          validFrom: certInfo.validFrom,
+          validTo: certInfo.validTo,
+          status,
+        };
+
+        // Update domain SSL expiry
+        await sslRepository.updateDomainSSLExpiry(cert.domainId, certInfo.validTo);
+      } catch (error: any) {
+        logger.error('Failed to parse updated certificate:', error);
+        throw new Error(`Invalid certificate format: ${error.message}`);
+      }
+    }
+
+    // Update certificate
+    const updatedCert = await sslRepository.update(id, updateData);
 
     // Update certificate files if changed
     if (certificate || privateKey || chain) {
@@ -419,11 +563,27 @@ export class SSLService {
       throw new Error('SSL certificate not found');
     }
 
-    if (cert.issuer !== SSL_CONSTANTS.LETSENCRYPT_ISSUER) {
-      throw new Error("Only Let's Encrypt certificates can be renewed automatically");
+    // Check if certificate supports auto-renewal (Let's Encrypt or ZeroSSL)
+    const isAutoRenewable = SSL_CONSTANTS.AUTO_RENEWABLE_ISSUERS.includes(cert.issuer);
+    if (!isAutoRenewable) {
+      throw new Error(
+        `Only Let's Encrypt and ZeroSSL certificates can be renewed automatically. Current issuer: ${cert.issuer}`
+      );
     }
 
-    logger.info(`Renewing Let's Encrypt certificate for ${cert.domain.name}`);
+    // Check if certificate is eligible for renewal (less than 30 days remaining)
+    const now = new Date();
+    const daysUntilExpiry = Math.floor(
+      (cert.validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    if (daysUntilExpiry > 30) {
+      throw new Error(
+        `Certificate is not yet eligible for renewal. It expires in ${daysUntilExpiry} days. Renewal is only allowed when less than 30 days remain.`
+      );
+    }
+
+    logger.info(`Renewing ${cert.issuer} certificate for ${cert.domain.name} (${daysUntilExpiry} days remaining)`);
 
     let certificate, privateKey, chain;
     let certInfo;
@@ -445,6 +605,13 @@ export class SSLService {
 
       // Fallback: just extend expiry (placeholder)
       certInfo = {
+        commonName: cert.commonName,
+        sans: cert.sans,
+        issuer: cert.issuer,
+        subject: (cert as any).subject || '',
+        subjectDetails: (cert as any).subjectDetails || {},
+        issuerDetails: (cert as any).issuerDetails || {},
+        serialNumber: (cert as any).serialNumber || '',
         validFrom: new Date(),
         validTo: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
       };
@@ -454,15 +621,26 @@ export class SSLService {
     }
 
     // Update certificate expiry
-    const updatedCert = await sslRepository.update(id, {
+    const updateData: any = {
       certificate,
       privateKey,
       chain,
+      commonName: certInfo.commonName,
+      sans: certInfo.sans,
+      issuer: certInfo.issuer,
       validFrom: certInfo.validFrom,
       validTo: certInfo.validTo,
       status: 'valid',
       updatedAt: new Date(),
-    });
+    };
+
+    // Add optional fields if they exist
+    if (certInfo.subject) updateData.subject = certInfo.subject;
+    if (certInfo.subjectDetails) updateData.subjectDetails = certInfo.subjectDetails;
+    if (certInfo.issuerDetails) updateData.issuerDetails = certInfo.issuerDetails;
+    if (certInfo.serialNumber) updateData.serialNumber = certInfo.serialNumber;
+
+    const updatedCert = await sslRepository.update(id, updateData);
 
     // Update domain SSL expiry
     await sslRepository.updateDomainSSLExpiry(cert.domainId, updatedCert.validTo);
