@@ -324,18 +324,58 @@ export class SSLService {
     }
 
     // Validate domain name matches certificate (CN or SANs)
+    // Support wildcard certificates for subdomains
+    // Example: *.nginxwaf.me can be used for dev.nginxwaf.me, api.nginxwaf.me, etc.
+    const matchesHostname = (certName: string, domainName: string): boolean => {
+      const cert = certName.toLowerCase();
+      const domain = domainName.toLowerCase();
+
+      // Exact match
+      if (cert === domain) return true;
+
+      // Wildcard match: *.example.com matches sub.example.com
+      if (cert.startsWith('*.')) {
+        const baseDomain = cert.slice(2); // Remove '*.'
+        
+        // Check if domain ends with the base domain
+        // sub.example.com should match *.example.com
+        if (domain.endsWith(baseDomain)) {
+          // Ensure it's a proper subdomain match (not partial match)
+          // e.g., *.example.com matches sub.example.com but not badexample.com
+          const beforeBase = domain.slice(0, domain.length - baseDomain.length);
+          return beforeBase === '' || beforeBase.endsWith('.');
+        }
+      }
+
+      // Check if domain is subdomain and cert is wildcard for parent
+      // Example: domain = dev.nginxwaf.me, cert = *.nginxwaf.me should match
+      const domainParts = domain.split('.');
+      if (domainParts.length >= 3) {
+        // Get parent domain (e.g., dev.nginxwaf.me -> nginxwaf.me)
+        const parentDomain = domainParts.slice(1).join('.');
+        const wildcardParent = `*.${parentDomain}`;
+        
+        if (cert === wildcardParent) {
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    // Check if certificate matches the domain
     const domainMatches = 
-      certInfo.commonName.toLowerCase() === domain.name.toLowerCase() ||
-      certInfo.sans.some(san => san.toLowerCase() === domain.name.toLowerCase()) ||
-      certInfo.commonName.toLowerCase() === `*.${domain.name.toLowerCase()}` ||
-      certInfo.sans.some(san => san.toLowerCase() === `*.${domain.name.toLowerCase()}`);
+      matchesHostname(certInfo.commonName, domain.name) ||
+      certInfo.sans.some(san => matchesHostname(san, domain.name));
 
     if (!domainMatches) {
-      logger.warn(`Certificate domain mismatch: Certificate is for "${certInfo.commonName}" (SANs: ${certInfo.sans.join(', ')}) but domain is "${domain.name}"`);
+      logger.warn(`Certificate domain mismatch: Certificate CN="${certInfo.commonName}", SANs=[${certInfo.sans.join(', ')}] does not match domain "${domain.name}"`);
       throw new Error(
-        `Certificate domain mismatch: This certificate is for "${certInfo.commonName}" but you selected domain "${domain.name}". Please upload the correct certificate.`
+        `Certificate domain mismatch: This certificate is for "${certInfo.commonName}" (SANs: ${certInfo.sans.join(', ')}) but you selected domain "${domain.name}". Please upload the correct certificate or ensure the certificate includes a wildcard that covers this domain.`
       );
     }
+
+    logger.info(`Certificate validated successfully for ${domain.name}. Matched against CN="${certInfo.commonName}" or SANs=[${certInfo.sans.join(', ')}]`);
 
     // Validate certificate is not expired
     const now = new Date();
