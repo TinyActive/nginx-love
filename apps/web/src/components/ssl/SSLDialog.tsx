@@ -141,23 +141,62 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
   // Validate domain name matches certificate
   const validateDomainMatch = async (domainName: string, certificate: string): Promise<{ valid: boolean; error?: string }> => {
     try {
-      // Extract CN and SANs from certificate (basic parsing)
-      // This is a simplified check - full validation happens on backend
-      const certLines = certificate.split('\n');
+      // This is a basic client-side check - backend will do comprehensive validation
+      // For wildcard certificates (*.example.com), the domain name might not appear literally
       
-      // Just check if domain name appears in certificate (basic sanity check)
-      const certContent = certificate.toLowerCase();
+      // Normalize certificate content (remove extra whitespace, newlines for easier matching)
+      const certContent = certificate.toLowerCase().replace(/\s+/g, ' ');
       const domain = domainName.toLowerCase();
       
-      if (!certContent.includes(domain)) {
-        return { 
-          valid: false, 
-          error: `Certificate may not match domain "${domainName}". Please verify the certificate is correct.` 
-        };
+      // Check for exact match
+      if (certContent.includes(domain)) {
+        console.log(`✅ Domain match found: exact match "${domain}"`);
+        return { valid: true };
       }
 
-      return { valid: true };
+      // Check for wildcard certificate
+      // Example: *.nginxwaf.me should match dev.nginxwaf.me
+      const domainParts = domain.split('.');
+      if (domainParts.length >= 2) {
+        // Build wildcard patterns to check
+        const wildcardPatterns: string[] = [];
+        
+        // Check parent domain wildcard: dev.nginxwaf.me -> *.nginxwaf.me
+        const parentDomain = domainParts.slice(1).join('.');
+        const mainWildcard = `*.${parentDomain}`;
+        wildcardPatterns.push(mainWildcard);
+        
+        // Also check without spaces (some certs may have *.domain format)
+        wildcardPatterns.push(`*${parentDomain}`); // *domain.com
+        wildcardPatterns.push(`* ${parentDomain}`); // * domain.com
+        
+        // Check all possible wildcard levels
+        for (let i = 1; i < domainParts.length; i++) {
+          const wildcardDomain = `*.${domainParts.slice(i).join('.')}`;
+          wildcardPatterns.push(wildcardDomain);
+        }
+        
+        console.log(`🔍 Searching for patterns in certificate:`, wildcardPatterns);
+        
+        // Check if any wildcard pattern exists in certificate
+        for (const pattern of wildcardPatterns) {
+          if (certContent.includes(pattern)) {
+            console.log(`✅ Wildcard match found: "${pattern}"`);
+            return { valid: true };
+          }
+        }
+        
+        console.log(`⚠️ No match found for domain "${domain}"`);
+      }
+
+      // If no match found, just return valid=true and skip the warning
+      // Let backend do the real validation - this is just a sanity check
+      // CloudFlare Origin Certificates often have CN that doesn't match, but SANs do
+      console.log(`ℹ️ Client-side validation inconclusive, deferring to backend for "${domain}"`);
+      return { valid: true }; // Changed from false to true - always allow and let backend validate
+      
     } catch (error) {
+      console.log(`ℹ️ Client-side validation error, deferring to backend:`, error);
       return { valid: true }; // Allow if parsing fails - backend will validate
     }
   };
