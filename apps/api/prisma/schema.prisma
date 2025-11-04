@@ -1,5 +1,36 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// This is your Prisma schema file (SQLite version)
+// Converted from PostgreSQL to SQLite
+//
+// IMPORTANT NOTES:
+// - All enum types have been converted to String (validate in application code)
+// - All Json types have been converted to String (serialize/deserialize in application code)
+// - All String[] arrays have been converted to String (use JSON format: "[]" or JSON.stringify)
+// - autoincrement() has been replaced with default(1) for version tracking
+//
+// ENUM VALUE REFERENCE (for application validation):
+// - AccessListType: ip_whitelist, http_basic_auth, combined
+// - AclAction: allow, deny, challenge
+// - AclField: ip, geoip, user_agent, url, method, header
+// - AclOperator: equals, contains, regex
+// - AclType: whitelist, blacklist
+// - ActivityType: login, logout, config_change, user_action, security, system
+// - AlertSeverity: critical, warning, info
+// - BackupStatus: success, failed, running, pending
+// - DomainStatus: active, inactive, error
+// - LoadBalancerAlgorithm: round_robin, least_conn, ip_hash
+// - NLBAlgorithm: round_robin, least_conn, ip_hash, hash
+// - NLBProtocol: tcp, udp, tcp_udp
+// - NLBStatus: active, inactive, error
+// - NLBUpstreamStatus: up, down, checking
+// - NodeMode: master, slave
+// - NotificationChannelType: email, telegram
+// - SSLStatus: valid, expiring, expired
+// - SlaveNodeStatus: online, offline, syncing, error
+// - SyncLogStatus: success, failed, partial, running
+// - SyncLogType: full_sync, incremental_sync, health_check
+// - UpstreamStatus: up, down, checking
+// - UserRole: admin, moderator, viewer
+// - UserStatus: active, inactive, suspended
 
 generator client {
   provider = "prisma-client-js"
@@ -10,26 +41,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  admin
-  moderator
-  viewer
-}
 
-enum UserStatus {
-  active
-  inactive
-  suspended
-}
 
-enum ActivityType {
-  login
-  logout
-  config_change
-  user_action
-  security
-  system
-}
+
+
+
 
 model User {
   id           String     @id @default(cuid())
@@ -37,8 +53,8 @@ model User {
   email        String     @unique
   password     String
   fullName     String
-  role         UserRole   @default(viewer)
-  status       UserStatus @default(active)
+  role         String   @default("viewer")
+  status       String @default("active")
   avatar       String?
   phone        String?
   timezone     String     @default("Asia/Ho_Chi_Minh")
@@ -82,7 +98,7 @@ model TwoFactorAuth {
   enabled     Boolean  @default(false)
   method      String   @default("totp") // totp, sms
   secret      String?
-  backupCodes String[] // Encrypted backup codes
+  backupCodes String // Encrypted backup codes
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -96,7 +112,7 @@ model ActivityLog {
   user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   action    String
-  type      ActivityType
+  type      String
   ip        String
   userAgent String
   details   String?
@@ -146,34 +162,18 @@ model UserSession {
 
 // Domain Management Models
 
-enum DomainStatus {
-  active
-  inactive
-  error
-}
 
-enum UpstreamStatus {
-  up
-  down
-  checking
-}
 
-enum LoadBalancerAlgorithm {
-  round_robin
-  least_conn
-  ip_hash
-}
 
-enum SSLStatus {
-  valid
-  expiring
-  expired
-}
+
+
+
+
 
 model Domain {
   id            String       @id @default(cuid())
   name          String       @unique
-  status        DomainStatus @default(inactive)
+  status        String @default("inactive")
   sslEnabled    Boolean      @default(false)
   sslExpiry     DateTime?
   modsecEnabled Boolean      @default(true)
@@ -181,14 +181,14 @@ model Domain {
   // Real IP Configuration (for Cloudflare and other proxies)
   realIpEnabled    Boolean  @default(false)
   realIpCloudflare Boolean  @default(false) // Use Cloudflare IP ranges
-  realIpCustomCidrs String[] @default([])    // Custom CIDR ranges for set_real_ip_from
+  realIpCustomCidrs String   @default("")    // Custom CIDR ranges for set_real_ip_from
 
   // Advanced Configuration
   hstsEnabled        Boolean @default(false) // HTTP Strict Transport Security
   http2Enabled       Boolean @default(true)  // Enable HTTP/2
   grpcEnabled        Boolean @default(false) // Enable gRPC/gRPCs support
   clientMaxBodySize  Int?    @default(100)   // Maximum request body size in MB (client_max_body_size)
-  customLocations    Json?                   // Custom location blocks configuration
+  customLocations    String?                   // Custom location blocks configuration
 
   // Relations
   upstreams      Upstream[]
@@ -218,7 +218,7 @@ model Upstream {
   weight      Int            @default(1)
   maxFails    Int            @default(3)
   failTimeout Int            @default(10) // seconds
-  status      UpstreamStatus @default(checking)
+  status      String @default("checking")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -232,7 +232,7 @@ model LoadBalancerConfig {
   domainId String @unique
   domain   Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
 
-  algorithm           LoadBalancerAlgorithm @default(round_robin)
+  algorithm           String @default("round_robin")
   healthCheckEnabled  Boolean               @default(true)
   healthCheckInterval Int                   @default(30) // seconds
   healthCheckTimeout  Int                   @default(5) // seconds
@@ -250,7 +250,7 @@ model SSLCertificate {
   domain   Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
 
   commonName  String
-  sans        String[] // Subject Alternative Names
+  sans        String // Subject Alternative Names
   issuer      String
   subject     String?  // Full subject string (e.g., "CN=example.com, O=Example, C=US")
   certificate String   // PEM format
@@ -258,14 +258,14 @@ model SSLCertificate {
   chain       String?  // PEM format
   
   // Additional certificate details stored as JSON
-  subjectDetails Json? // { commonName, organization, country }
-  issuerDetails  Json? // { commonName, organization, country }
+  subjectDetails String? // { commonName, organization, country }
+  issuerDetails  String? // { commonName, organization, country }
   serialNumber   String? // Certificate serial number
 
   validFrom DateTime
   validTo   DateTime
   autoRenew Boolean   @default(true)
-  status    SSLStatus @default(valid)
+  status    String @default("valid")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -349,23 +349,16 @@ model InstallationStatus {
   @@map("installation_status")
 }
 
-enum NotificationChannelType {
-  email
-  telegram
-}
 
-enum AlertSeverity {
-  critical
-  warning
-  info
-}
+
+
 
 model NotificationChannel {
   id      String                  @id @default(cuid())
   name    String
-  type    NotificationChannelType
+  type    String
   enabled Boolean                 @default(true)
-  config  Json // { email?, chatId?, botToken? }
+  config  String // { email?, chatId?, botToken? }
 
   alertRules AlertRuleChannel[]
 
@@ -380,7 +373,7 @@ model AlertRule {
   name          String
   condition     String // cpu > threshold, upstream_status == down, etc.
   threshold     Int
-  severity      AlertSeverity
+  severity      String
   enabled       Boolean       @default(true)
   checkInterval Int           @default(60) // Check interval in seconds (default: 60s)
 
@@ -410,7 +403,7 @@ model AlertRuleChannel {
 
 model AlertHistory {
   id             String        @id @default(cuid())
-  severity       AlertSeverity
+  severity       String
   message        String
   source         String
   acknowledged   Boolean       @default(false)
@@ -426,40 +419,22 @@ model AlertHistory {
   @@map("alert_history")
 }
 
-enum AclType {
-  whitelist
-  blacklist
-}
 
-enum AclField {
-  ip
-  geoip
-  user_agent
-  url
-  method
-  header
-}
 
-enum AclOperator {
-  equals
-  contains
-  regex
-}
 
-enum AclAction {
-  allow
-  deny
-  challenge
-}
+
+
+
+
 
 model AclRule {
   id                String      @id @default(cuid())
   name              String
-  type              AclType
-  conditionField    AclField
-  conditionOperator AclOperator
+  type              String
+  conditionField    String
+  conditionOperator String
   conditionValue    String
-  action            AclAction
+  action            String
   enabled           Boolean     @default(true)
 
   createdAt DateTime @default(now())
@@ -470,21 +445,17 @@ model AclRule {
 
 // Access Lists Management Models
 
-enum AccessListType {
-  ip_whitelist
-  http_basic_auth
-  combined // Both IP and Basic Auth
-}
+
 
 model AccessList {
   id          String         @id @default(cuid())
   name        String         @unique
   description String?
-  type        AccessListType
+  type        String
   enabled     Boolean        @default(true)
 
   // IP Whitelist configuration
-  allowedIps String[] @default([]) // List of allowed IP addresses/CIDR
+  allowedIps String   @default("") // List of allowed IP addresses/CIDR
 
   // HTTP Basic Auth configuration
   authUsers AccessListAuthUser[]
@@ -551,12 +522,7 @@ model PerformanceMetric {
   @@map("performance_metrics")
 }
 
-enum BackupStatus {
-  success
-  failed
-  running
-  pending
-}
+
 
 model BackupSchedule {
   id       String       @id @default(cuid())
@@ -565,7 +531,7 @@ model BackupSchedule {
   enabled  Boolean      @default(true)
   lastRun  DateTime?
   nextRun  DateTime?
-  status   BackupStatus @default(pending)
+  status   String @default("pending")
 
   backups BackupFile[]
 
@@ -583,10 +549,10 @@ model BackupFile {
   filename String
   filepath String
   size     Int // Size in bytes
-  status   BackupStatus @default(success)
+  status   String @default("success")
   type     String       @default("full") // full, incremental, manual
 
-  metadata Json? // Additional metadata (domains count, rules count, etc.)
+  metadata String? // Additional metadata (domains count, rules count, etc.)
 
   createdAt DateTime @default(now())
 
@@ -595,30 +561,13 @@ model BackupFile {
   @@map("backup_files")
 }
 
-enum SlaveNodeStatus {
-  online
-  offline
-  syncing
-  error
-}
 
-enum SyncLogStatus {
-  success
-  failed
-  partial
-  running
-}
 
-enum SyncLogType {
-  full_sync
-  incremental_sync
-  health_check
-}
 
-enum NodeMode {
-  master
-  slave
-}
+
+
+
+
 
 model SlaveNode {
   id     String @id @default(cuid())
@@ -627,7 +576,7 @@ model SlaveNode {
   port   Int    @default(3001)
   apiKey String @unique // Authentication token for slave
 
-  status   SlaveNodeStatus @default(offline)
+  status   String @default("offline")
   lastSeen DateTime?
   version  String?
 
@@ -655,7 +604,7 @@ model SlaveNode {
 
 model SystemConfig {
   id       String   @id @default(cuid())
-  nodeMode NodeMode @default(master) // master or slave
+  nodeMode String @default("master") // master or slave
 
   // Master mode settings
   masterApiEnabled Boolean @default(true)
@@ -684,8 +633,8 @@ model SyncLog {
   nodeId String
   node   SlaveNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
 
-  type   SyncLogType
-  status SyncLogStatus @default(running)
+  type   String
+  status String @default("running")
 
   configHash   String?
   changesCount Int?
@@ -701,9 +650,9 @@ model SyncLog {
 
 model ConfigVersion {
   id         String @id @default(cuid())
-  version    Int    @default(autoincrement())
+  version    Int    @default(1)
   configHash String @unique
-  configData Json // Serialized config
+  configData String // Serialized config
 
   createdBy   String?
   description String?
@@ -716,39 +665,22 @@ model ConfigVersion {
 
 // Network Load Balancer Models
 
-enum NLBStatus {
-  active
-  inactive
-  error
-}
 
-enum NLBProtocol {
-  tcp
-  udp
-  tcp_udp // Both TCP and UDP
-}
 
-enum NLBAlgorithm {
-  round_robin
-  least_conn
-  ip_hash
-  hash
-}
 
-enum NLBUpstreamStatus {
-  up
-  down
-  checking
-}
+
+
+
+
 
 model NetworkLoadBalancer {
   id          String      @id @default(cuid())
   name        String      @unique
   description String?
   port        Int // Listen port (must be >= 10000)
-  protocol    NLBProtocol @default(tcp)
-  algorithm   NLBAlgorithm @default(round_robin)
-  status      NLBStatus   @default(inactive)
+  protocol    String @default("tcp")
+  algorithm   String @default("round_robin")
+  status      String   @default("inactive")
   enabled     Boolean     @default(true)
 
   // Advanced settings
@@ -790,7 +722,7 @@ model NLBUpstream {
   maxConns    Int               @default(0) // 0 = unlimited
   backup      Boolean           @default(false)
   down        Boolean           @default(false) // Manually mark as down
-  status      NLBUpstreamStatus @default(checking)
+  status      String @default("checking")
 
   // Metadata
   lastCheck   DateTime?
@@ -812,7 +744,7 @@ model NLBHealthCheck {
 
   upstreamHost String
   upstreamPort Int
-  status       NLBUpstreamStatus
+  status       String
   responseTime Float? // milliseconds
   error        String?
 
