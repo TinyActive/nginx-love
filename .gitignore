@@ -37,6 +37,14 @@ package-lock.json
 bun.lockb
 yarn.lock
 
+# Database files (SQLite)
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+apps/api/prisma/*.db
+apps/api/prisma/*.db-*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

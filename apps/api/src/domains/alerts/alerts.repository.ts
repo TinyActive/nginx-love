@@ -13,6 +13,32 @@ import {
 import { NotificationChannel, AlertRuleWithChannels } from './alerts.types';
 
 /**
+ * Helper functions for SQLite JSON serialization/deserialization
+ */
+const deserializeConfig = (config: string | null): any => {
+  if (!config) return null;
+  try {
+    return JSON.parse(config);
+  } catch {
+    return null;
+  }
+};
+
+const serializeConfig = (config: any): string | null => {
+  if (!config) return null;
+  if (typeof config === 'string') return config;
+  return JSON.stringify(config);
+};
+
+const transformNotificationChannel = (channel: any): any => {
+  if (!channel) return channel;
+  return {
+    ...channel,
+    config: deserializeConfig(channel.config),
+  };
+};
+
+/**
  * Notification Channel Repository
  */
 export class NotificationChannelRepository {
@@ -20,47 +46,51 @@ export class NotificationChannelRepository {
    * Get all notification channels
    */
   async findAll(): Promise<NotificationChannel[]> {
-    return await prisma.notificationChannel.findMany({
+    const channels = await prisma.notificationChannel.findMany({
       orderBy: {
         createdAt: 'desc'
       }
-    }) as NotificationChannel[];
+    });
+    return channels.map(transformNotificationChannel) as NotificationChannel[];
   }
 
   /**
    * Get single notification channel by ID
    */
   async findById(id: string): Promise<NotificationChannel | null> {
-    return await prisma.notificationChannel.findUnique({
+    const channel = await prisma.notificationChannel.findUnique({
       where: { id }
-    }) as NotificationChannel | null;
+    });
+    return transformNotificationChannel(channel) as NotificationChannel | null;
   }
 
   /**
    * Get multiple channels by IDs
    */
   async findByIds(ids: string[]): Promise<NotificationChannel[]> {
-    return await prisma.notificationChannel.findMany({
+    const channels = await prisma.notificationChannel.findMany({
       where: {
         id: {
           in: ids
         }
       }
-    }) as NotificationChannel[];
+    });
+    return channels.map(transformNotificationChannel) as NotificationChannel[];
   }
 
   /**
    * Create notification channel
    */
   async create(data: CreateNotificationChannelDto): Promise<NotificationChannel> {
-    return await prisma.notificationChannel.create({
+    const channel = await prisma.notificationChannel.create({
       data: {
         name: data.name,
         type: data.type as any,
         enabled: data.enabled !== undefined ? data.enabled : true,
-        config: data.config as any
+        config: serializeConfig(data.config) as any
       }
-    }) as NotificationChannel;
+    });
+    return transformNotificationChannel(channel) as NotificationChannel;
   }
 
   /**
@@ -71,12 +101,13 @@ export class NotificationChannelRepository {
     if (data.name) updateData.name = data.name;
     if (data.type) updateData.type = data.type;
     if (data.enabled !== undefined) updateData.enabled = data.enabled;
-    if (data.config) updateData.config = data.config;
+    if (data.config) updateData.config = serializeConfig(data.config);
 
-    return await prisma.notificationChannel.update({
+    const channel = await prisma.notificationChannel.update({
       where: { id },
       data: updateData
-    }) as NotificationChannel;
+    });
+    return transformNotificationChannel(channel) as NotificationChannel;
   }
 
   /**

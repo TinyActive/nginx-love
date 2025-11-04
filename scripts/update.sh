@@ -21,9 +21,7 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BACKEND_DIR="$PROJECT_DIR/apps/api"
 FRONTEND_DIR="$PROJECT_DIR/apps/web"
 LOG_FILE="/var/log/nginx-love-ui-update.log"
-
-# Database configuration
-DB_CONTAINER_NAME="nginx-love-postgres"
+DB_DIR="$BACKEND_DIR/prisma"
 
 # Logging functions
 log() {
@@ -61,10 +59,7 @@ if ! systemctl list-unit-files | grep -q nginx-love-frontend.service; then
     error "Frontend service not found. Please run deploy.sh first."
 fi
 
-# Check if database container exists
-if ! docker ps -a | grep -q "${DB_CONTAINER_NAME}"; then
-    error "Database container '${DB_CONTAINER_NAME}' not found. Please run deploy.sh first."
-fi
+log "✓ Services check passed"
 
 # Step 1: Check prerequisites
 log "Step 1/6: Checking prerequisites..."
@@ -125,13 +120,6 @@ pnpm install >> "${LOG_FILE}" 2>&1 || error "Failed to update monorepo dependenc
 
 cd "${BACKEND_DIR}"
 
-# Start database if not running
-if ! docker ps | grep -q "${DB_CONTAINER_NAME}" 2>/dev/null; then
-    log "Starting database container..."
-    docker start "${DB_CONTAINER_NAME}" 2>/dev/null || warn "Could not start database container"
-    sleep 3
-fi
-
 # Generate Prisma client
 log "Generating Prisma client..."
 pnpm prisma generate >> "$LOG_FILE" 2>&1 || error "Failed to generate Prisma client"
@@ -181,13 +169,6 @@ log "✓ Frontend build completed"
 
 # Step 5: Restart services
 log "Step 5/6: Starting services..."
-
-# Database should already be running from Step 3, just verify
-if ! docker ps | grep -q "${DB_CONTAINER_NAME}"; then
-    error "Database container stopped unexpectedly. Please check Docker status."
-else
-    log "✓ Database container is running"
-fi
 
 # Start backend service
 systemctl start nginx-love-backend.service || error "Failed to start backend service"
@@ -290,23 +271,25 @@ log ""
 log "📋 Updated Components:"
 log "  • Backend API: Rebuilt and restarted"
 log "  • Frontend UI: Rebuilt and restarted"
-log "  • Database: Migrations applied, missing data created (existing data preserved)"
+log "  • Database: SQLite migrations applied (${DB_DIR}/nginx_waf.db)"
 log ""
 log "🌐 Services Status:"
 log "  • Backend API: http://${PUBLIC_IP}:3001"
 log "  • Frontend UI: http://${PUBLIC_IP}:8080"
-log "  • Database: Running in Docker container"
+log "  • Database: SQLite file at ${DB_DIR}/nginx_waf.db"
 log ""
 log "📝 Manage Services:"
 log "  Backend:    systemctl {start|stop|restart|status} nginx-love-backend"
 log "  Frontend:   systemctl {start|stop|restart|status} nginx-love-frontend"
-log "  Database:   docker {start|stop|restart} ${DB_CONTAINER_NAME}"
 log ""
 log "📊 View Logs:"
 log "  Backend:    tail -f /var/log/nginx-love-backend.log"
 log "  Frontend:   tail -f /var/log/nginx-love-frontend.log"
-log "  Database:   docker logs -f ${DB_CONTAINER_NAME}"
 log "  Update:     tail -f ${LOG_FILE}"
+log ""
+log "💾 Database Backup:"
+log "  Backup:     cp ${DB_DIR}/nginx_waf.db ${DB_DIR}/nginx_waf.db.backup"
+log "  Restore:    cp ${DB_DIR}/nginx_waf.db.backup ${DB_DIR}/nginx_waf.db"
 log ""
 log "🔐 Access the portal at: http://${PUBLIC_IP}:8080"
 log ""

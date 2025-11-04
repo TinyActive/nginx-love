@@ -235,15 +235,15 @@ export class BackupService {
         schedule: { connect: { id } },
         filename,
         filepath,
-        size: BigInt(stats.size),
+        size: Number(stats.size), // Convert to Number for SQLite (Int type)
         status: 'success',
         type: 'manual',
-        metadata: {
+        metadata: JSON.stringify({
           domainsCount: backupData.domains.length,
           sslCount: backupData.ssl.length,
           modsecRulesCount: backupData.modsec.customRules.length,
           aclRulesCount: backupData.acl.length,
-        },
+        }),
       });
 
       // Update schedule status
@@ -462,7 +462,7 @@ export class BackupService {
           return {
             domainName: s.domain?.name || '',
             commonName: s.commonName,
-            sans: s.sans,
+            sans: JSON.parse(s.sans || '[]'), // Deserialize from JSON string
             issuer: s.issuer,
             autoRenew: s.autoRenew,
             validFrom: s.validFrom,
@@ -475,7 +475,7 @@ export class BackupService {
         return {
           domainName: s.domain.name,
           commonName: s.commonName,
-          sans: s.sans,
+          sans: JSON.parse(s.sans || '[]'), // Deserialize from JSON string
           issuer: s.issuer,
           autoRenew: s.autoRenew,
           validFrom: s.validFrom,

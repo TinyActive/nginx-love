@@ -28,7 +28,7 @@ Nginx WAF - Advanced Nginx Management Platform offers full support for major ope
 - 🛡️ **Access Control Lists (ACL)** - IP whitelist/blacklist, GeoIP, User-Agent filtering
 - 📋 **Activity Logging** - Comprehensive audit trail
 - 🔔 **Smart Alerts** - Email/Telegram notifications with custom conditions
-- 💾 **Database Management** - PostgreSQL with Prisma ORM
+- 💾 **Database Management** - SQLite with Prisma ORM (no Docker required)
 - 🎨 **Modern UI** - React + TypeScript + ShadCN UI + Tailwind CSS
 
 ## 📦 Quick Start
@@ -40,6 +40,7 @@ Nginx WAF - Advanced Nginx Management Platform offers full support for major ope
 | **New Server (Production)** | `./scripts/deploy.sh` | Full installation of Nginx + ModSecurity + Backend + Frontend with systemd services |
 | **Development/Testing** | `./scripts/quickstart.sh` | Quick run in dev mode (no Nginx installation, no root required) |
 | **Upgrade New Version** | `./scripts/update.sh` | Full update to new version |
+| **Migrate PostgreSQL → SQLite** | `./scripts/migrate-postgres-to-sqlite.sh` | Migrate existing PostgreSQL data to SQLite (see [Migration Guide](docs/MIGRATION_POSTGRES_TO_SQLITE.md)) |
 
 | Use Case | Port | Description |
 |----------|--------|-------------|
@@ -69,6 +70,32 @@ git pull
 bash scripts/update.sh
 ```
 
+### 🔄 Migrating from PostgreSQL to SQLite
+
+If you have an existing installation using PostgreSQL and want to migrate to SQLite:
+
+```bash
+# Navigate to your nginx-love directory
+cd nginx-love
+
+# Run the migration script (requires root)
+sudo bash scripts/migrate-postgres-to-sqlite.sh
+```
+
+**What the migration script does:**
+- ✅ Exports all data from PostgreSQL (users, domains, SSL certificates, rules, etc.)
+- ✅ Creates a new SQLite database
+- ✅ Imports all data with proper type conversions
+- ✅ Backs up your original configuration
+- ✅ Provides rollback instructions if needed
+
+**After migration:**
+1. Restart services: `sudo systemctl restart nginx-love-backend nginx-love-frontend`
+2. Verify all data is present in the web interface
+3. Optionally remove PostgreSQL: See [Migration Guide](docs/MIGRATION_POSTGRES_TO_SQLITE.md)
+
+📖 **Full Migration Guide**: [docs/MIGRATION_POSTGRES_TO_SQLITE.md](docs/MIGRATION_POSTGRES_TO_SQLITE.md)
+
 ### 🖥️ Production Deployment (Docker container)
 
 ## Environment Setup
@@ -88,16 +115,14 @@ Before running the application, you need to set up your environment variables:
       | `JWT_REFRESH_SECRET` | Secret key for JWT refresh tokens | `your-random-secret-key-32-chars` | ✅ Yes |
       | `SESSION_SECRET` | Secret key for session management | `your-random-secret-key-32-chars` | ✅ Yes |
       | `VITE_API_URL` | Backend API URL for frontend | `http://YOUR_SERVER_IP:3001/api` | ✅ Yes |
-      | `DB_NAME` | PostgreSQL database name | `nginx_waf` | ✅ Yes |
-      | `DB_USER` | PostgreSQL database user | `postgres` | ✅ Yes |
-      | `DB_PASSWORD` | PostgreSQL database password | `postgres` | ✅ Yes |
-      | `POSTGRES_INITDB_ARGS` | PostgreSQL initialization arguments | `--encoding=UTF-8 --lc-collate=C --lc-ctype=C` | ⚠️ Optional |
       | `CORS_ORIGIN` | Allowed CORS origins (comma-separated) | `http://YOUR_SERVER_IP:8080,http://localhost:8080` | ✅ Yes |
 
       **Security Note**: Generate strong random secrets using:
       ```bash
       openssl rand -base64 32
       ```
+
+      **Database Note**: SQLite is used by default (file-based, no separate server needed). The database file will be created automatically at `apps/api/prisma/nginx_waf.db`.
 
 2. Edit the `.env` file and configure the necessary environment variables according to your local setup.
 
@@ -155,10 +180,9 @@ Currently, automatic upgrades are **not supported** for Docker Compose deploymen
 The script will **automatically install everything**:
 - ✅ Node.js 20.x (if not present)
 - ✅ pnpm 8.15.0 (if not present)
-- ✅ Docker + Docker Compose (if not present)
-- ✅ PostgreSQL 15 container (auto-generated credentials)
 - ✅ Nginx + ModSecurity + OWASP CRS
 - ✅ Backend API + Frontend (production build)
+- ✅ SQLite database (file-based, no Docker required)
 - ✅ Systemd services with auto-start
 - ✅ CORS configuration with Public IP
 
@@ -177,7 +201,7 @@ cd nginx-love
 
 This will:
 - Install dependencies
-- Start PostgreSQL in Docker (optional)
+- Create SQLite database file automatically
 - Run database migrations and seeding
 - Start backend on http://localhost:3001
 - Start frontend on http://localhost:8080 (dev mode)
@@ -289,7 +313,7 @@ Password: admin123
 - **API Documentation**: OpenAPI/Swagger
 
 ### Infrastructure
-- **Database**: PostgreSQL 15 (Docker)
+- **Database**: SQLite 3 (file-based, no server required)
 - **Web Server**: Nginx + ModSecurity 3.x
 - **SSL**: Let's Encrypt (acme.sh) + Manual certificates
 - **WAF**: OWASP ModSecurity Core Rule Set (CRS)
@@ -317,9 +341,9 @@ Password: admin123
          ▼
 ┌─────────────────┐
 │                 │
-│   PostgreSQL    │
-│   Database      │
-│   Port: 5432    │
+│   SQLite DB     │
+│   (File-based)  │
+│   nginx_waf.db  │
 └─────────────────┘
 ```
 
@@ -336,17 +360,16 @@ Password: admin123
 - **Alert System**: Configurable alerts with multi-channel notifications
 - **Activity Logs**: Comprehensive audit trail
 
+**Database**: SQLite 3 (file-based at `apps/api/prisma/nginx_waf.db`)
+- No Docker required
+- No PostgreSQL installation needed
+- Simple backup: just copy the `.db` file
+
 ## 🔧 Service Management
 
 ### Production (systemd services)
 
 ```bash
-# PostgreSQL Database
-docker start nginx-love-postgres
-docker stop nginx-love-postgres
-docker restart nginx-love-postgres
-docker logs -f nginx-love-postgres
-
 # Backend API Service
 sudo systemctl start nginx-love-backend
 sudo systemctl stop nginx-love-backend
@@ -366,6 +389,24 @@ sudo systemctl restart nginx
 sudo systemctl status nginx
 sudo nginx -t  # Test configuration
 sudo nginx -s reload  # Reload configuration
+```
+
+### Database Management
+
+```bash
+# Backup database
+sudo cp /path/to/apps/api/prisma/nginx_waf.db /path/to/backup/nginx_waf.db.backup
+
+# Restore database
+sudo cp /path/to/backup/nginx_waf.db.backup /path/to/apps/api/prisma/nginx_waf.db
+sudo systemctl restart nginx-love-backend
+
+# View database (using sqlite3 CLI)
+sqlite3 /path/to/apps/api/prisma/nginx_waf.db
+# .tables          # List all tables
+# .schema users    # Show table structure
+# SELECT * FROM users LIMIT 5;  # Query data
+# .quit            # Exit
 ```
 
 ### Development Environment
@@ -406,7 +447,6 @@ tail -f /var/log/nginx-love-backend.log      # Backend log file
 tail -f /var/log/nginx-love-frontend.log     # Frontend log file
 
 # System logs
-docker logs -f nginx-love-postgres           # Database logs
 tail -f /var/log/nginx/access.log           # Nginx access logs
 tail -f /var/log/nginx/error.log            # Nginx error logs
 tail -f /var/log/modsec_audit.log           # ModSecurity audit logs
@@ -426,9 +466,6 @@ tail -f /tmp/frontend.log    # Frontend development logs
 cd apps/api && pnpm dev    # Shows real-time backend logs
 cd apps/web && pnpm dev    # Shows real-time frontend logs + HMR
 
-# Database logs
-docker logs -f nginx-love-postgres
-
 # Combined log viewing
 multitail /tmp/backend.log /tmp/frontend.log
 ```
@@ -440,7 +477,6 @@ multitail /tmp/backend.log /tmp/frontend.log
 # Check what's using ports
 sudo netstat -tulnp | grep :3001    # Backend port
 sudo netstat -tulnp | grep :8080    # Frontend port (dev & prod)
-sudo netstat -tulnp | grep :5432    # PostgreSQL port
 
 # Kill processes on specific ports
 sudo lsof -ti:3001 | xargs kill -9  # Backend
@@ -454,22 +490,28 @@ sudo fuser -k 8080/tcp
 
 ### Database Issues
 ```bash
-# Check PostgreSQL container
-docker ps | grep postgres
-docker container inspect nginx-love-postgres
+# Check database file
+ls -lh apps/api/prisma/nginx_waf.db
+sqlite3 apps/api/prisma/nginx_waf.db ".tables"
 
-# Check database connectivity
+# Reset database (WARNING: deletes all data)
 cd apps/api
-pnpm prisma db push --force-reset  # Reset database
-pnpm prisma generate                # Regenerate client
-pnpm prisma migrate reset           # Reset migrations
+rm -f prisma/nginx_waf.db prisma/nginx_waf.db-journal
+pnpm prisma migrate dev        # Recreate and migrate
+pnpm prisma:seed               # Reseed with initial data
+
+# Regenerate Prisma client
+pnpm prisma generate
 
 # Check environment variables
 cat apps/api/.env | grep DATABASE_URL
 cd apps/api && node -e "console.log(process.env.DATABASE_URL)"
 
-# Direct database connection test
-docker exec -it nginx-love-postgres psql -U nginx_love_user -d nginx_love_db
+# Backup database
+cp apps/api/prisma/nginx_waf.db apps/api/prisma/nginx_waf.db.backup-$(date +%Y%m%d)
+
+# Restore database
+cp apps/api/prisma/nginx_waf.db.backup-YYYYMMDD apps/api/prisma/nginx_waf.db
 ```
 
 ### Nginx Configuration Issues
@@ -497,13 +539,9 @@ free -h
 
 # Check application memory usage
 ps aux | grep node | grep -v grep
-docker stats nginx-love-postgres
 
-# Database performance
-docker exec -it nginx-love-postgres psql -U nginx_love_user -d nginx_love_db -c "
-SELECT schemaname,tablename,attname,n_distinct,correlation
-FROM pg_stats WHERE tablename IN ('domains','users','performance_metrics');
-"
+# Database file size
+du -h apps/api/prisma/nginx_waf.db
 ```
 
 ### Common Error Solutions
@@ -517,11 +555,17 @@ sudo kill -9 <PID>
 
 **Error: "Database connection failed"**
 ```bash
-# Restart PostgreSQL container
-docker restart nginx-love-postgres
-# Wait 10 seconds for startup
-sleep 10
-cd apps/api && pnpm dev
+# Check if database file exists
+ls -l apps/api/prisma/nginx_waf.db
+
+# Check DATABASE_URL environment variable
+cat apps/api/.env | grep DATABASE_URL
+
+# Recreate database if corrupted
+cd apps/api
+rm -f prisma/nginx_waf.db prisma/nginx_waf.db-journal
+pnpm prisma migrate dev
+pnpm prisma:seed
 ```
 
 **Error: "ModSecurity failed to load"**
@@ -552,9 +596,9 @@ cd nginx-love
 pnpm install
 
 # 3. Setup database
-docker-compose -f docker-compose.db.yml up -d
 cd apps/api
 cp .env.example .env          # Configure environment variables
+# Edit .env and set DATABASE_URL="file:./nginx_waf.db"
 pnpm prisma:migrate        # Run database migrations
 pnpm prisma:seed          # Seed initial data
 

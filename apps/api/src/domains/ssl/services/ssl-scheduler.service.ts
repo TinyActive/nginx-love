@@ -88,11 +88,11 @@ class SSLSchedulerService {
         privateKey: certFiles.privateKey,
         chain: certFiles.chain,
         commonName: certInfo.commonName,
-        sans: certInfo.sans,
+        sans: JSON.stringify(certInfo.sans), // Serialize array for SQLite
         issuer: certInfo.issuer,
         subject: certInfo.subject,
-        subjectDetails: certInfo.subjectDetails,
-        issuerDetails: certInfo.issuerDetails,
+        subjectDetails: JSON.stringify(certInfo.subjectDetails), // Serialize object for SQLite
+        issuerDetails: JSON.stringify(certInfo.issuerDetails), // Serialize object for SQLite
         serialNumber: certInfo.serialNumber,
         validFrom: certInfo.validFrom,
         validTo: certInfo.validTo,

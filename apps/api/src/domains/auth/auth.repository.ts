@@ -1,6 +1,6 @@
 import prisma from '../../config/database';
 import { UserWithTwoFactor, RefreshTokenWithUser, RequestMetadata } from './auth.types';
-import { ActivityType } from '@prisma/client';
+import { ActivityType } from '../../shared/types/enums';
 
 /**
  * Auth repository - Handles all Prisma database operations for authentication
@@ -36,7 +36,7 @@ export class AuthRepository {
   async createActivityLog(
     userId: string | null,
     action: string,
-    type: ActivityType,
+    type: ActivityType | string, // Accept both enum and string literals for SQLite compatibility
     metadata: RequestMetadata,
     success: boolean,
     details?: string
@@ -45,7 +45,7 @@ export class AuthRepository {
       data: {
         userId,
         action,
-        type,
+        type: type as string, // SQLite stores as string
         ip: metadata.ip,
         userAgent: metadata.userAgent,
         success,

@@ -10,6 +10,40 @@ import { PaginationMeta } from '../../shared/types/common.types';
 import { DEFAULT_CLIENT_MAX_BODY_SIZE } from '../../shared/constants/domain.constants';
 
 /**
+ * Helper functions for SQLite JSON/array deserialization
+ */
+const deserializeCustomLocations = (str: string | null): any => {
+  if (!str) return null;
+  try {
+    return JSON.parse(str);
+  } catch {
+    return null;
+  }
+};
+
+const deserializeRealIpCustomCidrs = (str: string | null): string[] => {
+  if (!str) return [];
+  try {
+    const parsed = JSON.parse(str);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * Transform database domain to include deserialized JSON fields
+ */
+const transformDomain = (domain: any): any => {
+  if (!domain) return domain;
+  return {
+    ...domain,
+    customLocations: deserializeCustomLocations(domain.customLocations),
+    realIpCustomCidrs: deserializeRealIpCustomCidrs(domain.realIpCustomCidrs),
+  };
+};
+
+/**
  * Repository for domain database operations
  */
 export class DomainsRepository {
@@ -82,7 +116,7 @@ export class DomainsRepository {
     const totalPages = Math.ceil(totalCount / limitNum);
 
     return {
-      domains: domains as DomainWithRelations[],
+      domains: domains.map(transformDomain) as DomainWithRelations[],
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -135,7 +169,7 @@ export class DomainsRepository {
       },
     });
 
-    return domain as DomainWithRelations | null;
+    return transformDomain(domain) as DomainWithRelations | null;
   }
 
   /**
@@ -149,13 +183,13 @@ export class DomainsRepository {
         modsecEnabled: input.modsecEnabled !== undefined ? input.modsecEnabled : true,
         realIpEnabled: input.realIpConfig?.realIpEnabled || false,
         realIpCloudflare: input.realIpConfig?.realIpCloudflare || false,
-        realIpCustomCidrs: input.realIpConfig?.realIpCustomCidrs || [],
+        realIpCustomCidrs: JSON.stringify(input.realIpConfig?.realIpCustomCidrs || []),
         // Advanced configuration
         hstsEnabled: input.advancedConfig?.hstsEnabled || false,
         http2Enabled: input.advancedConfig?.http2Enabled !== undefined ? input.advancedConfig.http2Enabled : true,
         grpcEnabled: input.advancedConfig?.grpcEnabled || false,
         clientMaxBodySize: input.advancedConfig?.clientMaxBodySize !== undefined ? input.advancedConfig.clientMaxBodySize : DEFAULT_CLIENT_MAX_BODY_SIZE,
-        customLocations: input.advancedConfig?.customLocations ? JSON.parse(JSON.stringify(input.advancedConfig.customLocations)) : null,
+        customLocations: input.advancedConfig?.customLocations ? JSON.stringify(input.advancedConfig.customLocations) : null,
         upstreams: {
           create: input.upstreams.map((u: CreateUpstreamData) => ({
             host: u.host,
@@ -188,7 +222,7 @@ export class DomainsRepository {
       },
     });
 
-    return domain as DomainWithRelations;
+    return transformDomain(domain) as DomainWithRelations;
   }
 
   /**
@@ -205,7 +239,7 @@ export class DomainsRepository {
       },
     });
 
-    return domain as DomainWithRelations;
+    return transformDomain(domain) as DomainWithRelations;
   }
 
   /**
@@ -249,7 +283,7 @@ export class DomainsRepository {
             : currentDomain.realIpCloudflare,
         realIpCustomCidrs:
           input.realIpConfig?.realIpCustomCidrs !== undefined
-            ? input.realIpConfig.realIpCustomCidrs
+            ? JSON.stringify(input.realIpConfig.realIpCustomCidrs)
             : currentDomain.realIpCustomCidrs,
         // Advanced configuration
         hstsEnabled:
@@ -270,7 +304,7 @@ export class DomainsRepository {
             : currentDomain.clientMaxBodySize,
         customLocations:
           input.advancedConfig?.customLocations !== undefined
-            ? JSON.parse(JSON.stringify(input.advancedConfig.customLocations))
+            ? JSON.stringify(input.advancedConfig.customLocations)
             : currentDomain.customLocations,
       },
     });
