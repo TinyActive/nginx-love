@@ -149,7 +149,7 @@ export class DomainsRepository {
         modsecEnabled: input.modsecEnabled !== undefined ? input.modsecEnabled : true,
         realIpEnabled: input.realIpConfig?.realIpEnabled || false,
         realIpCloudflare: input.realIpConfig?.realIpCloudflare || false,
-        realIpCustomCidrs: input.realIpConfig?.realIpCustomCidrs || [],
+        realIpCustomCidrs: JSON.stringify(input.realIpConfig?.realIpCustomCidrs || []),
         // Advanced configuration
         hstsEnabled: input.advancedConfig?.hstsEnabled || false,
         http2Enabled: input.advancedConfig?.http2Enabled !== undefined ? input.advancedConfig.http2Enabled : true,
@@ -249,7 +249,7 @@ export class DomainsRepository {
             : currentDomain.realIpCloudflare,
         realIpCustomCidrs:
           input.realIpConfig?.realIpCustomCidrs !== undefined
-            ? input.realIpConfig.realIpCustomCidrs
+            ? JSON.stringify(input.realIpConfig.realIpCustomCidrs)
             : currentDomain.realIpCustomCidrs,
         // Advanced configuration
         hstsEnabled:

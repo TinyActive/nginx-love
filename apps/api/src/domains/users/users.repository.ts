@@ -37,7 +37,7 @@ export class UsersRepository {
       orderBy: {
         createdAt: 'desc',
       },
-    });
+    }) as Promise<User[]>;
   }
 
   /**
@@ -47,7 +47,7 @@ export class UsersRepository {
     return prisma.user.findUnique({
       where: { id },
       select: USER_WITH_PROFILE_SELECT_FIELDS,
-    });
+    }) as Promise<UserWithProfile | null>;
   }
 
   /**
@@ -57,7 +57,7 @@ export class UsersRepository {
     return prisma.user.findUnique({
       where: { username },
       select: USER_SELECT_FIELDS,
-    });
+    }) as Promise<User | null>;
   }
 
   /**
@@ -67,7 +67,7 @@ export class UsersRepository {
     return prisma.user.findUnique({
       where: { email },
       select: USER_SELECT_FIELDS,
-    });
+    }) as Promise<User | null>;
   }
 
   /**
@@ -79,7 +79,7 @@ export class UsersRepository {
         OR: [{ username }, { email }],
       },
       select: USER_SELECT_FIELDS,
-    });
+    }) as Promise<User | null>;
   }
 
   /**
@@ -99,7 +99,7 @@ export class UsersRepository {
         language: data.language || 'en',
       },
       select: USER_SELECT_FIELDS,
-    });
+    }) as Promise<User>;
   }
 
   /**
@@ -111,7 +111,7 @@ export class UsersRepository {
     if (data.username !== undefined) updateData.username = data.username;
     if (data.email !== undefined) updateData.email = data.email;
     if (data.fullName !== undefined) updateData.fullName = data.fullName;
-    if (data.role !== undefined) updateData.role = data.role as any;
+    if (data.role !== undefined) updateData.role = data.role;
     if (data.status !== undefined) updateData.status = data.status;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.timezone !== undefined) updateData.timezone = data.timezone;
@@ -122,7 +122,7 @@ export class UsersRepository {
       where: { id },
       data: updateData,
       select: USER_SELECT_FIELDS,
-    });
+    }) as Promise<User>;
   }
 
   /**
@@ -133,7 +133,7 @@ export class UsersRepository {
       where: { id },
       data: { status },
       select: USER_SELECT_FIELDS,
-    });
+    }) as Promise<User>;
   }
 
   /**

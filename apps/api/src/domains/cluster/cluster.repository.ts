@@ -409,7 +409,7 @@ export class ClusterRepository {
           where: { domainId: domain.id },
           update: {
             commonName: sslData.commonName,
-            sans: sslData.sans || [],
+            sans: JSON.stringify(sslData.sans || []), // Serialize array for SQLite
             issuer: sslData.issuer,
             certificate: sslData.certificate,
             privateKey: sslData.privateKey,
@@ -421,7 +421,7 @@ export class ClusterRepository {
           create: {
             domainId: domain.id,
             commonName: sslData.commonName,
-            sans: sslData.sans || [],
+            sans: JSON.stringify(sslData.sans || []), // Serialize array for SQLite
             issuer: sslData.issuer,
             certificate: sslData.certificate,
             privateKey: sslData.privateKey,

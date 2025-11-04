@@ -36,7 +36,7 @@ export class AuthRepository {
   async createActivityLog(
     userId: string | null,
     action: string,
-    type: ActivityType,
+    type: ActivityType | string, // Accept both enum and string literals for SQLite compatibility
     metadata: RequestMetadata,
     success: boolean,
     details?: string
@@ -45,7 +45,7 @@ export class AuthRepository {
       data: {
         userId,
         action,
-        type,
+        type: typeof type === 'string' ? type : type.toString(),
         ip: metadata.ip,
         userAgent: metadata.userAgent,
         success,
