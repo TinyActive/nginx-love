@@ -21,13 +21,9 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BACKEND_DIR="$PROJECT_DIR/apps/api"
 FRONTEND_DIR="$PROJECT_DIR/apps/web"
 LOG_FILE="/var/log/nginx-love-ui-deploy.log"
+DB_DIR="$BACKEND_DIR/prisma"
 
-# Database configuration
-DB_CONTAINER_NAME="nginx-love-postgres"
-DB_NAME="nginx_love_db"
-DB_USER="nginx_love_user"
-DB_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
-DB_PORT=5432
+# Security configuration
 JWT_ACCESS_SECRET=$(openssl rand -base64 64 | tr -d "=+/" | cut -c1-64)
 JWT_REFRESH_SECRET=$(openssl rand -base64 64 | tr -d "=+/" | cut -c1-64)
 SESSION_SECRET=$(openssl rand -base64 64 | tr -d "=+/" | cut -c1-64)
@@ -165,59 +161,15 @@ fi
 PKG_MANAGER="pnpm"
 log "✓ Package manager: ${PKG_MANAGER}"
 
-# Step 2: Setup PostgreSQL with Docker
-log "Step 2/8: Setting up PostgreSQL with Docker..."
+# Step 2: Setup SQLite Database
+log "Step 2/8: Setting up SQLite Database..."
 
-# Stop and remove existing container if exists
-if docker ps -a | grep -q "${DB_CONTAINER_NAME}"; then
-    log "Removing existing PostgreSQL container..."
-    docker stop "${DB_CONTAINER_NAME}" 2>/dev/null || true
-    docker rm "${DB_CONTAINER_NAME}" 2>/dev/null || true
-fi
-
-# Remove old volume to ensure clean installation
-if docker volume ls | grep -q nginx-love-postgres-data; then
-    log "Removing old PostgreSQL volume for clean installation..."
-    docker volume rm nginx-love-postgres-data 2>/dev/null || true
-fi
-
-# Create Docker network if not exists
-if ! docker network ls | grep -q nginx-love-network; then
-    docker network create nginx-love-network >> "$LOG_FILE" 2>&1
-    log "✓ Docker network created"
-fi
-
-# Start PostgreSQL container
-log "Starting PostgreSQL container..."
-docker run -d \
-    --name "${DB_CONTAINER_NAME}" \
-    --network nginx-love-network \
-    -e POSTGRES_DB="${DB_NAME}" \
-    -e POSTGRES_USER="${DB_USER}" \
-    -e POSTGRES_PASSWORD="${DB_PASSWORD}" \
-    -p 127.0.0.1:"${DB_PORT}":5432 \
-    -v nginx-love-postgres-data:/var/lib/postgresql/data \
-    --restart unless-stopped \
-    postgres:15-alpine >> "${LOG_FILE}" 2>&1 || error "Failed to start PostgreSQL container"
-
-# Wait for PostgreSQL to be ready
-log "Waiting for PostgreSQL to be ready..."
-sleep 5
-for i in {1..30}; do
-    if docker exec "${DB_CONTAINER_NAME}" pg_isready -U "${DB_USER}" > /dev/null 2>&1; then
-        log "✓ PostgreSQL is ready"
-        break
-    fi
-    if [ "${i}" -eq 30 ]; then
-        error "PostgreSQL failed to start"
-    fi
-    sleep 1
-done
-
-log "✓ PostgreSQL container started successfully"
-log "  • Database: ${DB_NAME}"
-log "  • User: ${DB_USER}"
-log "  • Port: ${DB_PORT}"
+# Create database directory if it doesn't exist
+mkdir -p "${DB_DIR}"
+log "✓ Database directory created at ${DB_DIR}"
+log "✓ SQLite database will be created at ${DB_DIR}/nginx_waf.db"
+log "  • No Docker container required"
+log "  • No PostgreSQL installation required"
 
 # Step 3: Install Nginx + ModSecurity
 log "Step 3/8: Installing Nginx + ModSecurity..."
@@ -247,8 +199,8 @@ cd "${BACKEND_DIR}"
 # Create backend .env from .env.example (always create fresh)
 log "Creating fresh backend .env from .env.example..."
 cat > ".env" <<EOF
-# Database Configuration
-DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}?schema=public"
+# Database Configuration - SQLite (file-based, no server needed)
+DATABASE_URL="file:./nginx_waf.db"
 
 # Server Configuration
 PORT=3001
@@ -286,7 +238,7 @@ EOF
 log "✅ Created fresh backend .env"
 
 log "✓ Backend .env configured with:"
-log "  • Database: PostgreSQL (Docker)"
+log "  • Database: SQLite (file-based at ${DB_DIR}/nginx_waf.db)"
 log "  • CORS Origins: ${PUBLIC_IP}, localhost"
 log "  • JWT Secrets: Generated (64 chars each)"
 
@@ -298,7 +250,7 @@ pnpm prisma:generate >> "$LOG_FILE" 2>&1 || error "Failed to generate Prisma cli
 log "Running database migrations..."
 pnpm exec prisma migrate deploy >> "$LOG_FILE" 2>&1 || error "Failed to run migrations"
 
-# Force reseed database after fresh PostgreSQL install
+# Force reseed database after fresh installation
 log "Seeding database..."
 rm -f .seeded  # Remove marker to force reseed
 pnpm prisma:seed >> "$LOG_FILE" 2>&1 || warn "Failed to seed database"
@@ -381,7 +333,7 @@ log "Setting up systemd services..."
 cat > /etc/systemd/system/nginx-love-backend.service <<EOF
 [Unit]
 Description=Nginx Love UI Backend
-After=network.target postgresql.service
+After=network.target
 
 [Service]
 Type=simple
@@ -513,17 +465,10 @@ log "Deployment Completed Successfully!"
 log "=================================="
 log ""
 log "📋 Service Status:"
-log "  • PostgreSQL: Docker container '${DB_CONTAINER_NAME}'"
+log "  • Database: SQLite (file-based at ${DB_DIR}/nginx_waf.db)"
 log "  • Backend API: http://${PUBLIC_IP}:3001"
 log "  • Frontend UI: http://${PUBLIC_IP}:8080"
 log "  • Nginx: Port 80/443"
-log ""
-log "🔐 Database Credentials:"
-log "  • Host: localhost"
-log "  • Port: ${DB_PORT}"
-log "  • Database: ${DB_NAME}"
-log "  • Username: ${DB_USER}"
-log "  • Password: ${DB_PASSWORD}"
 log ""
 log "🔑 Security Keys:"
 log "  • JWT Access Secret: ${JWT_ACCESS_SECRET}"
@@ -531,13 +476,11 @@ log "  • JWT Refresh Secret: ${JWT_REFRESH_SECRET}"
 log "  • Session Secret: ${SESSION_SECRET}"
 log ""
 log "📝 Manage Services:"
-log "  PostgreSQL: docker start|stop|restart ${DB_CONTAINER_NAME}"
 log "  Backend:    systemctl {start|stop|restart|status} nginx-love-backend"
 log "  Frontend:   systemctl {start|stop|restart|status} nginx-love-frontend"
 log "  Nginx:      systemctl {start|stop|restart|status} nginx"
 log ""
 log "📊 View Logs:"
-log "  PostgreSQL: docker logs -f ${DB_CONTAINER_NAME}"
 log "  Backend:    tail -f /var/log/nginx-love-backend.log"
 log "  Frontend:   tail -f /var/log/nginx-love-frontend.log"
 log "  Nginx:      tail -f /var/log/nginx/error.log"
@@ -558,13 +501,9 @@ cat > /root/.nginx-love-credentials <<EOF
 Frontend: http://${PUBLIC_IP}:8080
 Backend:  http://${PUBLIC_IP}:3001
 
-## Database (Docker)
-Container: ${DB_CONTAINER_NAME}
-Host: localhost
-Port: ${DB_PORT}
-Database: ${DB_NAME}
-Username: ${DB_USER}
-Password: ${DB_PASSWORD}
+## Database (SQLite)
+Database File: ${DB_DIR}/nginx_waf.db
+Note: No PostgreSQL/Docker container required
 
 ## Security Keys
 JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
@@ -575,11 +514,9 @@ SESSION_SECRET=${SESSION_SECRET}
 Username: admin
 Password: admin123
 
-## Docker Commands
-Start:   docker start ${DB_CONTAINER_NAME}
-Stop:    docker stop ${DB_CONTAINER_NAME}
-Logs:    docker logs -f ${DB_CONTAINER_NAME}
-Connect: docker exec -it ${DB_CONTAINER_NAME} psql -U ${DB_USER} -d ${DB_NAME}
+## Backup Database
+To backup: cp ${DB_DIR}/nginx_waf.db ${DB_DIR}/nginx_waf.db.backup
+To restore: cp ${DB_DIR}/nginx_waf.db.backup ${DB_DIR}/nginx_waf.db
 EOF
 
 chmod 600 /root/.nginx-love-credentials

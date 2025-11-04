@@ -17,52 +17,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BACKEND_DIR="${PROJECT_DIR}/apps/api"
 FRONTEND_DIR="${PROJECT_DIR}/apps/web"
-
-# Database config
-DB_NAME="nginx_love_db"
-DB_USER="nginx_love_user"
-DB_PASSWORD="dev_password_123"
-DB_PORT=5432
+DB_DIR="${BACKEND_DIR}/prisma"
 
 echo "🚀 Nginx Love UI - Quick Start"
 echo "================================"
 echo ""
 
-# Check Docker (optional)
-USE_DOCKER=false
-if command -v docker &> /dev/null && command -v docker-compose &> /dev/null; then
-    read -p "Use Docker for PostgreSQL? (y/n, default: y): " USE_DOCKER_INPUT
-    if [ "${USE_DOCKER_INPUT}" != "n" ]; then
-        USE_DOCKER=true
-    fi
-fi
+# Setup SQLite Database
+echo "💾 Using SQLite Database..."
+echo "   Database will be created at: ${DB_DIR}/dev.db"
+echo "   No PostgreSQL/Docker required!"
 
-# Setup PostgreSQL
-if [ "${USE_DOCKER}" = true ]; then
-    echo "🐳 Starting PostgreSQL with Docker..."
-    
-    # Stop existing container if any
-    docker stop nginx-love-postgres 2>/dev/null || true
-    docker rm nginx-love-postgres 2>/dev/null || true
-    
-    # Start PostgreSQL
-    docker run -d \
-        --name nginx-love-postgres \
-        -e POSTGRES_DB="${DB_NAME}" \
-        -e POSTGRES_USER="${DB_USER}" \
-        -e POSTGRES_PASSWORD="${DB_PASSWORD}" \
-        -p "${DB_PORT}":5432 \
-        postgres:15-alpine > /dev/null
-    
-    echo "✅ PostgreSQL started in Docker"
-    echo "   Waiting for database to be ready..."
-    sleep 3
-    
-    DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}?schema=public"
-else
-    echo "📋 Please ensure PostgreSQL is running and update DATABASE_URL in backend/.env"
-    DATABASE_URL=${DATABASE_URL:-"postgresql://user:password@localhost:5432/nginx_love_db?schema=public"}
-fi
+DATABASE_URL="file:./dev.db"
 
 # Create backend .env from .env.example
 if [ ! -f "${BACKEND_DIR}/.env" ]; then
@@ -140,11 +106,7 @@ echo "   Backend:  tail -f /tmp/backend.log"
 echo "   Frontend: tail -f /tmp/frontend.log"
 echo ""
 echo "🛑 Stop:"
-if [ "${USE_DOCKER}" = true ]; then
-    echo "   kill ${BACKEND_PID} ${FRONTEND_PID} && docker stop nginx-love-postgres"
-else
-    echo "   kill ${BACKEND_PID} ${FRONTEND_PID}"
-fi
+echo "   kill ${BACKEND_PID} ${FRONTEND_PID}"
 echo ""
 
 # Wait for services to start
@@ -254,11 +216,7 @@ cleanup() {
         done
     fi
 
-    # Stop Docker PostgreSQL if used
-    if [ "${USE_DOCKER}" = true ]; then
-        docker stop nginx-love-postgres 2>/dev/null && echo "✅ PostgreSQL stopped"
-    fi
-
+    echo "💾 SQLite database preserved at: ${DB_DIR}/dev.db"
     echo "👋 Goodbye!"
     exit 0
 }

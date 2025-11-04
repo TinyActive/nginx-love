@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -98,8 +98,8 @@ model ActivityLog {
   action    String
   type      ActivityType
   ip        String
-  userAgent String       @db.Text
-  details   String?      @db.Text
+  userAgent String
+  details   String?
   success   Boolean      @default(true)
 
   timestamp DateTime @default(now())
@@ -131,7 +131,7 @@ model UserSession {
 
   sessionId String  @unique
   ip        String
-  userAgent String  @db.Text
+  userAgent String
   device    String?
   location  String?
 
@@ -253,9 +253,9 @@ model SSLCertificate {
   sans        String[] // Subject Alternative Names
   issuer      String
   subject     String?  // Full subject string (e.g., "CN=example.com, O=Example, C=US")
-  certificate String   @db.Text // PEM format
-  privateKey  String   @db.Text // PEM format
-  chain       String?  @db.Text // PEM format
+  certificate String   // PEM format
+  privateKey  String   // PEM format
+  chain       String?  // PEM format
   
   // Additional certificate details stored as JSON
   subjectDetails Json? // { commonName, organization, country }
@@ -286,7 +286,7 @@ model ModSecCRSRule {
   ruleFile    String // e.g., "REQUEST-942-APPLICATION-ATTACK-SQLI.conf"
   name        String
   category    String
-  description String? @db.Text
+  description String?
   enabled     Boolean @default(true)
   paranoia    Int     @default(1) // Paranoia level 1-4
 
@@ -308,9 +308,9 @@ model ModSecRule {
 
   name        String
   category    String
-  ruleContent String  @db.Text
+  ruleContent String
   enabled     Boolean @default(true)
-  description String? @db.Text
+  description String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -324,7 +324,7 @@ model NginxConfig {
   id         String  @id @default(cuid())
   configType String // main, site, upstream, etc.
   name       String
-  content    String  @db.Text
+  content    String
   enabled    Boolean @default(true)
 
   createdAt DateTime @default(now())
@@ -339,7 +339,7 @@ model InstallationStatus {
   component String  @unique // nginx, modsecurity, etc.
   status    String // pending, running, completed, failed
   step      String?
-  message   String? @db.Text
+  message   String?
   progress  Int     @default(0) // 0-100
 
   startedAt   DateTime  @default(now())
@@ -411,7 +411,7 @@ model AlertRuleChannel {
 model AlertHistory {
   id             String        @id @default(cuid())
   severity       AlertSeverity
-  message        String        @db.Text
+  message        String
   source         String
   acknowledged   Boolean       @default(false)
   acknowledgedBy String?
@@ -479,7 +479,7 @@ enum AccessListType {
 model AccessList {
   id          String         @id @default(cuid())
   name        String         @unique
-  description String?        @db.Text
+  description String?
   type        AccessListType
   enabled     Boolean        @default(true)
 
@@ -582,7 +582,7 @@ model BackupFile {
 
   filename String
   filepath String
-  size     BigInt // Size in bytes
+  size     Int // Size in bytes
   status   BackupStatus @default(success)
   type     String       @default("full") // full, incremental, manual
 
@@ -689,7 +689,7 @@ model SyncLog {
 
   configHash   String?
   changesCount Int?
-  errorMessage String? @db.Text
+  errorMessage String?
 
   startedAt   DateTime  @default(now())
   completedAt DateTime?
@@ -744,7 +744,7 @@ enum NLBUpstreamStatus {
 model NetworkLoadBalancer {
   id          String      @id @default(cuid())
   name        String      @unique
-  description String?     @db.Text
+  description String?
   port        Int // Listen port (must be >= 10000)
   protocol    NLBProtocol @default(tcp)
   algorithm   NLBAlgorithm @default(round_robin)
@@ -794,7 +794,7 @@ model NLBUpstream {
 
   // Metadata
   lastCheck   DateTime?
-  lastError   String?  @db.Text
+  lastError   String?
   responseTime Float?  // milliseconds
 
   createdAt DateTime @default(now())
@@ -814,7 +814,7 @@ model NLBHealthCheck {
   upstreamPort Int
   status       NLBUpstreamStatus
   responseTime Float? // milliseconds
-  error        String? @db.Text
+  error        String?
 
   checkedAt DateTime @default(now())
 

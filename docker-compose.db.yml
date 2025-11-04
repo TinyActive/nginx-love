@@ -1,29 +1,15 @@
-services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: nginx-love-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${DB_NAME:-nginx_love_db}
-      POSTGRES_USER: ${DB_USER:-nginx_love_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_this_password}
-    ports:
-      # Bind only to localhost for security (matches deploy.sh)
-      - "127.0.0.1:${DB_PORT:-5432}:5432"
-    volumes:
-      # Use consistent volume name with deploy.sh
-      - nginx-love-postgres-data:/var/lib/postgresql/data
-    networks:
-      - nginx-love-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-nginx_love_user}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+# This file is no longer needed as we're using SQLite instead of PostgreSQL
+# SQLite database will be stored as a file in apps/api/prisma/nginx_waf.db
+# No Docker container is required for SQLite
 
-volumes:
-  nginx-love-postgres-data:
-    driver: local
+version: '3.8'
+
+# Note: This file is kept for backward compatibility but services are commented out
+# To use SQLite, simply run the application - the database file will be created automatically
+
+# services:
+#   # PostgreSQL service removed - using SQLite instead
+#   # SQLite database file will be created at: apps/api/prisma/nginx_waf.db
 
 networks:
   nginx-love-network:
