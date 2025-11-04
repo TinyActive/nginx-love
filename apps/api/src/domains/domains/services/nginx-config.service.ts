@@ -246,6 +246,9 @@ ${realIpBlock}
     // Generate Access Lists block
     const accessListsBlock = this.generateAccessListsBlock(domain);
 
+    // Client max body size (default 100MB if not specified)
+    const clientMaxBodySize = domain.clientMaxBodySize || 100;
+
     // HTTP server with full proxy configuration
     return `
 server {
@@ -259,6 +262,9 @@ ${accessListsBlock}
 
     # Include ACME challenge location for ZeroSSL/Let's Encrypt
     include /etc/nginx/snippets/acme-challenge.conf;
+
+    # Maximum request body size
+    client_max_body_size ${clientMaxBodySize}M;
 
     ${domain.modsecEnabled ? 'modsecurity on;' : 'modsecurity off;'}
 
@@ -312,6 +318,9 @@ ${accessListsBlock}
     // Generate Access Lists block
     const accessListsBlock = this.generateAccessListsBlock(domain);
 
+    // Client max body size (default 100MB if not specified)
+    const clientMaxBodySize = domain.clientMaxBodySize || 100;
+
     return `
 server {
     listen 443 ssl${http2Support};
@@ -341,6 +350,9 @@ ${accessListsBlock}
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
+
+    # Maximum request body size
+    client_max_body_size ${clientMaxBodySize}M;
 
     ${domain.modsecEnabled ? 'modsecurity on;' : 'modsecurity off;'}
 

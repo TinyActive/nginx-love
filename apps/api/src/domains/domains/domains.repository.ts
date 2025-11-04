@@ -153,6 +153,7 @@ export class DomainsRepository {
         hstsEnabled: input.advancedConfig?.hstsEnabled || false,
         http2Enabled: input.advancedConfig?.http2Enabled !== undefined ? input.advancedConfig.http2Enabled : true,
         grpcEnabled: input.advancedConfig?.grpcEnabled || false,
+        clientMaxBodySize: input.advancedConfig?.clientMaxBodySize !== undefined ? input.advancedConfig.clientMaxBodySize : 100,
         customLocations: input.advancedConfig?.customLocations ? JSON.parse(JSON.stringify(input.advancedConfig.customLocations)) : null,
         upstreams: {
           create: input.upstreams.map((u: CreateUpstreamData) => ({
@@ -262,6 +263,10 @@ export class DomainsRepository {
           input.advancedConfig?.grpcEnabled !== undefined
             ? input.advancedConfig.grpcEnabled
             : currentDomain.grpcEnabled,
+        clientMaxBodySize:
+          input.advancedConfig?.clientMaxBodySize !== undefined
+            ? input.advancedConfig.clientMaxBodySize
+            : currentDomain.clientMaxBodySize,
         customLocations:
           input.advancedConfig?.customLocations !== undefined
             ? JSON.parse(JSON.stringify(input.advancedConfig.customLocations))

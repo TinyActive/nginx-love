@@ -71,6 +71,7 @@ interface FormData {
   hstsEnabled: boolean;
   http2Enabled: boolean;
   grpcEnabled: boolean;
+  clientMaxBodySize: number;
   customLocations: CustomLocationFormData[];
 }
 
@@ -109,6 +110,7 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave, isLoading =
       hstsEnabled: false,
       http2Enabled: true,
       grpcEnabled: false,
+      clientMaxBodySize: 100,
       customLocations: [],
     },
   });
@@ -157,6 +159,7 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave, isLoading =
           hstsEnabled: (domain as any).hstsEnabled || false,
           http2Enabled: (domain as any).http2Enabled !== undefined ? (domain as any).http2Enabled : true,
           grpcEnabled: (domain as any).grpcEnabled || false,
+          clientMaxBodySize: (domain as any).clientMaxBodySize || 100,
           customLocations: (domain as any).customLocations || [],
         });
       } else {
@@ -178,6 +181,7 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave, isLoading =
           hstsEnabled: false,
           http2Enabled: true,
           grpcEnabled: false,
+          clientMaxBodySize: 100,
           customLocations: [],
         });
       }
@@ -231,6 +235,7 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave, isLoading =
         hstsEnabled: data.hstsEnabled,
         http2Enabled: data.http2Enabled,
         grpcEnabled: data.grpcEnabled,
+        clientMaxBodySize: Number(data.clientMaxBodySize),
         customLocations: data.customLocations.filter(loc => loc.path && loc.upstreams.length > 0),
       },
     };
@@ -662,6 +667,31 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave, isLoading =
                         />
                       )}
                     />
+                  </div>
+
+                  <div className="p-3 border rounded-lg">
+                    <div className="space-y-2">
+                      <Label htmlFor="clientMaxBodySize">Maximum Request Body Size (MB)</Label>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Maximum size of the request body (client_max_body_size). Default is 100MB.
+                      </p>
+                      <Input
+                        id="clientMaxBodySize"
+                        type="number"
+                        min="1"
+                        max="10000"
+                        {...register('clientMaxBodySize', { 
+                          required: 'Client max body size is required',
+                          min: { value: 1, message: 'Minimum size is 1MB' },
+                          max: { value: 10000, message: 'Maximum size is 10000MB (10GB)' }
+                        })}
+                        placeholder="100"
+                        disabled={isLoading}
+                      />
+                      {errors.clientMaxBodySize && (
+                        <p className="text-sm text-destructive">{errors.clientMaxBodySize.message}</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

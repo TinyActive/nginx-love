@@ -53,6 +53,7 @@ export interface AdvancedConfigData {
   hstsEnabled?: boolean; // Enable HSTS header
   http2Enabled?: boolean; // Enable HTTP/2
   grpcEnabled?: boolean; // Enable gRPC support (default proxy_pass replacement)
+  clientMaxBodySize?: number; // Maximum request body size in MB (default: 100)
   customLocations?: CustomLocationData[]; // Custom location blocks
 }
 

@@ -184,10 +184,11 @@ model Domain {
   realIpCustomCidrs String[] @default([])    // Custom CIDR ranges for set_real_ip_from
 
   // Advanced Configuration
-  hstsEnabled      Boolean @default(false) // HTTP Strict Transport Security
-  http2Enabled     Boolean @default(true)  // Enable HTTP/2
-  grpcEnabled      Boolean @default(false) // Enable gRPC/gRPCs support
-  customLocations  Json?                   // Custom location blocks configuration
+  hstsEnabled        Boolean @default(false) // HTTP Strict Transport Security
+  http2Enabled       Boolean @default(true)  // Enable HTTP/2
+  grpcEnabled        Boolean @default(false) // Enable gRPC/gRPCs support
+  clientMaxBodySize  Int?    @default(100)   // Maximum request body size in MB (client_max_body_size)
+  customLocations    Json?                   // Custom location blocks configuration
 
   // Relations
   upstreams      Upstream[]
