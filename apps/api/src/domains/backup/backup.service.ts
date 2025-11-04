@@ -462,7 +462,7 @@ export class BackupService {
           return {
             domainName: s.domain?.name || '',
             commonName: s.commonName,
-            sans: s.sans,
+            sans: JSON.parse(s.sans || '[]'), // Deserialize from JSON string
             issuer: s.issuer,
             autoRenew: s.autoRenew,
             validFrom: s.validFrom,
@@ -475,7 +475,7 @@ export class BackupService {
         return {
           domainName: s.domain.name,
           commonName: s.commonName,
-          sans: s.sans,
+          sans: JSON.parse(s.sans || '[]'), // Deserialize from JSON string
           issuer: s.issuer,
           autoRenew: s.autoRenew,
           validFrom: s.validFrom,

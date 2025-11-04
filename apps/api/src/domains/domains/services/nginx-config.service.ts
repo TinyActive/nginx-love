@@ -409,8 +409,9 @@ ${customLocations}
     }
 
     // Custom CIDR ranges
-    if (domain.realIpCustomCidrs && domain.realIpCustomCidrs.length > 0) {
-      domain.realIpCustomCidrs.forEach(cidr => {
+    const customCidrs = JSON.parse(domain.realIpCustomCidrs || '[]'); // Deserialize from JSON string
+    if (customCidrs && customCidrs.length > 0) {
+      customCidrs.forEach((cidr: string) => {
         lines.push(`    set_real_ip_from ${cidr};`);
       });
     }

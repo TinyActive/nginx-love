@@ -11,7 +11,7 @@ export class ClusterRepository {
   async findByName(name: string): Promise<SlaveNode | null> {
     return prisma.slaveNode.findUnique({
       where: { name }
-    });
+    }) as Promise<SlaveNode | null>;
   }
 
   /**
@@ -34,7 +34,7 @@ export class ClusterRepository {
         updatedAt: true
         // DO NOT return apiKey
       }
-    });
+    }) as Promise<SlaveNodeResponse | null>;
   }
 
   /**
@@ -70,7 +70,7 @@ export class ClusterRepository {
         ...data,
         status: data.status as any
       }
-    });
+    }) as Promise<SlaveNode>;
   }
 
   /**
@@ -95,7 +95,7 @@ export class ClusterRepository {
         updatedAt: true
         // DO NOT return apiKey
       }
-    });
+    }) as Promise<SlaveNodeResponse[]>;
   }
 
   /**
@@ -232,7 +232,7 @@ export class ClusterRepository {
       sslCertificates: ssl.map(s => ({
         domainName: s.domain?.name,
         commonName: s.commonName,
-        sans: s.sans,
+        sans: JSON.parse(s.sans || '[]'), // Deserialize from JSON string
         issuer: s.issuer,
         certificate: s.certificate,
         privateKey: s.privateKey,

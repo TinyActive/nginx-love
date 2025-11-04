@@ -134,7 +134,7 @@ export class AccountRepository {
       data: {
         userId,
         action,
-        type: typeof type === 'string' ? type : type.toString(),
+        type: type as string, // SQLite stores as string
         ip: metadata.ip,
         userAgent: metadata.userAgent,
         success,
