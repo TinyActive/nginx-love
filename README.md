@@ -40,6 +40,7 @@ Nginx WAF - Advanced Nginx Management Platform offers full support for major ope
 | **New Server (Production)** | `./scripts/deploy.sh` | Full installation of Nginx + ModSecurity + Backend + Frontend with systemd services |
 | **Development/Testing** | `./scripts/quickstart.sh` | Quick run in dev mode (no Nginx installation, no root required) |
 | **Upgrade New Version** | `./scripts/update.sh` | Full update to new version |
+| **Migrate PostgreSQL → SQLite** | `./scripts/migrate-postgres-to-sqlite.sh` | Migrate existing PostgreSQL data to SQLite (see [Migration Guide](docs/MIGRATION_POSTGRES_TO_SQLITE.md)) |
 
 | Use Case | Port | Description |
 |----------|--------|-------------|
@@ -68,6 +69,32 @@ cd nginx-love
 git pull
 bash scripts/update.sh
 ```
+
+### 🔄 Migrating from PostgreSQL to SQLite
+
+If you have an existing installation using PostgreSQL and want to migrate to SQLite:
+
+```bash
+# Navigate to your nginx-love directory
+cd nginx-love
+
+# Run the migration script (requires root)
+sudo bash scripts/migrate-postgres-to-sqlite.sh
+```
+
+**What the migration script does:**
+- ✅ Exports all data from PostgreSQL (users, domains, SSL certificates, rules, etc.)
+- ✅ Creates a new SQLite database
+- ✅ Imports all data with proper type conversions
+- ✅ Backs up your original configuration
+- ✅ Provides rollback instructions if needed
+
+**After migration:**
+1. Restart services: `sudo systemctl restart nginx-love-backend nginx-love-frontend`
+2. Verify all data is present in the web interface
+3. Optionally remove PostgreSQL: See [Migration Guide](docs/MIGRATION_POSTGRES_TO_SQLITE.md)
+
+📖 **Full Migration Guide**: [docs/MIGRATION_POSTGRES_TO_SQLITE.md](docs/MIGRATION_POSTGRES_TO_SQLITE.md)
 
 ### 🖥️ Production Deployment (Docker container)
 
