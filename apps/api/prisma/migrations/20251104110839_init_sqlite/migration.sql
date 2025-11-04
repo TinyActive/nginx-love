@@ -36,7 +36,7 @@ CREATE TABLE "two_factor_auth" (
     "enabled" BOOLEAN NOT NULL DEFAULT false,
     "method" TEXT NOT NULL DEFAULT 'totp',
     "secret" TEXT,
-    "backupCodes" TEXT NOT NULL,
+    "backupCodes" TEXT DEFAULT '[]',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "two_factor_auth_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE CASCADE

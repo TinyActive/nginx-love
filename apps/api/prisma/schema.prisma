@@ -39,6 +39,8 @@ generator client {
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
+  // SQLite DATABASE_URL format: "file:./nginx_waf.db" (relative to prisma directory)
+  // For production: "file:/absolute/path/to/nginx_waf.db"
 }
 
 
@@ -98,7 +100,7 @@ model TwoFactorAuth {
   enabled     Boolean  @default(false)
   method      String   @default("totp") // totp, sms
   secret      String?
-  backupCodes String // Encrypted backup codes
+  backupCodes String?  @default("[]") // JSON array of encrypted backup codes
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -650,7 +652,7 @@ model SyncLog {
 
 model ConfigVersion {
   id         String @id @default(cuid())
-  version    Int    @default(1)
+  version    Int    @default(1) // Note: SQLite only supports autoincrement() on INTEGER PRIMARY KEY
   configHash String @unique
   configData String // Serialized config
 
