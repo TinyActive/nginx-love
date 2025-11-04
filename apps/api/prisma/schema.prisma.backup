@@ -1,0 +1,824 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  moderator
+  viewer
+}
+
+enum UserStatus {
+  active
+  inactive
+  suspended
+}
+
+enum ActivityType {
+  login
+  logout
+  config_change
+  user_action
+  security
+  system
+}
+
+model User {
+  id           String     @id @default(cuid())
+  username     String     @unique
+  email        String     @unique
+  password     String
+  fullName     String
+  role         UserRole   @default(viewer)
+  status       UserStatus @default(active)
+  avatar       String?
+  phone        String?
+  timezone     String     @default("Asia/Ho_Chi_Minh")
+  language     String     @default("en")
+  isFirstLogin Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  lastLogin    DateTime?
+
+  // Relations
+  profile       UserProfile?
+  twoFactor     TwoFactorAuth?
+  activities    ActivityLog[]
+  refreshTokens RefreshToken[]
+  sessions      UserSession[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Additional profile fields can be added here
+  bio      String?
+  location String?
+  website  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_profiles")
+}
+
+model TwoFactorAuth {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  enabled     Boolean  @default(false)
+  method      String   @default("totp") // totp, sms
+  secret      String?
+  backupCodes String[] // Encrypted backup codes
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("two_factor_auth")
+}
+
+model ActivityLog {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  action    String
+  type      ActivityType
+  ip        String
+  userAgent String
+  details   String?
+  success   Boolean      @default(true)
+
+  timestamp DateTime @default(now())
+
+  @@index([userId, timestamp])
+  @@index([type, timestamp])
+  @@map("activity_logs")
+}
+
+model RefreshToken {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  token     String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+model UserSession {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  sessionId String  @unique
+  ip        String
+  userAgent String
+  device    String?
+  location  String?
+
+  lastActive DateTime @default(now())
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([sessionId])
+  @@map("user_sessions")
+}
+
+// Domain Management Models
+
+enum DomainStatus {
+  active
+  inactive
+  error
+}
+
+enum UpstreamStatus {
+  up
+  down
+  checking
+}
+
+enum LoadBalancerAlgorithm {
+  round_robin
+  least_conn
+  ip_hash
+}
+
+enum SSLStatus {
+  valid
+  expiring
+  expired
+}
+
+model Domain {
+  id            String       @id @default(cuid())
+  name          String       @unique
+  status        DomainStatus @default(inactive)
+  sslEnabled    Boolean      @default(false)
+  sslExpiry     DateTime?
+  modsecEnabled Boolean      @default(true)
+
+  // Real IP Configuration (for Cloudflare and other proxies)
+  realIpEnabled    Boolean  @default(false)
+  realIpCloudflare Boolean  @default(false) // Use Cloudflare IP ranges
+  realIpCustomCidrs String[] @default([])    // Custom CIDR ranges for set_real_ip_from
+
+  // Advanced Configuration
+  hstsEnabled        Boolean @default(false) // HTTP Strict Transport Security
+  http2Enabled       Boolean @default(true)  // Enable HTTP/2
+  grpcEnabled        Boolean @default(false) // Enable gRPC/gRPCs support
+  clientMaxBodySize  Int?    @default(100)   // Maximum request body size in MB (client_max_body_size)
+  customLocations    Json?                   // Custom location blocks configuration
+
+  // Relations
+  upstreams      Upstream[]
+  loadBalancer   LoadBalancerConfig?
+  sslCertificate SSLCertificate?
+  modsecCRSRules ModSecCRSRule[]
+  modsecRules    ModSecRule[]
+  accessLists    AccessListDomain[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([status])
+  @@map("domains")
+}
+
+model Upstream {
+  id       String @id @default(cuid())
+  domainId String
+  domain   Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  host        String
+  port        Int
+  protocol    String         @default("http") // http or https
+  sslVerify   Boolean        @default(true) // proxy_ssl_verify on/off
+  weight      Int            @default(1)
+  maxFails    Int            @default(3)
+  failTimeout Int            @default(10) // seconds
+  status      UpstreamStatus @default(checking)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([domainId])
+  @@map("upstreams")
+}
+
+model LoadBalancerConfig {
+  id       String @id @default(cuid())
+  domainId String @unique
+  domain   Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  algorithm           LoadBalancerAlgorithm @default(round_robin)
+  healthCheckEnabled  Boolean               @default(true)
+  healthCheckInterval Int                   @default(30) // seconds
+  healthCheckTimeout  Int                   @default(5) // seconds
+  healthCheckPath     String                @default("/")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("load_balancer_configs")
+}
+
+model SSLCertificate {
+  id       String @id @default(cuid())
+  domainId String @unique
+  domain   Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  commonName  String
+  sans        String[] // Subject Alternative Names
+  issuer      String
+  subject     String?  // Full subject string (e.g., "CN=example.com, O=Example, C=US")
+  certificate String   // PEM format
+  privateKey  String   // PEM format
+  chain       String?  // PEM format
+  
+  // Additional certificate details stored as JSON
+  subjectDetails Json? // { commonName, organization, country }
+  issuerDetails  Json? // { commonName, organization, country }
+  serialNumber   String? // Certificate serial number
+
+  validFrom DateTime
+  validTo   DateTime
+  autoRenew Boolean   @default(true)
+  status    SSLStatus @default(valid)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([domainId])
+  @@index([validTo])
+  @@map("ssl_certificates")
+}
+
+// ModSecurity CRS Rules (OWASP Core Rule Set)
+// Only stores metadata and enabled status
+// Actual rules come from CRS files
+model ModSecCRSRule {
+  id       String  @id @default(cuid())
+  domainId String?
+  domain   Domain? @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  ruleFile    String // e.g., "REQUEST-942-APPLICATION-ATTACK-SQLI.conf"
+  name        String
+  category    String
+  description String?
+  enabled     Boolean @default(true)
+  paranoia    Int     @default(1) // Paranoia level 1-4
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([ruleFile, domainId])
+  @@index([domainId])
+  @@index([category])
+  @@map("modsec_crs_rules")
+}
+
+// ModSecurity Custom Rules (kept from original, renamed table)
+// Stores full rule content for user-defined rules
+model ModSecRule {
+  id       String  @id @default(cuid())
+  domainId String?
+  domain   Domain? @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  name        String
+  category    String
+  ruleContent String
+  enabled     Boolean @default(true)
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([domainId])
+  @@index([category])
+  @@map("modsec_rules")
+}
+
+model NginxConfig {
+  id         String  @id @default(cuid())
+  configType String // main, site, upstream, etc.
+  name       String
+  content    String
+  enabled    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([configType])
+  @@map("nginx_configs")
+}
+
+model InstallationStatus {
+  id        String  @id @default(cuid())
+  component String  @unique // nginx, modsecurity, etc.
+  status    String // pending, running, completed, failed
+  step      String?
+  message   String?
+  progress  Int     @default(0) // 0-100
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  @@map("installation_status")
+}
+
+enum NotificationChannelType {
+  email
+  telegram
+}
+
+enum AlertSeverity {
+  critical
+  warning
+  info
+}
+
+model NotificationChannel {
+  id      String                  @id @default(cuid())
+  name    String
+  type    NotificationChannelType
+  enabled Boolean                 @default(true)
+  config  Json // { email?, chatId?, botToken? }
+
+  alertRules AlertRuleChannel[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("notification_channels")
+}
+
+model AlertRule {
+  id            String        @id @default(cuid())
+  name          String
+  condition     String // cpu > threshold, upstream_status == down, etc.
+  threshold     Int
+  severity      AlertSeverity
+  enabled       Boolean       @default(true)
+  checkInterval Int           @default(60) // Check interval in seconds (default: 60s)
+
+  channels AlertRuleChannel[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("alert_rules")
+}
+
+model AlertRuleChannel {
+  id        String @id @default(cuid())
+  ruleId    String
+  channelId String
+
+  rule    AlertRule           @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  channel NotificationChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([ruleId, channelId])
+  @@index([ruleId])
+  @@index([channelId])
+  @@map("alert_rule_channels")
+}
+
+model AlertHistory {
+  id             String        @id @default(cuid())
+  severity       AlertSeverity
+  message        String
+  source         String
+  acknowledged   Boolean       @default(false)
+  acknowledgedBy String?
+  acknowledgedAt DateTime?
+
+  timestamp DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@index([severity])
+  @@index([acknowledged])
+  @@index([timestamp])
+  @@map("alert_history")
+}
+
+enum AclType {
+  whitelist
+  blacklist
+}
+
+enum AclField {
+  ip
+  geoip
+  user_agent
+  url
+  method
+  header
+}
+
+enum AclOperator {
+  equals
+  contains
+  regex
+}
+
+enum AclAction {
+  allow
+  deny
+  challenge
+}
+
+model AclRule {
+  id                String      @id @default(cuid())
+  name              String
+  type              AclType
+  conditionField    AclField
+  conditionOperator AclOperator
+  conditionValue    String
+  action            AclAction
+  enabled           Boolean     @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("acl_rules")
+}
+
+// Access Lists Management Models
+
+enum AccessListType {
+  ip_whitelist
+  http_basic_auth
+  combined // Both IP and Basic Auth
+}
+
+model AccessList {
+  id          String         @id @default(cuid())
+  name        String         @unique
+  description String?
+  type        AccessListType
+  enabled     Boolean        @default(true)
+
+  // IP Whitelist configuration
+  allowedIps String[] @default([]) // List of allowed IP addresses/CIDR
+
+  // HTTP Basic Auth configuration
+  authUsers AccessListAuthUser[]
+
+  // Relations to domains
+  domains AccessListDomain[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@index([enabled])
+  @@map("access_lists")
+}
+
+model AccessListAuthUser {
+  id           String     @id @default(cuid())
+  accessListId String
+  accessList   AccessList @relation(fields: [accessListId], references: [id], onDelete: Cascade)
+
+  username     String
+  passwordHash String // Plain text password - will be hashed by htpasswd tool with apr1/MD5 format
+  description  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([accessListId, username])
+  @@index([accessListId])
+  @@map("access_list_auth_users")
+}
+
+model AccessListDomain {
+  id           String     @id @default(cuid())
+  accessListId String
+  accessList   AccessList @relation(fields: [accessListId], references: [id], onDelete: Cascade)
+  domainId     String
+  domain       Domain     @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  enabled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([accessListId, domainId])
+  @@index([accessListId])
+  @@index([domainId])
+  @@map("access_list_domains")
+}
+
+model PerformanceMetric {
+  id           String   @id @default(cuid())
+  domain       String
+  timestamp    DateTime @default(now())
+  responseTime Float
+  throughput   Float
+  errorRate    Float
+  requestCount Int
+
+  createdAt DateTime @default(now())
+
+  @@index([domain, timestamp])
+  @@index([timestamp])
+  @@map("performance_metrics")
+}
+
+enum BackupStatus {
+  success
+  failed
+  running
+  pending
+}
+
+model BackupSchedule {
+  id       String       @id @default(cuid())
+  name     String
+  schedule String // Cron expression
+  enabled  Boolean      @default(true)
+  lastRun  DateTime?
+  nextRun  DateTime?
+  status   BackupStatus @default(pending)
+
+  backups BackupFile[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("backup_schedules")
+}
+
+model BackupFile {
+  id         String          @id @default(cuid())
+  scheduleId String?
+  schedule   BackupSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+
+  filename String
+  filepath String
+  size     Int // Size in bytes
+  status   BackupStatus @default(success)
+  type     String       @default("full") // full, incremental, manual
+
+  metadata Json? // Additional metadata (domains count, rules count, etc.)
+
+  createdAt DateTime @default(now())
+
+  @@index([scheduleId])
+  @@index([createdAt])
+  @@map("backup_files")
+}
+
+enum SlaveNodeStatus {
+  online
+  offline
+  syncing
+  error
+}
+
+enum SyncLogStatus {
+  success
+  failed
+  partial
+  running
+}
+
+enum SyncLogType {
+  full_sync
+  incremental_sync
+  health_check
+}
+
+enum NodeMode {
+  master
+  slave
+}
+
+model SlaveNode {
+  id     String @id @default(cuid())
+  name   String @unique
+  host   String
+  port   Int    @default(3001)
+  apiKey String @unique // Authentication token for slave
+
+  status   SlaveNodeStatus @default(offline)
+  lastSeen DateTime?
+  version  String?
+
+  // Sync configuration
+  syncEnabled  Boolean   @default(true)
+  syncInterval Int       @default(60) // seconds
+  configHash   String? // SHA256 hash of current config
+  lastSyncAt   DateTime?
+
+  // Metrics
+  latency     Int? // milliseconds
+  cpuUsage    Float?
+  memoryUsage Float?
+  diskUsage   Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  syncLogs SyncLog[]
+
+  @@index([status])
+  @@index([lastSeen])
+  @@map("slave_nodes")
+}
+
+model SystemConfig {
+  id       String   @id @default(cuid())
+  nodeMode NodeMode @default(master) // master or slave
+
+  // Master mode settings
+  masterApiEnabled Boolean @default(true)
+
+  // Slave mode settings
+  slaveApiEnabled Boolean @default(false)
+  masterHost      String? // IP of master node
+  masterPort      Int? // Port of master node
+  masterApiKey    String? // API key to connect to master
+  syncInterval    Int     @default(60) // Sync interval in seconds (for slave mode)
+  lastSyncHash    String? // Hash of last synced config (for change detection)
+
+  // Connection status (for slave mode)
+  connected       Boolean   @default(false)
+  lastConnectedAt DateTime?
+  connectionError String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_configs")
+}
+
+model SyncLog {
+  id     String    @id @default(cuid())
+  nodeId String
+  node   SlaveNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  type   SyncLogType
+  status SyncLogStatus @default(running)
+
+  configHash   String?
+  changesCount Int?
+  errorMessage String?
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  duration    Int? // milliseconds
+
+  @@index([nodeId, startedAt])
+  @@map("sync_logs")
+}
+
+model ConfigVersion {
+  id         String @id @default(cuid())
+  version    Int    @default(autoincrement())
+  configHash String @unique
+  configData Json // Serialized config
+
+  createdBy   String?
+  description String?
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("config_versions")
+}
+
+// Network Load Balancer Models
+
+enum NLBStatus {
+  active
+  inactive
+  error
+}
+
+enum NLBProtocol {
+  tcp
+  udp
+  tcp_udp // Both TCP and UDP
+}
+
+enum NLBAlgorithm {
+  round_robin
+  least_conn
+  ip_hash
+  hash
+}
+
+enum NLBUpstreamStatus {
+  up
+  down
+  checking
+}
+
+model NetworkLoadBalancer {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  description String?
+  port        Int // Listen port (must be >= 10000)
+  protocol    NLBProtocol @default(tcp)
+  algorithm   NLBAlgorithm @default(round_robin)
+  status      NLBStatus   @default(inactive)
+  enabled     Boolean     @default(true)
+
+  // Advanced settings
+  proxyTimeout        Int @default(3) // seconds
+  proxyConnectTimeout Int @default(1) // seconds
+  proxyNextUpstream   Boolean @default(true)
+  proxyNextUpstreamTimeout Int @default(0) // seconds, 0 = disabled
+  proxyNextUpstreamTries   Int @default(0) // 0 = unlimited
+  
+  // Health check settings
+  healthCheckEnabled  Boolean @default(true)
+  healthCheckInterval Int     @default(10) // seconds
+  healthCheckTimeout  Int     @default(5) // seconds
+  healthCheckRises    Int     @default(2) // Number of successful checks to mark as up
+  healthCheckFalls    Int     @default(3) // Number of failed checks to mark as down
+
+  // Relations
+  upstreams    NLBUpstream[]
+  healthChecks NLBHealthCheck[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([port])
+  @@map("network_load_balancers")
+}
+
+model NLBUpstream {
+  id    String @id @default(cuid())
+  nlbId String
+  nlb   NetworkLoadBalancer @relation(fields: [nlbId], references: [id], onDelete: Cascade)
+
+  host        String
+  port        Int
+  weight      Int               @default(1) // 1-100
+  maxFails    Int               @default(3)
+  failTimeout Int               @default(10) // seconds
+  maxConns    Int               @default(0) // 0 = unlimited
+  backup      Boolean           @default(false)
+  down        Boolean           @default(false) // Manually mark as down
+  status      NLBUpstreamStatus @default(checking)
+
+  // Metadata
+  lastCheck   DateTime?
+  lastError   String?
+  responseTime Float?  // milliseconds
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([nlbId])
+  @@index([status])
+  @@map("nlb_upstreams")
+}
+
+model NLBHealthCheck {
+  id    String @id @default(cuid())
+  nlbId String
+  nlb   NetworkLoadBalancer @relation(fields: [nlbId], references: [id], onDelete: Cascade)
+
+  upstreamHost String
+  upstreamPort Int
+  status       NLBUpstreamStatus
+  responseTime Float? // milliseconds
+  error        String?
+
+  checkedAt DateTime @default(now())
+
+  @@index([nlbId, checkedAt])
+  @@index([upstreamHost, upstreamPort])
+  @@map("nlb_health_checks")
+}
