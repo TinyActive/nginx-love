@@ -1,6 +1,6 @@
 import prisma from '../../config/database';
 import { UserWithTwoFactor, RefreshTokenWithUser, RequestMetadata } from './auth.types';
-import { ActivityType } from '@prisma/client';
+import { ActivityType } from '../../shared/types/enums';
 
 /**
  * Auth repository - Handles all Prisma database operations for authentication

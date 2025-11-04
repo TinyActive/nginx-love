@@ -11,9 +11,10 @@ export enum AccessListType {
 }
 
 /**
- * Access List with relations
+ * Access List with relations and deserialized arrays
  */
-export type AccessListWithRelations = AccessList & {
+export type AccessListWithRelations = Omit<AccessList, 'allowedIps'> & {
+  allowedIps: string[]; // Deserialized from JSON string in database
   authUsers?: AccessListAuthUser[];
   domains?: (AccessListDomain & {
     domain: {

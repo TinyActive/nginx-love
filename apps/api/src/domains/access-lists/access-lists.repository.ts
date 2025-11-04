@@ -8,6 +8,35 @@ import {
 import { PaginationMeta } from '../../shared/types/common.types';
 
 /**
+ * Helper functions for SQLite array serialization
+ */
+const serializeArray = (arr: string[] | undefined): string => {
+  if (!arr || arr.length === 0) return '[]';
+  return JSON.stringify(arr);
+};
+
+const deserializeArray = (str: string | null | undefined): string[] => {
+  if (!str || str === '') return [];
+  try {
+    const parsed = JSON.parse(str);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * Transform database record to include deserialized arrays
+ */
+const transformAccessList = (accessList: any): any => {
+  if (!accessList) return accessList;
+  return {
+    ...accessList,
+    allowedIps: deserializeArray(accessList.allowedIps),
+  };
+};
+
+/**
  * Repository for Access Lists data access
  */
 export class AccessListsRepository {
@@ -71,7 +100,7 @@ export class AccessListsRepository {
     });
 
     return {
-      accessLists,
+      accessLists: accessLists.map(transformAccessList),
       pagination: {
         page,
         limit,
@@ -87,7 +116,7 @@ export class AccessListsRepository {
    * Find access list by ID
    */
   async findById(id: string): Promise<AccessListWithRelations | null> {
-    return prisma.accessList.findUnique({
+    const accessList = await prisma.accessList.findUnique({
       where: { id },
       include: {
         authUsers: true,
@@ -104,13 +133,14 @@ export class AccessListsRepository {
         },
       },
     });
+    return transformAccessList(accessList);
   }
 
   /**
    * Find access list by name
    */
   async findByName(name: string): Promise<AccessListWithRelations | null> {
-    return prisma.accessList.findUnique({
+    const accessList = await prisma.accessList.findUnique({
       where: { name },
       include: {
         authUsers: true,
@@ -127,17 +157,19 @@ export class AccessListsRepository {
         },
       },
     });
+    return transformAccessList(accessList);
   }
 
   /**
    * Create new access list
    */
   async create(data: CreateAccessListInput): Promise<AccessListWithRelations> {
-    const { authUsers, domainIds, ...accessListData } = data;
+    const { authUsers, domainIds, allowedIps, ...accessListData } = data;
 
-    return prisma.accessList.create({
+    const accessList = await prisma.accessList.create({
       data: {
         ...accessListData,
+        allowedIps: serializeArray(allowedIps),
         authUsers: authUsers
           ? {
               create: authUsers.map((user) => ({
@@ -171,6 +203,7 @@ export class AccessListsRepository {
         },
       },
     });
+    return transformAccessList(accessList);
   }
 
   /**
@@ -180,10 +213,10 @@ export class AccessListsRepository {
     id: string,
     data: UpdateAccessListInput
   ): Promise<AccessListWithRelations> {
-    const { authUsers, domainIds, ...accessListData } = data;
+    const { authUsers, domainIds, allowedIps, ...accessListData } = data;
 
     // Start a transaction to handle updates
-    return prisma.$transaction(async (tx) => {
+    const accessList = await prisma.$transaction(async (tx) => {
       // Get existing auth users to preserve passwords if not changed
       let existingAuthUsers: { username: string; passwordHash: string }[] = [];
       if (authUsers !== undefined) {
@@ -207,11 +240,17 @@ export class AccessListsRepository {
         });
       }
 
+      // Prepare update data
+      const updateData: any = { ...accessListData };
+      if (allowedIps !== undefined) {
+        updateData.allowedIps = serializeArray(allowedIps);
+      }
+
       // Update access list
       return tx.accessList.update({
         where: { id },
         data: {
-          ...accessListData,
+          ...updateData,
           authUsers: authUsers
             ? {
                 create: authUsers.map((user) => {
@@ -257,6 +296,7 @@ export class AccessListsRepository {
         },
       });
     });
+    return transformAccessList(accessList);
   }
 
   /**
@@ -272,7 +312,7 @@ export class AccessListsRepository {
    * Toggle access list enabled status
    */
   async toggleEnabled(id: string, enabled: boolean): Promise<AccessListWithRelations> {
-    return prisma.accessList.update({
+    const accessList = await prisma.accessList.update({
       where: { id },
       data: { enabled },
       include: {
@@ -290,6 +330,7 @@ export class AccessListsRepository {
         },
       },
     });
+    return transformAccessList(accessList);
   }
 
   /**
@@ -358,7 +399,7 @@ export class AccessListsRepository {
       },
     });
 
-    return accessListDomains.map((ald) => ald.accessList);
+    return accessListDomains.map((ald) => transformAccessList(ald.accessList));
   }
 
   /**

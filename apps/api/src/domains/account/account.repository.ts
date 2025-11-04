@@ -1,5 +1,5 @@
 import prisma from '../../config/database';
-import { ActivityType } from '@prisma/client';
+import { ActivityType } from '../../shared/types/enums';
 import { UserWithTwoFactor, RequestMetadata, SessionData } from './account.types';
 
 /**
@@ -99,12 +99,12 @@ export class AccountRepository {
         userId,
         enabled: data.enabled,
         secret: data.secret,
-        backupCodes: data.backupCodes,
+        backupCodes: data.backupCodes ? JSON.stringify(data.backupCodes) : '[]',
       },
       update: {
         enabled: data.enabled,
         ...(data.secret && { secret: data.secret }),
-        ...(data.backupCodes && { backupCodes: data.backupCodes }),
+        ...(data.backupCodes && { backupCodes: JSON.stringify(data.backupCodes) }),
       },
     });
   }
