@@ -6,6 +6,7 @@ import logger from '../../../utils/logger';
 import { PATHS } from '../../../shared/constants/paths.constants';
 import { DomainWithRelations } from '../domains.types';
 import { cloudflareIpsService } from './cloudflare-ips.service';
+import { DEFAULT_CLIENT_MAX_BODY_SIZE } from '../../../shared/constants/domain.constants';
 
 const execAsync = promisify(exec);
 
@@ -115,6 +116,14 @@ export class NginxConfigService {
       logger.error(`Failed to generate nginx config for ${domain.name}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Get client max body size for a domain
+   * Returns the configured value or default if not set
+   */
+  private getClientMaxBodySize(domain: DomainWithRelations): number {
+    return domain.clientMaxBodySize || DEFAULT_CLIENT_MAX_BODY_SIZE;
   }
 
   /**
@@ -246,8 +255,8 @@ ${realIpBlock}
     // Generate Access Lists block
     const accessListsBlock = this.generateAccessListsBlock(domain);
 
-    // Client max body size (default 100MB if not specified)
-    const clientMaxBodySize = domain.clientMaxBodySize || 100;
+    // Client max body size
+    const clientMaxBodySize = this.getClientMaxBodySize(domain);
 
     // HTTP server with full proxy configuration
     return `
@@ -318,8 +327,8 @@ ${accessListsBlock}
     // Generate Access Lists block
     const accessListsBlock = this.generateAccessListsBlock(domain);
 
-    // Client max body size (default 100MB if not specified)
-    const clientMaxBodySize = domain.clientMaxBodySize || 100;
+    // Client max body size
+    const clientMaxBodySize = this.getClientMaxBodySize(domain);
 
     return `
 server {

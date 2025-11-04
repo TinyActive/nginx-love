@@ -7,6 +7,7 @@ import {
   CreateUpstreamData,
 } from './domains.types';
 import { PaginationMeta } from '../../shared/types/common.types';
+import { DEFAULT_CLIENT_MAX_BODY_SIZE } from '../../shared/constants/domain.constants';
 
 /**
  * Repository for domain database operations
@@ -153,7 +154,7 @@ export class DomainsRepository {
         hstsEnabled: input.advancedConfig?.hstsEnabled || false,
         http2Enabled: input.advancedConfig?.http2Enabled !== undefined ? input.advancedConfig.http2Enabled : true,
         grpcEnabled: input.advancedConfig?.grpcEnabled || false,
-        clientMaxBodySize: input.advancedConfig?.clientMaxBodySize !== undefined ? input.advancedConfig.clientMaxBodySize : 100,
+        clientMaxBodySize: input.advancedConfig?.clientMaxBodySize !== undefined ? input.advancedConfig.clientMaxBodySize : DEFAULT_CLIENT_MAX_BODY_SIZE,
         customLocations: input.advancedConfig?.customLocations ? JSON.parse(JSON.stringify(input.advancedConfig.customLocations)) : null,
         upstreams: {
           create: input.upstreams.map((u: CreateUpstreamData) => ({
