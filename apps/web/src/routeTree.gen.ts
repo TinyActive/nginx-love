@@ -21,6 +21,7 @@ import { Route as AuthNetworkRouteImport } from './routes/_auth/network'
 import { Route as AuthModsecurityRouteImport } from './routes/_auth/modsecurity'
 import { Route as AuthLogsRouteImport } from './routes/_auth/logs'
 import { Route as AuthDomainsRouteImport } from './routes/_auth/domains'
+import { Route as AuthDnsRouteImport } from './routes/_auth/dns'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
 import { Route as AuthBackupRouteImport } from './routes/_auth/backup'
 import { Route as AuthAlertsRouteImport } from './routes/_auth/alerts'
@@ -87,6 +88,11 @@ const AuthDomainsRoute = AuthDomainsRouteImport.update({
   path: '/domains',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthDnsRoute = AuthDnsRouteImport.update({
+  id: '/dns',
+  path: '/dns',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthDashboardRoute = AuthDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -120,6 +126,7 @@ const AuthAccessListsRoute = AuthAccessListsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/$catchall': typeof CatchallRoute
+  '/': typeof AuthIndexRoute
   '/login': typeof LoginRoute
   '/access-lists': typeof AuthAccessListsRoute
   '/account': typeof AuthAccountRoute
@@ -127,6 +134,7 @@ export interface FileRoutesByFullPath {
   '/alerts': typeof AuthAlertsRoute
   '/backup': typeof AuthBackupRoute
   '/dashboard': typeof AuthDashboardRoute
+  '/dns': typeof AuthDnsRoute
   '/domains': typeof AuthDomainsRoute
   '/logs': typeof AuthLogsRoute
   '/modsecurity': typeof AuthModsecurityRoute
@@ -135,7 +143,6 @@ export interface FileRoutesByFullPath {
   '/performance': typeof AuthPerformanceRoute
   '/ssl': typeof AuthSslRoute
   '/users': typeof AuthUsersRoute
-  '/': typeof AuthIndexRoute
 }
 export interface FileRoutesByTo {
   '/$catchall': typeof CatchallRoute
@@ -146,6 +153,7 @@ export interface FileRoutesByTo {
   '/alerts': typeof AuthAlertsRoute
   '/backup': typeof AuthBackupRoute
   '/dashboard': typeof AuthDashboardRoute
+  '/dns': typeof AuthDnsRoute
   '/domains': typeof AuthDomainsRoute
   '/logs': typeof AuthLogsRoute
   '/modsecurity': typeof AuthModsecurityRoute
@@ -167,6 +175,7 @@ export interface FileRoutesById {
   '/_auth/alerts': typeof AuthAlertsRoute
   '/_auth/backup': typeof AuthBackupRoute
   '/_auth/dashboard': typeof AuthDashboardRoute
+  '/_auth/dns': typeof AuthDnsRoute
   '/_auth/domains': typeof AuthDomainsRoute
   '/_auth/logs': typeof AuthLogsRoute
   '/_auth/modsecurity': typeof AuthModsecurityRoute
@@ -181,6 +190,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/$catchall'
+    | '/'
     | '/login'
     | '/access-lists'
     | '/account'
@@ -188,6 +198,7 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/backup'
     | '/dashboard'
+    | '/dns'
     | '/domains'
     | '/logs'
     | '/modsecurity'
@@ -196,7 +207,6 @@ export interface FileRouteTypes {
     | '/performance'
     | '/ssl'
     | '/users'
-    | '/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/$catchall'
@@ -207,6 +217,7 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/backup'
     | '/dashboard'
+    | '/dns'
     | '/domains'
     | '/logs'
     | '/modsecurity'
@@ -227,6 +238,7 @@ export interface FileRouteTypes {
     | '/_auth/alerts'
     | '/_auth/backup'
     | '/_auth/dashboard'
+    | '/_auth/dns'
     | '/_auth/domains'
     | '/_auth/logs'
     | '/_auth/modsecurity'
@@ -256,7 +268,7 @@ declare module '@tanstack/react-router' {
     '/_auth': {
       id: '/_auth'
       path: ''
-      fullPath: ''
+      fullPath: '/'
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
@@ -330,6 +342,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthDomainsRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/dns': {
+      id: '/_auth/dns'
+      path: '/dns'
+      fullPath: '/dns'
+      preLoaderRoute: typeof AuthDnsRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/dashboard': {
       id: '/_auth/dashboard'
       path: '/dashboard'
@@ -382,6 +401,7 @@ interface AuthRouteChildren {
   AuthAlertsRoute: typeof AuthAlertsRoute
   AuthBackupRoute: typeof AuthBackupRoute
   AuthDashboardRoute: typeof AuthDashboardRoute
+  AuthDnsRoute: typeof AuthDnsRoute
   AuthDomainsRoute: typeof AuthDomainsRoute
   AuthLogsRoute: typeof AuthLogsRoute
   AuthModsecurityRoute: typeof AuthModsecurityRoute
@@ -400,6 +420,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthAlertsRoute: AuthAlertsRoute,
   AuthBackupRoute: AuthBackupRoute,
   AuthDashboardRoute: AuthDashboardRoute,
+  AuthDnsRoute: AuthDnsRoute,
   AuthDomainsRoute: AuthDomainsRoute,
   AuthLogsRoute: AuthLogsRoute,
   AuthModsecurityRoute: AuthModsecurityRoute,

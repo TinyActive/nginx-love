@@ -60,10 +60,10 @@ export function isValidPort(port: number): boolean {
 }
 
 /**
- * Validate NLB listening port (must be >= 10000 to avoid conflicts)
+ * Validate NLB listening port (1-65535, system conflict check is done server-side)
  */
 export function isValidNLBPort(port: number): boolean {
-  return Number.isInteger(port) && port >= 10000 && port <= 65535;
+  return Number.isInteger(port) && port >= 1 && port <= 65535;
 }
 
 /**
@@ -309,7 +309,7 @@ export function validateNLBConfig(config: {
 
   // Validate port
   if (!isValidNLBPort(config.port)) {
-    errors.port = 'Port must be between 10000 and 65535';
+    errors.port = 'Port must be between 1 and 65535';
   }
 
   // Validate upstreams
@@ -401,7 +401,7 @@ export function validateNLBConfig(config: {
 export function getValidationHints(field: string): string {
   const hints: Record<string, string> = {
     name: 'Use 3-50 characters: letters, numbers, dashes, underscores',
-    port: 'Port must be between 10000-65535 to avoid conflicts',
+    port: 'Port must be between 1-65535. Reserved system ports may be rejected by the server',
     host: 'Enter IP address (IPv4/IPv6) or hostname',
     upstreamPort: 'Port must be between 1-65535',
     weight: 'Weight determines traffic distribution (1-100)',
@@ -424,7 +424,7 @@ export function getExampleValue(field: string): string {
   const examples: Record<string, string> = {
     name: 'my-load-balancer',
     host: '192.168.1.100 or backend.example.com',
-    port: '10000',
+    port: '8080',
     upstreamPort: '80 or 443',
     weight: '1',
     maxFails: '3',

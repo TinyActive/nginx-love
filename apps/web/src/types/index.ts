@@ -105,6 +105,17 @@ export interface SSLCertificate {
   autoRenew: boolean;
   status: 'valid' | 'expiring' | 'expired';
   daysUntilExpiry?: number;
+  isWildcard?: boolean;
+  wildcardDomain?: string;
+}
+
+export interface WildcardValidationResult {
+  isValid: boolean;
+  isWildcard: boolean;
+  wildcardDomain: string | null;
+  matchedDomains: string[];
+  unmatchedDomains: string[];
+  errors: string[];
 }
 
 export interface Alert {
@@ -178,12 +189,20 @@ export interface LogEntry {
 export interface NotificationChannel {
   id: string;
   name: string;
-  type: 'email' | 'telegram';
+  type: 'email' | 'telegram' | 'jira';
   enabled: boolean;
   config: {
     email?: string;
     chatId?: string;
     botToken?: string;
+    // Jira / JSM configuration (Data Center / Server only)
+    jiraType?: 'jira' | 'jsm';
+    baseUrl?: string;
+    apiToken?: string;
+    projectKey?: string;
+    issueType?: string;
+    serviceDeskId?: string;
+    requestTypeId?: string;
   };
 }
 

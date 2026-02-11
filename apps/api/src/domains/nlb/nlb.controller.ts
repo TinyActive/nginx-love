@@ -59,7 +59,7 @@ export class NLBController {
    */
   async getNLBById(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const nlb = await nlbService.getNLBById(id);
 
       res.json({
@@ -137,7 +137,7 @@ export class NLBController {
         return;
       }
 
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const nlb = await nlbService.updateNLB(id, req.body);
 
       res.json({
@@ -176,7 +176,7 @@ export class NLBController {
    */
   async deleteNLB(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       await nlbService.deleteNLB(id);
 
       res.json({
@@ -215,7 +215,7 @@ export class NLBController {
         return;
       }
 
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const { enabled } = req.body;
 
       const nlb = await nlbService.toggleNLB(id, enabled);
@@ -248,7 +248,7 @@ export class NLBController {
    */
   async performHealthCheck(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const results = await nlbService.performHealthCheck(id);
 
       res.json({

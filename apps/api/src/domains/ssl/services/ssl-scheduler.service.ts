@@ -51,7 +51,7 @@ class SSLSchedulerService {
           );
 
           // Execute renewal asynchronously (don't wait)
-          this.renewCertificate(cert.id, cert.domain.name)
+          this.renewCertificate(cert.id, cert.domain.name, cert.isWildcard, cert.wildcardDomain, cert.dnsProvider, cert.dnsCredentials as Record<string, string> | null)
             .catch(error => {
               logger.error(`❌ Failed to auto-renew certificate ${cert.id} (${cert.domain.name}):`, error);
             });
@@ -72,12 +72,32 @@ class SSLSchedulerService {
   /**
    * Renew a specific certificate
    */
-  private async renewCertificate(certId: string, domainName: string): Promise<void> {
+  private async renewCertificate(
+    certId: string,
+    domainName: string,
+    isWildcard?: boolean,
+    wildcardDomain?: string | null,
+    dnsProvider?: string | null,
+    dnsCredentials?: Record<string, string> | null
+  ): Promise<void> {
     try {
-      logger.info(`[Auto-Renew] Starting renewal for ${domainName}`);
+      logger.info(`[Auto-Renew] Starting renewal for ${domainName}${isWildcard ? ' (wildcard)' : ''}`);
 
-      // Use acme.sh to renew the certificate
-      const certFiles = await acmeService.renewCertificate(domainName);
+      let certFiles;
+
+      if (isWildcard && wildcardDomain && dnsProvider && dnsCredentials) {
+        // Wildcard cert renewal: re-issue via DNS-01 challenge with stored credentials
+        const rootDomain = wildcardDomain.replace('*.', '');
+        logger.info(`[Auto-Renew] Renewing wildcard cert for ${wildcardDomain} via ${dnsProvider}`);
+        certFiles = await acmeService.obtainWildcardCert({
+          rootDomain,
+          dnsPlugin: dnsProvider,
+          dnsApiTokens: dnsCredentials,
+        });
+      } else {
+        // Standard single-domain cert renewal via acme.sh --renew
+        certFiles = await acmeService.renewCertificate(domainName);
+      }
 
       // Parse renewed certificate to get validity dates and details
       const certInfo = await acmeService.parseCertificate(certFiles.certificate);

@@ -38,6 +38,7 @@ export interface AcmeOptions {
   webroot?: string;
   dns?: string;
   standalone?: boolean;
+  isWildcard?: boolean;
 }
 
 /**
@@ -64,6 +65,18 @@ export interface ParsedCertificate {
 }
 
 /**
+ * Result of wildcard certificate validation
+ */
+export interface WildcardValidationResult {
+  isValid: boolean;
+  isWildcard: boolean;
+  wildcardDomain: string | null;
+  matchedDomains: string[];
+  unmatchedDomains: string[];
+  errors: string[];
+}
+
+/**
  * SSL Certificate status types
  */
 export type SSLStatus = 'valid' | 'expiring' | 'expired';
@@ -79,4 +92,13 @@ export const SSL_CONSTANTS = {
   MANUAL_ISSUER: 'Manual Upload',
   // List of issuers that support auto-renewal via ACME
   AUTO_RENEWABLE_ISSUERS: ["Let's Encrypt", 'ZeroSSL'] as string[],
+  // Supported DNS providers for wildcard certificate DNS-01 challenge
+  SUPPORTED_DNS_PROVIDERS: [
+    'dns_cf',     // Cloudflare
+    'dns_aws',    // AWS Route53
+    'dns_gd',     // GoDaddy
+    'dns_dp',     // DNSPod
+    'dns_ali',    // Aliyun/Alibaba Cloud
+    'dns_dgon',   // DigitalOcean
+  ] as string[],
 } as const;

@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Send, Trash2, Mail, MessageSquare, Loader2, Bell } from "lucide-react";
+import { Plus, Send, Trash2, Mail, MessageSquare, Loader2, Bell, Ticket } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SkeletonTable } from "@/components/ui/skeletons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -40,17 +40,42 @@ function NotificationChannelsTab() {
 
   const [channelForm, setChannelForm] = useState({
     name: "",
-    type: "email" as "email" | "telegram",
+    type: "email" as "email" | "telegram" | "jira",
     enabled: true,
     email: "",
     chatId: "",
-    botToken: ""
+    botToken: "",
+    // Jira / JSM fields
+    jiraType: "jira" as "jira" | "jsm",
+    baseUrl: "",
+    apiToken: "",
+    projectKey: "",
+    issueType: "Task",
+    serviceDeskId: "",
+    requestTypeId: ""
   });
 
   const handleAddChannel = async () => {
-    const config = channelForm.type === 'email'
-      ? { email: channelForm.email }
-      : { chatId: channelForm.chatId, botToken: channelForm.botToken };
+    let config: Record<string, string | undefined>;
+    if (channelForm.type === 'email') {
+      config = { email: channelForm.email };
+    } else if (channelForm.type === 'telegram') {
+      config = { chatId: channelForm.chatId, botToken: channelForm.botToken };
+    } else {
+      // jira
+      config = {
+        jiraType: channelForm.jiraType,
+        baseUrl: channelForm.baseUrl,
+        apiToken: channelForm.apiToken,
+      };
+      if (channelForm.jiraType === 'jsm') {
+        config.serviceDeskId = channelForm.serviceDeskId;
+        config.requestTypeId = channelForm.requestTypeId;
+      } else {
+        config.projectKey = channelForm.projectKey;
+        config.issueType = channelForm.issueType || 'Task';
+      }
+    }
 
     try {
       await createNotificationChannel.mutateAsync({
@@ -79,7 +104,14 @@ function NotificationChannelsTab() {
       enabled: true,
       email: "",
       chatId: "",
-      botToken: ""
+      botToken: "",
+      jiraType: "jira",
+      baseUrl: "",
+      apiToken: "",
+      projectKey: "",
+      issueType: "Task",
+      serviceDeskId: "",
+      requestTypeId: ""
     });
   };
 
@@ -139,7 +171,7 @@ function NotificationChannelsTab() {
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle>Notification Channels</CardTitle>
-          <CardDescription>Configure email and Telegram notification channels</CardDescription>
+          <CardDescription>Configure email, Telegram, and Jira/JSM notification channels</CardDescription>
         </div>
         <Dialog open={isChannelDialogOpen} onOpenChange={setIsChannelDialogOpen}>
           <DialogTrigger asChild>
@@ -174,6 +206,7 @@ function NotificationChannelsTab() {
                   <SelectContent>
                     <SelectItem value="email">Email</SelectItem>
                     <SelectItem value="telegram">Telegram</SelectItem>
+                    <SelectItem value="jira">Jira / JSM</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -188,7 +221,7 @@ function NotificationChannelsTab() {
                     placeholder="admin@example.com"
                   />
                 </div>
-              ) : (
+              ) : channelForm.type === 'telegram' ? (
                 <>
                   <div className="grid gap-2">
                     <Label htmlFor="chatId">Chat ID</Label>
@@ -209,6 +242,91 @@ function NotificationChannelsTab() {
                       placeholder="1234567890:ABCdefGHI..."
                     />
                   </div>
+                </>
+              ) : (
+                <>
+                  <div className="grid gap-2">
+                    <Label htmlFor="jiraType">Jira Mode</Label>
+                    <Select value={channelForm.jiraType} onValueChange={(value: "jira" | "jsm") => setChannelForm({ ...channelForm, jiraType: value })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="jira">Jira (Create Issue)</SelectItem>
+                        <SelectItem value="jsm">JSM (Create Service Request)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {channelForm.jiraType === 'jira'
+                        ? 'Creates an issue in a Jira project'
+                        : 'Creates a service request in Jira Service Management'}
+                    </p>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="baseUrl">Base URL</Label>
+                    <Input
+                      id="baseUrl"
+                      value={channelForm.baseUrl}
+                      onChange={(e) => setChannelForm({ ...channelForm, baseUrl: e.target.value })}
+                      placeholder="https://jira.your-company.com"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="jiraApiToken">Personal Access Token (PAT)</Label>
+                    <Input
+                      id="jiraApiToken"
+                      type="password"
+                      value={channelForm.apiToken}
+                      onChange={(e) => setChannelForm({ ...channelForm, apiToken: e.target.value })}
+                      placeholder="Personal Access Token"
+                    />
+                  </div>
+                  {channelForm.jiraType === 'jira' ? (
+                    <>
+                      <div className="grid gap-2">
+                        <Label htmlFor="projectKey">Project Key</Label>
+                        <Input
+                          id="projectKey"
+                          value={channelForm.projectKey}
+                          onChange={(e) => setChannelForm({ ...channelForm, projectKey: e.target.value })}
+                          placeholder="e.g., OPS"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="issueType">Issue Type</Label>
+                        <Input
+                          id="issueType"
+                          value={channelForm.issueType}
+                          onChange={(e) => setChannelForm({ ...channelForm, issueType: e.target.value })}
+                          placeholder="Task"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          e.g., Task, Bug, Story
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid gap-2">
+                        <Label htmlFor="serviceDeskId">Service Desk ID</Label>
+                        <Input
+                          id="serviceDeskId"
+                          value={channelForm.serviceDeskId}
+                          onChange={(e) => setChannelForm({ ...channelForm, serviceDeskId: e.target.value })}
+                          placeholder="e.g., 1"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="requestTypeId">Request Type ID</Label>
+                        <Input
+                          id="requestTypeId"
+                          value={channelForm.requestTypeId}
+                          onChange={(e) => setChannelForm({ ...channelForm, requestTypeId: e.target.value })}
+                          placeholder="e.g., 10"
+                        />
+                      </div>
+                    </>
+                  )}
                 </>
               )}
               <div className="flex items-center space-x-2">
@@ -248,12 +366,14 @@ function NotificationChannelsTab() {
                   <TableCell className="font-medium">{channel.name}</TableCell>
                   <TableCell>
                     <Badge variant="outline">
-                      {channel.type === 'email' ? <Mail className="h-3 w-3 mr-1" /> : <MessageSquare className="h-3 w-3 mr-1" />}
-                      {channel.type}
+                      {channel.type === 'email' ? <Mail className="h-3 w-3 mr-1" /> : channel.type === 'telegram' ? <MessageSquare className="h-3 w-3 mr-1" /> : <Ticket className="h-3 w-3 mr-1" />}
+                      {channel.type === 'jira'
+                        ? (channel.config.jiraType === 'jsm' ? 'JSM' : 'Jira')
+                        : channel.type}
                     </Badge>
                   </TableCell>
                   <TableCell className="font-mono text-sm">
-                    {channel.type === 'email' ? channel.config.email : channel.config.chatId}
+                    {channel.type === 'email' ? channel.config.email : channel.type === 'telegram' ? channel.config.chatId : channel.config.baseUrl}
                   </TableCell>
                   <TableCell>
                     <Switch
@@ -638,7 +758,7 @@ function AlertRulesTab() {
                         const channel = channels.find(c => c.id === chId);
                         return channel ? (
                           <Badge key={chId} variant="outline" className="text-xs">
-                            {channel.type === 'email' ? <Mail className="h-2 w-2" /> : <MessageSquare className="h-2 w-2" />}
+                            {channel.type === 'email' ? <Mail className="h-2 w-2" /> : channel.type === 'telegram' ? <MessageSquare className="h-2 w-2" /> : <Ticket className="h-2 w-2" />}
                           </Badge>
                         ) : null;
                       })}

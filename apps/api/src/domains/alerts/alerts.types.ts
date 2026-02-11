@@ -22,6 +22,14 @@ export interface NotificationConfig {
   email?: string;
   chatId?: string;
   botToken?: string;
+  // Jira / JSM configuration (Data Center / Server only, uses PAT with Bearer auth)
+  jiraType?: 'jira' | 'jsm';
+  baseUrl?: string;
+  apiToken?: string;
+  projectKey?: string;
+  issueType?: string;
+  serviceDeskId?: string;
+  requestTypeId?: string;
 }
 
 export interface NotificationChannel {
@@ -77,5 +85,5 @@ export interface TestNotificationResponse {
   message: string;
 }
 
-export type NotificationChannelType = 'email' | 'telegram';
+export type NotificationChannelType = 'email' | 'telegram' | 'jira';
 export type AlertSeverity = 'info' | 'warning' | 'critical';

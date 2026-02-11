@@ -54,6 +54,21 @@ export class NotificationChannelService {
       throw new Error('Chat ID and Bot Token are required for Telegram channel');
     }
 
+    if (data.type === 'jira') {
+      if (!data.config.baseUrl || !data.config.apiToken) {
+        throw new Error('Base URL and API Token are required for Jira channel');
+      }
+      if (data.config.jiraType === 'jsm') {
+        if (!data.config.serviceDeskId || !data.config.requestTypeId) {
+          throw new Error('Service Desk ID and Request Type ID are required for JSM channel');
+        }
+      } else {
+        if (!data.config.projectKey) {
+          throw new Error('Project Key is required for Jira channel');
+        }
+      }
+    }
+
     const channel = await notificationChannelRepository.create(data);
 
     logger.info(`User ${username} created notification channel: ${channel.name}`);

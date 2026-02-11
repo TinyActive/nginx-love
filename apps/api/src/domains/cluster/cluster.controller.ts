@@ -55,7 +55,7 @@ export const getSlaveNodes = async (req: AuthRequest, res: Response): Promise<vo
  */
 export const getSlaveNode = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     const node = await clusterService.getSlaveNodeById(id);
 
@@ -77,7 +77,7 @@ export const getSlaveNode = async (req: AuthRequest, res: Response): Promise<voi
  */
 export const deleteSlaveNode = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     await clusterService.deleteSlaveNode(id, req.user?.userId);
 

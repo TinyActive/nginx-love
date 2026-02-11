@@ -107,8 +107,8 @@ export const createNLBValidation = [
     .isLength({ max: 500 })
     .withMessage('Description must not exceed 500 characters'),
   body('port')
-    .isInt({ min: 10000, max: 65535 })
-    .withMessage('Port must be between 10000 and 65535'),
+    .isInt({ min: 1, max: 65535 })
+    .withMessage('Port must be between 1 and 65535'),
   body('protocol')
     .isIn(['tcp', 'udp', 'tcp_udp'])
     .withMessage('Protocol must be tcp, udp, or tcp_udp'),
@@ -218,8 +218,8 @@ export const updateNLBValidation = [
     .withMessage('Description must not exceed 500 characters'),
   body('port')
     .optional()
-    .isInt({ min: 10000, max: 65535 })
-    .withMessage('Port must be between 10000 and 65535'),
+    .isInt({ min: 1, max: 65535 })
+    .withMessage('Port must be between 1 and 65535'),
   body('protocol')
     .optional()
     .isIn(['tcp', 'udp', 'tcp_udp'])

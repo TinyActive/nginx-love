@@ -23,7 +23,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Domain } from '@/types';
 import { toast } from 'sonner';
-import { useIssueAutoSSL, useUploadManualSSL, useDomains } from '@/queries';
+import { useIssueAutoSSL, useUploadManualSSL, useUploadWildcardSSL, useIssueWildcardSSL, useDomains } from '@/queries';
 
 interface SSLDialogProps {
   open: boolean;
@@ -33,7 +33,7 @@ interface SSLDialogProps {
 
 export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
   const { t } = useTranslation();
-  const [method, setMethod] = useState<'auto' | 'manual'>('auto');
+  const [method, setMethod] = useState<'auto' | 'manual' | 'wildcard' | 'wildcard-auto'>('auto');
   const [formData, setFormData] = useState({
     domainId: '',
     email: '',
@@ -42,6 +42,17 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
     privateKey: '',
     chain: '',
   });
+  // Extra state for wildcard multi-domain selection
+  const [wcExtraDomainIds, setWcExtraDomainIds] = useState<string[]>([]);
+  // Cloudflare DNS credentials for wildcard auto-SSL
+  const [cfCredentialMode, setCfCredentialMode] = useState<'token' | 'key'>('token');
+  const [cfCredentials, setCfCredentials] = useState({
+    cfToken: '',
+    cfAccountId: '',
+    cfApiKey: '',
+    cfApiEmail: '',
+  });
+  const [wcBaseDomain, setWcBaseDomain] = useState('');
 
   // Use TanStack Query to fetch domains
   const { data: domainsResponse, isLoading: domainsLoading, error: domainsError } = useDomains();
@@ -51,6 +62,15 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
 
   const issueAutoSSL = useIssueAutoSSL();
   const uploadManualSSL = useUploadManualSSL();
+  const uploadWildcardSSL = useUploadWildcardSSL();
+  const issueWildcardSSL = useIssueWildcardSSL();
+
+  // Toggle a domain ID in the wildcard extra-domains set
+  const toggleWcDomain = (domainId: string) => {
+    setWcExtraDomainIds(prev =>
+      prev.includes(domainId) ? prev.filter(id => id !== domainId) : [...prev, domainId]
+    );
+  };
 
   // Show error toast if domains fail to load
   useEffect(() => {
@@ -257,6 +277,48 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
           autoRenew: formData.autoRenew,
         });
         toast.success("SSL certificate issued successfully (ZeroSSL)");
+      } else if (method === 'wildcard-auto') {
+        if (!wcBaseDomain) {
+          toast.error('Base domain is required (e.g., example.com)');
+          return;
+        }
+        // Build Cloudflare DNS credentials
+        const dnsCredentials: Record<string, string> = {};
+        if (cfCredentialMode === 'token') {
+          if (!cfCredentials.cfToken) {
+            toast.error('Cloudflare API Token is required');
+            return;
+          }
+          dnsCredentials['CF_Token'] = cfCredentials.cfToken;
+          if (cfCredentials.cfAccountId) {
+            dnsCredentials['CF_Account_ID'] = cfCredentials.cfAccountId;
+          }
+        } else {
+          if (!cfCredentials.cfApiKey || !cfCredentials.cfApiEmail) {
+            toast.error('Cloudflare Global API Key and Email are both required');
+            return;
+          }
+          dnsCredentials['CF_Key'] = cfCredentials.cfApiKey;
+          dnsCredentials['CF_Email'] = cfCredentials.cfApiEmail;
+        }
+        await issueWildcardSSL.mutateAsync({
+          domainId: formData.domainId,
+          baseDomain: wcBaseDomain,
+          email: formData.email || undefined,
+          dnsProvider: 'dns_cf',
+          dnsCredentials,
+          autoRenew: formData.autoRenew,
+        });
+        toast.success('Wildcard SSL certificate issued via Cloudflare DNS');
+      } else if (method === 'wildcard') {
+        await uploadWildcardSSL.mutateAsync({
+          domainId: formData.domainId,
+          certificate: formData.certificate,
+          privateKey: formData.privateKey,
+          chain: formData.chain || undefined,
+          additionalDomainIds: wcExtraDomainIds.length > 0 ? wcExtraDomainIds : undefined,
+        });
+        toast.success('Wildcard SSL certificate uploaded and applied');
       } else {
         await uploadManualSSL.mutateAsync({
           domainId: formData.domainId,
@@ -279,6 +341,9 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
         privateKey: '',
         chain: '',
       });
+      setWcExtraDomainIds([]);
+      setCfCredentials({ cfToken: '', cfAccountId: '', cfApiKey: '', cfApiEmail: '' });
+      setWcBaseDomain('');
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to add certificate');
     }
@@ -321,10 +386,12 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
             </Select>
           </div>
 
-          <Tabs value={method} onValueChange={(v) => setMethod(v as 'auto' | 'manual')}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="auto">Auto (ZeroSSL/Let's Encrypt)</TabsTrigger>
+          <Tabs value={method} onValueChange={(v) => setMethod(v as 'auto' | 'manual' | 'wildcard' | 'wildcard-auto')}>
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="auto">Auto (ZeroSSL)</TabsTrigger>
               <TabsTrigger value="manual">Manual Upload</TabsTrigger>
+              <TabsTrigger value="wildcard">Wildcard Upload</TabsTrigger>
+              <TabsTrigger value="wildcard-auto">Wildcard Auto</TabsTrigger>
             </TabsList>
 
             <TabsContent value="auto" className="space-y-4">
@@ -413,14 +480,228 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
                 />
               </div>
             </TabsContent>
+
+            <TabsContent value="wildcard" className="space-y-4">
+              <div className="rounded-lg bg-amber-500/10 p-4 border border-amber-500/20">
+                <h4 className="font-medium mb-2">Wildcard Certificate (*.domain.com)</h4>
+                <p className="text-sm text-muted-foreground">
+                  Upload a wildcard certificate that covers all subdomains under a parent domain.
+                  You can apply it to multiple domains at once. The server validates that each
+                  selected domain actually falls within the wildcard scope.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="wcCert">Wildcard Certificate (PEM) *</Label>
+                <Textarea
+                  id="wcCert"
+                  placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                  value={formData.certificate}
+                  onChange={(e) => setFormData({ ...formData, certificate: e.target.value })}
+                  rows={5}
+                  className="font-mono text-xs break-all whitespace-pre-wrap max-h-[100px]"
+                  required={method === 'wildcard'}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="wcKey">Private Key (PEM) *</Label>
+                <Textarea
+                  id="wcKey"
+                  placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
+                  value={formData.privateKey}
+                  onChange={(e) => setFormData({ ...formData, privateKey: e.target.value })}
+                  rows={5}
+                  className="font-mono text-xs break-all whitespace-pre-wrap max-h-[100px]"
+                  required={method === 'wildcard'}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="wcChain">Chain (Optional)</Label>
+                <Textarea
+                  id="wcChain"
+                  placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                  value={formData.chain}
+                  onChange={(e) => setFormData({ ...formData, chain: e.target.value })}
+                  rows={3}
+                  className="font-mono text-xs break-all whitespace-pre-wrap max-h-[80px]"
+                />
+              </div>
+
+              {/* Multi-domain selector: pick extra domains to apply this wildcard to */}
+              {domainsWithoutSSL.length > 1 && formData.domainId && (
+                <div className="space-y-2">
+                  <Label>Also apply to these domains (optional)</Label>
+                  <div className="grid gap-2 max-h-[120px] overflow-y-auto rounded-md border p-2">
+                    {domainsWithoutSSL
+                      .filter(d => d.id !== formData.domainId)
+                      .map((d: Domain) => (
+                        <label key={d.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={wcExtraDomainIds.includes(d.id)}
+                            onChange={() => toggleWcDomain(d.id)}
+                            className="rounded border-gray-300"
+                          />
+                          {d.name}
+                        </label>
+                      ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Selected domains must be subdomains covered by the wildcard pattern.
+                  </p>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="wildcard-auto" className="space-y-4">
+              <div className="rounded-lg bg-blue-500/10 p-4 border border-blue-500/20">
+                <h4 className="font-medium mb-2">Wildcard Auto-SSL via Cloudflare DNS</h4>
+                <p className="text-sm text-muted-foreground">
+                  Automatically issue a wildcard certificate (*.domain.com) using ZeroSSL/Let's Encrypt
+                  with Cloudflare DNS-01 challenge. Your Cloudflare credentials will be saved for auto-renewal.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="wcBaseDomain">Base Domain *</Label>
+                <Input
+                  id="wcBaseDomain"
+                  placeholder="example.com"
+                  value={wcBaseDomain}
+                  onChange={(e) => setWcBaseDomain(e.target.value)}
+                  required={method === 'wildcard-auto'}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter the parent domain. Certificate will cover *.example.com and example.com
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="wcAutoEmail">Email (Optional)</Label>
+                <Input
+                  id="wcAutoEmail"
+                  type="email"
+                  placeholder="admin@example.com"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Email for certificate expiry notifications
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <Label>Cloudflare Authentication Method</Label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name="cfCredentialMode"
+                      checked={cfCredentialMode === 'token'}
+                      onChange={() => setCfCredentialMode('token')}
+                      className="rounded border-gray-300"
+                    />
+                    API Token (Recommended)
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name="cfCredentialMode"
+                      checked={cfCredentialMode === 'key'}
+                      onChange={() => setCfCredentialMode('key')}
+                      className="rounded border-gray-300"
+                    />
+                    Global API Key
+                  </label>
+                </div>
+              </div>
+
+              {cfCredentialMode === 'token' ? (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="cfToken">Cloudflare API Token *</Label>
+                    <Input
+                      id="cfToken"
+                      type="password"
+                      placeholder="Enter your Cloudflare API Token"
+                      value={cfCredentials.cfToken}
+                      onChange={(e) => setCfCredentials({ ...cfCredentials, cfToken: e.target.value })}
+                      required={method === 'wildcard-auto' && cfCredentialMode === 'token'}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Create a token with Zone:DNS:Edit permission at Cloudflare Dashboard → API Tokens
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cfAccountId">Cloudflare Account ID (Optional)</Label>
+                    <Input
+                      id="cfAccountId"
+                      placeholder="Enter your Cloudflare Account ID"
+                      value={cfCredentials.cfAccountId}
+                      onChange={(e) => setCfCredentials({ ...cfCredentials, cfAccountId: e.target.value })}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="cfApiKey">Global API Key *</Label>
+                    <Input
+                      id="cfApiKey"
+                      type="password"
+                      placeholder="Enter your Cloudflare Global API Key"
+                      value={cfCredentials.cfApiKey}
+                      onChange={(e) => setCfCredentials({ ...cfCredentials, cfApiKey: e.target.value })}
+                      required={method === 'wildcard-auto' && cfCredentialMode === 'key'}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cfApiEmail">Cloudflare Account Email *</Label>
+                    <Input
+                      id="cfApiEmail"
+                      type="email"
+                      placeholder="your-email@example.com"
+                      value={cfCredentials.cfApiEmail}
+                      onChange={(e) => setCfCredentials({ ...cfCredentials, cfApiEmail: e.target.value })}
+                      required={method === 'wildcard-auto' && cfCredentialMode === 'key'}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="wcAutoRenew">Auto-Renewal</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Automatically renew using saved Cloudflare credentials
+                  </p>
+                </div>
+                <Switch
+                  id="wcAutoRenew"
+                  checked={formData.autoRenew}
+                  onCheckedChange={(checked) => setFormData({ ...formData, autoRenew: checked })}
+                />
+              </div>
+
+              <div className="rounded-lg bg-muted p-4 space-y-2">
+                <p className="text-sm font-medium">Requirements:</p>
+                <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                  <li>Domain DNS must be managed by Cloudflare</li>
+                  <li>Valid Cloudflare API Token with Zone:DNS:Edit permission</li>
+                  <li>Credentials will be stored securely for auto-renewal</li>
+                </ul>
+              </div>
+            </TabsContent>
           </Tabs>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={issueAutoSSL.isPending || uploadManualSSL.isPending}>
-              {issueAutoSSL.isPending || uploadManualSSL.isPending ? 'Adding...' : 'Add Certificate'}
+            <Button type="submit" disabled={issueAutoSSL.isPending || uploadManualSSL.isPending || uploadWildcardSSL.isPending || issueWildcardSSL.isPending}>
+              {(issueAutoSSL.isPending || uploadManualSSL.isPending || uploadWildcardSSL.isPending || issueWildcardSSL.isPending) ? 'Adding...' : 'Add Certificate'}
             </Button>
           </DialogFooter>
         </form>

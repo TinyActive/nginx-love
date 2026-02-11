@@ -7,7 +7,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum UserRole {
@@ -262,6 +261,14 @@ model SSLCertificate {
   issuerDetails  Json? // { commonName, organization, country }
   serialNumber   String? // Certificate serial number
 
+  // Wildcard SSL support
+  isWildcard     Boolean @default(false) // Whether this is a wildcard certificate
+  wildcardDomain String? // The wildcard pattern (e.g., "*.example.com")
+
+  // DNS credentials for wildcard auto-renewal (Cloudflare DNS-01 challenge)
+  dnsProvider    String? // DNS provider plugin name (e.g., "dns_cf")
+  dnsCredentials Json?   // DNS API credentials for auto-renewal (e.g., { CF_Token: "...", CF_Account_ID: "..." })
+
   validFrom DateTime
   validTo   DateTime
   autoRenew Boolean   @default(true)
@@ -272,6 +279,7 @@ model SSLCertificate {
 
   @@index([domainId])
   @@index([validTo])
+  @@index([isWildcard])
   @@map("ssl_certificates")
 }
 
@@ -352,6 +360,7 @@ model InstallationStatus {
 enum NotificationChannelType {
   email
   telegram
+  jira
 }
 
 enum AlertSeverity {

@@ -40,7 +40,7 @@ export class UsersController {
    */
   async getUser(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const currentUser = req.user!;
 
       const user = await usersService.getUserById(id, currentUser.userId, currentUser.role as any);
@@ -121,7 +121,7 @@ export class UsersController {
    */
   async updateUser(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const currentUser = req.user!;
 
       const validation = validateUpdateUserDto(req.body);
@@ -173,7 +173,7 @@ export class UsersController {
    */
   async deleteUser(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const currentUser = req.user!;
 
       await usersService.deleteUser(
@@ -212,7 +212,7 @@ export class UsersController {
    */
   async toggleUserStatus(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const currentUser = req.user!;
 
       const validation = validateUpdateUserStatusDto(req.body);
@@ -263,7 +263,7 @@ export class UsersController {
    */
   async resetUserPassword(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const currentUser = req.user!;
 
       const tempPassword = await usersService.resetUserPassword(

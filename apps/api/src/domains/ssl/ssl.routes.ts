@@ -10,6 +10,11 @@ import {
   updateSSLCertificate,
   deleteSSLCertificate,
   renewSSLCertificate,
+  issueWildcardSSL,
+  uploadWildcardSSL,
+  applyWildcardSSL,
+  validateWildcardSSL,
+  getWildcardCertificates,
 } from './ssl.controller';
 
 const router = express.Router();
@@ -23,6 +28,13 @@ router.use(authenticate);
  * @access  Private (all roles)
  */
 router.get('/system-info', getSSLSystemInfo);
+
+/**
+ * @route   GET /api/ssl/wildcard
+ * @desc    Get all wildcard SSL certificates
+ * @access  Private (all roles)
+ */
+router.get('/wildcard', getWildcardCertificates);
 
 /**
  * @route   GET /api/ssl
@@ -70,6 +82,74 @@ router.post(
     body('issuer').optional().isString(),
   ],
   uploadManualSSL
+);
+
+/**
+ * @route   POST /api/ssl/wildcard/auto
+ * @desc    Issue wildcard SSL certificate via ACME DNS-01 challenge
+ * @access  Private (admin, moderator)
+ */
+router.post(
+  '/wildcard/auto',
+  authorize('admin', 'moderator'),
+  [
+    body('domainId').notEmpty().withMessage('Domain ID is required'),
+    body('baseDomain').notEmpty().withMessage('Base domain is required (e.g., example.com)'),
+    body('dnsProvider').notEmpty().withMessage('DNS provider is required for wildcard certificates'),
+    body('dnsCredentials').optional().isObject().withMessage('DNS credentials must be an object'),
+    body('email').optional().isEmail().withMessage('Valid email is required'),
+    body('autoRenew').optional().isBoolean().withMessage('Auto renew must be boolean'),
+  ],
+  issueWildcardSSL
+);
+
+/**
+ * @route   POST /api/ssl/wildcard/manual
+ * @desc    Upload manual wildcard SSL certificate
+ * @access  Private (admin, moderator)
+ */
+router.post(
+  '/wildcard/manual',
+  authorize('admin', 'moderator'),
+  [
+    body('domainId').notEmpty().withMessage('Domain ID is required'),
+    body('certificate').notEmpty().withMessage('Certificate is required'),
+    body('privateKey').notEmpty().withMessage('Private key is required'),
+    body('chain').optional().isString(),
+    body('issuer').optional().isString(),
+    body('additionalDomainIds').optional().isArray().withMessage('Additional domain IDs must be an array'),
+  ],
+  uploadWildcardSSL
+);
+
+/**
+ * @route   POST /api/ssl/wildcard/apply
+ * @desc    Apply wildcard SSL certificate to additional domains
+ * @access  Private (admin, moderator)
+ */
+router.post(
+  '/wildcard/apply',
+  authorize('admin', 'moderator'),
+  [
+    body('certificateId').notEmpty().withMessage('Certificate ID is required'),
+    body('targetDomainIds').isArray({ min: 1 }).withMessage('At least one target domain ID is required'),
+  ],
+  applyWildcardSSL
+);
+
+/**
+ * @route   POST /api/ssl/wildcard/validate
+ * @desc    Validate wildcard SSL certificate against domains
+ * @access  Private (admin, moderator)
+ */
+router.post(
+  '/wildcard/validate',
+  authorize('admin', 'moderator'),
+  [
+    body('certificate').notEmpty().withMessage('Certificate is required'),
+    body('domainNames').isArray({ min: 1 }).withMessage('At least one domain name is required'),
+  ],
+  validateWildcardSSL
 );
 
 /**

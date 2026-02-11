@@ -19,6 +19,7 @@ const resources = {
       'nav.nodes': 'Slave Nodes',
       'nav.network': 'Network Manager',
       'nav.plugins': 'Plugins',
+      'nav.dns': 'DNS Management',
       
       // Login
       'login.title': 'Admin Portal',
@@ -126,6 +127,7 @@ const resources = {
       'nav.nodes': 'Nút phụ',
       'nav.network': 'Quản lý mạng',
       'nav.plugins': 'Plugin',
+      'nav.dns': 'Quản lý DNS',
       
       // Login
       'login.title': 'Cổng Quản Trị',

@@ -60,7 +60,7 @@ export class AccessListsController {
         });
       }
 
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
 
       const accessList = await accessListsService.getAccessListById(id);
 
@@ -139,7 +139,7 @@ export class AccessListsController {
         });
       }
 
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const userId = (req as any).user.id;
       const username = (req as any).user.username;
       const ip = req.ip || req.socket.remoteAddress || '';
@@ -182,7 +182,7 @@ export class AccessListsController {
         });
       }
 
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const userId = (req as any).user.id;
       const username = (req as any).user.username;
       const ip = req.ip || req.socket.remoteAddress || '';
@@ -208,7 +208,7 @@ export class AccessListsController {
    */
   async toggleAccessList(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const { enabled } = req.body;
       const userId = (req as any).user.id;
       const username = (req as any).user.username;
@@ -292,7 +292,7 @@ export class AccessListsController {
         });
       }
 
-      const { accessListId, domainId } = req.params;
+      const { accessListId, domainId } = req.params as Record<string, string>;
       const userId = (req as any).user.id;
       const username = (req as any).user.username;
       const ip = req.ip || req.socket.remoteAddress || '';
@@ -325,7 +325,7 @@ export class AccessListsController {
    */
   async getByDomain(req: Request, res: Response) {
     try {
-      const { domainId } = req.params;
+      const { domainId } = req.params as Record<string, string>;
 
       const accessLists = await accessListsService.getAccessListsByDomainId(domainId);
 

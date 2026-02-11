@@ -5,6 +5,10 @@ import type {
   IssueAutoSSLRequest,
   UploadManualSSLRequest,
   UpdateSSLRequest,
+  IssueWildcardSSLRequest,
+  UploadWildcardSSLRequest,
+  ApplyWildcardSSLRequest,
+  ValidateWildcardSSLRequest,
 } from '@/services/ssl.service';
 import type { SSLCertificate } from '@/types';
 
@@ -190,4 +194,44 @@ export const useSuspenseSSLCertificates = () => {
 
 export const useSuspenseSSLCertificate = (id: string) => {
   return useSuspenseQuery(sslQueryOptions.byId(id));
+};
+
+// Wildcard SSL hooks
+export const useIssueWildcardSSL = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (data: IssueWildcardSSLRequest) => sslService.issueWildcard(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: sslQueryKeys.lists() });
+    },
+  });
+};
+
+export const useUploadWildcardSSL = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (data: UploadWildcardSSLRequest) => sslService.uploadWildcard(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: sslQueryKeys.lists() });
+    },
+  });
+};
+
+export const useApplyWildcardSSL = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (data: ApplyWildcardSSLRequest) => sslService.applyWildcard(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: sslQueryKeys.lists() });
+    },
+  });
+};
+
+export const useValidateWildcardSSL = () => {
+  return useMutation({
+    mutationFn: (data: ValidateWildcardSSLRequest) => sslService.validateWildcard(data),
+  });
 };

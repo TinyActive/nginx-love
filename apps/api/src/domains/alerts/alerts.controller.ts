@@ -33,7 +33,7 @@ export const getNotificationChannels = async (req: AuthRequest, res: Response): 
  */
 export const getNotificationChannel = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     const channel = await notificationChannelService.getChannelById(id);
 
@@ -88,7 +88,7 @@ export const createNotificationChannel = async (req: AuthRequest, res: Response)
  */
 export const updateNotificationChannel = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
     const { name, type, enabled, config } = req.body;
 
     const channel = await notificationChannelService.updateChannel(
@@ -116,7 +116,7 @@ export const updateNotificationChannel = async (req: AuthRequest, res: Response)
  */
 export const deleteNotificationChannel = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     await notificationChannelService.deleteChannel(id, req.user?.username);
 
@@ -139,7 +139,7 @@ export const deleteNotificationChannel = async (req: AuthRequest, res: Response)
  */
 export const testNotificationChannel = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     const result = await notificationChannelService.testChannel(id);
 
@@ -190,7 +190,7 @@ export const getAlertRules = async (req: AuthRequest, res: Response): Promise<vo
  */
 export const getAlertRule = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     const rule = await alertRuleService.getRuleById(id);
 
@@ -246,7 +246,7 @@ export const createAlertRule = async (req: AuthRequest, res: Response): Promise<
  */
 export const updateAlertRule = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
     const { name, condition, threshold, severity, channels, enabled } = req.body;
 
     const rule = await alertRuleService.updateRule(
@@ -275,7 +275,7 @@ export const updateAlertRule = async (req: AuthRequest, res: Response): Promise<
  */
 export const deleteAlertRule = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     await alertRuleService.deleteRule(id, req.user?.username);
 

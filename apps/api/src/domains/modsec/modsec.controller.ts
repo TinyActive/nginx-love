@@ -37,7 +37,7 @@ export class ModSecController {
    */
   async toggleCRSRule(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { ruleFile } = req.params;
+      const { ruleFile } = req.params as Record<string, string>;
       const { domainId } = req.body;
 
       const dto: ToggleCRSRuleDto = { domainId };
@@ -93,7 +93,7 @@ export class ModSecController {
    */
   async getModSecRule(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
 
       const rule = await modSecService.getModSecRule(id);
 
@@ -123,7 +123,7 @@ export class ModSecController {
    */
   async toggleModSecRule(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
 
       const updatedRule = await modSecService.toggleModSecRule(id);
 
@@ -233,7 +233,7 @@ export class ModSecController {
         return;
       }
 
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const { name, category, ruleContent, description, enabled } = req.body;
 
       const dto: UpdateModSecRuleDto = {
@@ -289,7 +289,7 @@ export class ModSecController {
    */
   async deleteModSecRule(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
 
       await modSecService.deleteModSecRule(id);
 

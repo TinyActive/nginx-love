@@ -395,13 +395,13 @@ export default function NLBFormDialog({ isOpen, onClose, nlb, mode }: NLBFormDia
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="port">Port * (≥ 10000)</Label>
+                  <Label htmlFor="port">Port * (1-65535)</Label>
                   <Input
                     id="port"
                     type="number"
                     {...register('port', {
                       required: 'Port is required',
-                      min: { value: 10000, message: 'Port must be ≥ 10000' },
+                      min: { value: 1, message: 'Port must be ≥ 1' },
                       max: { value: 65535, message: 'Port must be ≤ 65535' },
                       valueAsNumber: true,
                     })}

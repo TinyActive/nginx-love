@@ -21,6 +21,7 @@ import {
   Settings,
   LogOut,
   Network,
+  Waypoints,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -59,6 +60,7 @@ const menuGroups = [
     items: [
       { key: 'domains', icon: Globe, path: '/domains' },
       { key: 'ssl', icon: Lock, path: '/ssl' },
+      { key: 'dns', icon: Waypoints, path: '/dns' },
     ]
   },
   {

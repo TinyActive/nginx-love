@@ -332,7 +332,7 @@ class AccountController {
   revokeSession = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const userId = req.user?.userId;
-      const { sessionId } = req.params;
+      const { sessionId } = req.params as Record<string, string>;
 
       if (!userId) {
         res.status(401).json({

@@ -36,7 +36,7 @@ export class AclController {
    */
   async getAclRule(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const rule = await aclService.getRuleById(id);
 
       res.json({
@@ -97,7 +97,7 @@ export class AclController {
    */
   async updateAclRule(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const dto: UpdateAclRuleDto = req.body;
 
       // Validate DTO
@@ -136,7 +136,7 @@ export class AclController {
    */
   async deleteAclRule(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       await aclService.deleteRule(id);
 
       res.json({
@@ -161,7 +161,7 @@ export class AclController {
    */
   async toggleAclRule(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const rule = await aclService.toggleRule(id);
 
       res.json({

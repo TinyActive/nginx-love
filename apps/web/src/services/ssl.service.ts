@@ -1,5 +1,5 @@
 import api from './api';
-import { SSLCertificate } from '@/types';
+import { SSLCertificate, WildcardValidationResult } from '@/types';
 
 export interface IssueAutoSSLRequest {
   domainId: string;
@@ -20,6 +20,34 @@ export interface UpdateSSLRequest {
   privateKey?: string;
   chain?: string;
   autoRenew?: boolean;
+}
+
+export interface IssueWildcardSSLRequest {
+  domainId: string;
+  baseDomain: string;
+  email?: string;
+  dnsProvider: string;
+  dnsCredentials?: Record<string, string>;
+  autoRenew?: boolean;
+}
+
+export interface UploadWildcardSSLRequest {
+  domainId: string;
+  certificate: string;
+  privateKey: string;
+  chain?: string;
+  issuer?: string;
+  additionalDomainIds?: string[];
+}
+
+export interface ApplyWildcardSSLRequest {
+  certificateId: string;
+  targetDomainIds: string[];
+}
+
+export interface ValidateWildcardSSLRequest {
+  certificate: string;
+  domainNames: string[];
 }
 
 export const sslService = {
@@ -75,6 +103,46 @@ export const sslService = {
    */
   async renew(id: string): Promise<SSLCertificate> {
     const response = await api.post(`/ssl/${id}/renew`);
+    return response.data.data;
+  },
+
+  /**
+   * Get all wildcard SSL certificates
+   */
+  async getWildcardCertificates(): Promise<SSLCertificate[]> {
+    const response = await api.get('/ssl/wildcard');
+    return response.data.data;
+  },
+
+  /**
+   * Issue wildcard SSL certificate via ACME DNS-01 challenge
+   */
+  async issueWildcard(data: IssueWildcardSSLRequest): Promise<SSLCertificate> {
+    const response = await api.post('/ssl/wildcard/auto', data);
+    return response.data.data;
+  },
+
+  /**
+   * Upload manual wildcard SSL certificate
+   */
+  async uploadWildcard(data: UploadWildcardSSLRequest): Promise<SSLCertificate> {
+    const response = await api.post('/ssl/wildcard/manual', data);
+    return response.data.data;
+  },
+
+  /**
+   * Apply wildcard SSL certificate to additional domains
+   */
+  async applyWildcard(data: ApplyWildcardSSLRequest): Promise<SSLCertificate[]> {
+    const response = await api.post('/ssl/wildcard/apply', data);
+    return response.data.data;
+  },
+
+  /**
+   * Validate wildcard SSL certificate against domains
+   */
+  async validateWildcard(data: ValidateWildcardSSLRequest): Promise<WildcardValidationResult> {
+    const response = await api.post('/ssl/wildcard/validate', data);
     return response.data.data;
   },
 };

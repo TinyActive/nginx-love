@@ -350,10 +350,22 @@ export class DomainsService {
       throw new Error('Domain not found');
     }
 
-    // If enabling SSL, check if certificate exists
+    // If enabling SSL, check if certificate exists — auto-apply wildcard if available
     if (sslEnabled && !domain.sslCertificate) {
-      throw new Error(
-        'Cannot enable SSL: No SSL certificate found for this domain. Please issue or upload a certificate first.'
+      // Try to find and apply a matching wildcard certificate automatically
+      const appliedWildcard = await sslService.findAndApplyWildcardForDomain(
+        id,
+        domain.name
+      );
+
+      if (!appliedWildcard) {
+        throw new Error(
+          'Cannot enable SSL: No SSL certificate found for this domain. Please issue or upload a certificate first.'
+        );
+      }
+
+      logger.info(
+        `Auto-applied wildcard cert "${appliedWildcard.wildcardDomain}" to ${domain.name}`
       );
     }
 

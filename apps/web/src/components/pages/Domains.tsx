@@ -413,12 +413,6 @@ function DomainActions() {
 
   const handleToggleSSL = async (domain: any) => {
     const newSSLStatus = !domain.sslEnabled;
-    
-    // Check if domain has SSL certificate when enabling
-    if (newSSLStatus && !domain.sslCertificate) {
-      toast.error('Cannot enable SSL: No SSL certificate found. Please issue or upload a certificate first.');
-      return;
-    }
 
     setConfirmDialog({
       open: true,

@@ -59,7 +59,7 @@ export class DomainsController {
    */
   async getDomainById(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
 
       const domain = await domainsService.getDomainById(id);
 
@@ -165,7 +165,7 @@ export class DomainsController {
         return;
       }
 
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const { name, status, modsecEnabled, upstreams, loadBalancer, realIpConfig, advancedConfig } = req.body;
 
       const domain = await domainsService.updateDomain(
@@ -224,7 +224,7 @@ export class DomainsController {
    */
   async deleteDomain(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
 
       await domainsService.deleteDomain(
         id,
@@ -261,7 +261,7 @@ export class DomainsController {
    */
   async toggleSSL(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as Record<string, string>;
       const { sslEnabled } = req.body;
 
       if (typeof sslEnabled !== 'boolean') {

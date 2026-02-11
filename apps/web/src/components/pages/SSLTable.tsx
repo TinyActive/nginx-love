@@ -134,6 +134,7 @@ export function SSLTable() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Domain</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Issuer</TableHead>
                   <TableHead>Valid From</TableHead>
                   <TableHead>Valid To</TableHead>
@@ -148,8 +149,22 @@ export function SSLTable() {
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         {getStatusIcon(cert.status)}
-                        {cert.domain?.name || cert.commonName}
+                        <div>
+                          <span>{cert.domain?.name || cert.commonName}</span>
+                          {cert.wildcardDomain && (
+                            <p className="text-xs text-muted-foreground">{cert.wildcardDomain}</p>
+                          )}
+                        </div>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {cert.isWildcard ? (
+                        <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-300">
+                          Wildcard
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline">Single</Badge>
+                      )}
                     </TableCell>
                     <TableCell>{cert.issuer}</TableCell>
                     <TableCell>{formatDate(cert.validFrom)}</TableCell>

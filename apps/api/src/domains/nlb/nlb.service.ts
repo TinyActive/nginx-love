@@ -1,9 +1,12 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import logger from '../../utils/logger';
 import { PATHS } from '../../shared/constants/paths.constants';
+
+const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 import { NLBRepository } from './nlb.repository';
 import {
   CreateNLBInput,
@@ -16,7 +19,19 @@ import {
 import { PaginationMeta } from '../../shared/types/common.types';
 import { AppError } from '../../middleware/errorHandler';
 
-const execAsync = promisify(exec);
+// Well-known ports reserved by the system/nginx that NLB must not use
+export const RESERVED_PORTS = [
+  80,    // HTTP
+  443,   // HTTPS
+  22,    // SSH
+  25,    // SMTP
+  53,    // DNS
+  3306,  // MySQL
+  5432,  // PostgreSQL
+  6379,  // Redis
+  8080,  // Nginx panel (frontend)
+  3001,  // API backend
+];
 
 /**
  * Service for Network Load Balancer business logic
@@ -29,6 +44,60 @@ export class NLBService {
 
   constructor() {
     this.repository = new NLBRepository();
+  }
+
+  /**
+   * Check if a port is currently in use on the system by another process.
+   * Uses `ss` via execFile to detect listening sockets (safe from command injection).
+   * Ignores ports already owned by an existing NLB (identified via its database record).
+   */
+  async isPortInUseOnSystem(port: number, excludeNLBId?: string): Promise<boolean> {
+    // First, check against the reserved ports list
+    if (RESERVED_PORTS.includes(port)) {
+      return true;
+    }
+
+    // Check if port is used by another NLB in the database
+    const existingByPort = await this.repository.findByPort(port);
+    if (existingByPort && existingByPort.id !== excludeNLBId) {
+      return true;
+    }
+
+    // Check if port is in use on the system by any process using execFile (safe from injection)
+    const portStr = String(Math.floor(port));
+    try {
+      const { stdout } = await execFileAsync('ss', ['-tlnH', 'sport', '=', `:${portStr}`]);
+      if (stdout.trim().length > 0) {
+        return true;
+      }
+    } catch {
+      // TCP check failed or no results - try UDP
+    }
+
+    try {
+      const { stdout } = await execFileAsync('ss', ['-ulnH', 'sport', '=', `:${portStr}`]);
+      if (stdout.trim().length > 0) {
+        return true;
+      }
+    } catch {
+      // UDP check failed - fall through
+      logger.warn(`Could not check system port usage for port ${port}`);
+    }
+
+    return false;
+  }
+
+  /**
+   * Build a user-friendly message explaining why a port cannot be used.
+   */
+  getPortConflictMessage(port: number, existingNLBName?: string): string {
+    if (RESERVED_PORTS.includes(port)) {
+      return `Port ${port} is reserved by the system and cannot be used for NLB`;
+    }
+    if (existingNLBName) {
+      return `Port ${port} is already in use by NLB "${existingNLBName}"`;
+    }
+    return `Port ${port} is already in use by another process on the system`;
   }
 
   /**
@@ -56,8 +125,8 @@ export class NLBService {
    */
   async createNLB(input: CreateNLBInput): Promise<NLBWithRelations> {
     // Validate port range
-    if (input.port < 10000) {
-      throw new AppError('NLB port must be 10000 or higher', 400);
+    if (input.port < 1 || input.port > 65535) {
+      throw new AppError('NLB port must be between 1 and 65535', 400);
     }
 
     // Check if name already exists
@@ -66,10 +135,15 @@ export class NLBService {
       throw new AppError(`NLB with name "${input.name}" already exists`, 409);
     }
 
-    // Check if port already in use
+    // Check for port conflicts (reserved ports, other NLBs, system processes)
     const existingByPort = await this.repository.findByPort(input.port);
     if (existingByPort) {
-      throw new AppError(`Port ${input.port} is already in use by NLB "${existingByPort.name}"`, 409);
+      throw new AppError(this.getPortConflictMessage(input.port, existingByPort.name), 409);
+    }
+
+    const portInUse = await this.isPortInUseOnSystem(input.port);
+    if (portInUse) {
+      throw new AppError(this.getPortConflictMessage(input.port), 409);
     }
 
     // Create NLB in database
@@ -113,8 +187,8 @@ export class NLBService {
     const nlb = await this.getNLBById(id);
 
     // Validate port if changed
-    if (input.port && input.port < 10000) {
-      throw new AppError('NLB port must be 10000 or higher', 400);
+    if (input.port !== undefined && (input.port < 1 || input.port > 65535)) {
+      throw new AppError('NLB port must be between 1 and 65535', 400);
     }
 
     // Check if name already exists (if changing name)
@@ -129,7 +203,12 @@ export class NLBService {
     if (input.port && input.port !== nlb.port) {
       const existingByPort = await this.repository.findByPort(input.port);
       if (existingByPort && existingByPort.id !== id) {
-        throw new AppError(`Port ${input.port} is already in use by NLB "${existingByPort.name}"`, 409);
+        throw new AppError(this.getPortConflictMessage(input.port, existingByPort.name), 409);
+      }
+
+      const portInUse = await this.isPortInUseOnSystem(input.port, id);
+      if (portInUse) {
+        throw new AppError(this.getPortConflictMessage(input.port), 409);
       }
     }
 

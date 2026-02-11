@@ -35,7 +35,7 @@ export const getBackupSchedule = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     const schedule = await backupService.getBackupSchedule(id);
 
@@ -98,7 +98,7 @@ export const updateBackupSchedule = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
     const dto: UpdateBackupScheduleDto = req.body;
 
     const updatedSchedule = await backupService.updateBackupSchedule(
@@ -129,7 +129,7 @@ export const deleteBackupSchedule = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     await backupService.deleteBackupSchedule(id, req.user?.userId);
 
@@ -154,7 +154,7 @@ export const toggleBackupSchedule = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     const updated = await backupService.toggleBackupSchedule(id, req.user?.userId);
 
@@ -189,7 +189,7 @@ export const runBackupNow = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     const result = await backupService.runBackupNow(id, req.user?.userId);
 
@@ -309,7 +309,7 @@ export const downloadBackup = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     const backup = await backupService.getBackupFileById(id);
 
@@ -357,7 +357,7 @@ export const deleteBackupFile = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     await backupService.deleteBackupFile(id, req.user?.userId);
 

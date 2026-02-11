@@ -319,7 +319,8 @@ ${accessListsBlock}
       : 'add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;';
     
     // HTTP/2 support (enabled by default, can be disabled)
-    const http2Support = domain.http2Enabled !== false ? ' http2' : '';
+    // Use the separate "http2" directive instead of the deprecated "listen ... http2"
+    const http2Directive = domain.http2Enabled !== false ? '\n    http2 on;' : '';
     
     // Generate custom locations if configured
     const customLocations = this.generateCustomLocations(domain);
@@ -332,7 +333,7 @@ ${accessListsBlock}
 
     return `
 server {
-    listen 443 ssl${http2Support};
+    listen 443 ssl;${http2Directive}
     server_name ${domain.name};
 
 ${realIpBlock}
@@ -351,8 +352,7 @@ ${accessListsBlock}
     ssl_prefer_server_ciphers on;
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
-    ssl_stapling on;
-    ssl_stapling_verify on;
+    ${domain.sslCertificate.chain ? 'ssl_stapling on;\n    ssl_stapling_verify on;' : '# ssl_stapling disabled (no chain/CA certificate available)'}
 
     # Security Headers
     ${hstsHeader}

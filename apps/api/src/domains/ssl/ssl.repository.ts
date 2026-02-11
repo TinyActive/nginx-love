@@ -52,6 +52,46 @@ export class SSLRepository {
   }
 
   /**
+   * Find all wildcard certificates
+   */
+  async findWildcardCertificates(): Promise<SSLCertificateWithDomain[]> {
+    return prisma.sSLCertificate.findMany({
+      where: { isWildcard: true },
+      include: {
+        domain: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: { validTo: 'asc' },
+    });
+  }
+
+  /**
+   * Find wildcard certificate by wildcard domain pattern (e.g., "*.example.com")
+   */
+  async findByWildcardDomain(wildcardDomain: string): Promise<SSLCertificateWithDomain[]> {
+    return prisma.sSLCertificate.findMany({
+      where: {
+        isWildcard: true,
+        wildcardDomain,
+      },
+      include: {
+        domain: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
    * Create SSL certificate
    */
   async create(

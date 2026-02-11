@@ -92,6 +92,76 @@ export async function sendEmailNotification(
 }
 
 /**
+ * Send Jira notification (create issue or JSM request)
+ * Supports Jira Data Center / Server using Personal Access Token (PAT) with Bearer auth
+ */
+export async function sendJiraNotification(
+  config: NotificationConfig,
+  subject: string,
+  message: string
+): Promise<boolean> {
+  try {
+    if (!config.baseUrl || !config.apiToken) {
+      throw new Error('Jira configuration incomplete: baseUrl and apiToken are required');
+    }
+
+    const headers = {
+      'Authorization': `Bearer ${config.apiToken}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+
+    const baseUrl = config.baseUrl.replace(/\/+$/, '');
+
+    if (config.jiraType === 'jsm') {
+      // Jira Service Management - create customer request
+      if (!config.serviceDeskId || !config.requestTypeId) {
+        throw new Error('JSM configuration incomplete: serviceDeskId and requestTypeId are required');
+      }
+
+      const url = `${baseUrl}/rest/servicedeskapi/request`;
+      const body = {
+        serviceDeskId: config.serviceDeskId,
+        requestTypeId: config.requestTypeId,
+        requestFieldValues: {
+          summary: subject,
+          description: message
+        }
+      };
+
+      const response = await axios.post(url, body, { headers });
+      logger.info(`JSM ticket created successfully: ${response.data.issueKey || response.data.issueId}`);
+      return true;
+    } else {
+      // Jira Data Center / Server - create issue
+      if (!config.projectKey) {
+        throw new Error('Jira configuration incomplete: projectKey is required');
+      }
+
+      const url = `${baseUrl}/rest/api/2/issue`;
+      const body = {
+        fields: {
+          project: { key: config.projectKey },
+          summary: subject,
+          description: message,
+          issuetype: { name: config.issueType || 'Task' }
+        }
+      };
+
+      const response = await axios.post(url, body, { headers });
+      logger.info(`Jira issue created successfully: ${response.data.key}`);
+      return true;
+    }
+  } catch (error: any) {
+    const errorMsg = error.response?.data?.errors
+      ? JSON.stringify(error.response.data.errors)
+      : error.response?.data?.errorMessage || error.message;
+    logger.error('Failed to send Jira notification:', errorMsg);
+    throw new Error(`Jira error: ${errorMsg}`);
+  }
+}
+
+/**
  * Send test notification based on channel type
  */
 export async function sendTestNotification(
@@ -132,6 +202,21 @@ export async function sendTestNotification(
         success: true,
         message: `Test notification sent successfully to ${config.email}`
       };
+    } else if (channelType === 'jira') {
+      await sendJiraNotification(
+        config,
+        '🔔 Test Notification - Nginx Admin Portal',
+        testMessage
+      );
+
+      const target = config.jiraType === 'jsm'
+        ? `JSM Service Desk ${config.serviceDeskId}`
+        : `Jira project ${config.projectKey}`;
+
+      return {
+        success: true,
+        message: `Test notification sent successfully to ${target}`
+      };
     } else {
       throw new Error(`Unsupported channel type: ${channelType}`);
     }
@@ -171,6 +256,13 @@ export async function sendAlertNotification(
         await sendEmailNotification(
           channel.config.email,
           `${severityEmoji} Alert: ${alertName}`,
+          message
+        );
+        results.push({ channel: channel.name, success: true });
+      } else if (channel.type === 'jira' && channel.config.baseUrl) {
+        await sendJiraNotification(
+          channel.config,
+          `${severityEmoji} Alert: ${alertName} [${severity.toUpperCase()}]`,
           message
         );
         results.push({ channel: channel.name, success: true });
