@@ -1,8 +1,10 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { tokenStorage } from '@/lib/auth-storage';
 
-// API Base URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Same-origin /api in production (Docker nginx proxy); direct API URL in dev only
+const API_BASE_URL = import.meta.env.DEV
+  ? (import.meta.env.VITE_API_URL || 'http://localhost:3001/api')
+  : '/api';
 
 // Create axios instance
 const api: AxiosInstance = axios.create({

@@ -219,17 +219,17 @@ After making changes to domain configuration, you may need to reload Nginx:
 
 ## API Integration
 
-For programmatic domain management, use the REST API:
+For programmatic domain management, use the REST API. **Docker:** use `http://localhost:8080/api`. **Legacy VM / debug overlay:** use `http://localhost:3001/api`.
 
 ### List Domains
 ```bash
-curl -X GET http://localhost:3001/api/domains \
+curl -X GET http://localhost:8080/api/domains \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ### Create Domain
 ```bash
-curl -X POST http://localhost:3001/api/domains \
+curl -X POST http://localhost:8080/api/domains \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -247,7 +247,7 @@ curl -X POST http://localhost:3001/api/domains \
 
 ### Update Domain
 ```bash
-curl -X PUT http://localhost:3001/api/domains/DOMAIN_ID \
+curl -X PUT http://localhost:8080/api/domains/DOMAIN_ID \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -264,7 +264,7 @@ curl -X PUT http://localhost:3001/api/domains/DOMAIN_ID \
 
 ### Delete Domain
 ```bash
-curl -X DELETE http://localhost:3001/api/domains/DOMAIN_ID \
+curl -X DELETE http://localhost:8080/api/domains/DOMAIN_ID \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 

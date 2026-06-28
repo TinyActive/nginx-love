@@ -1,0 +1,18 @@
+[Unit]
+Description=Nginx Love Frontend (Vite preview — legacy VM)
+After=network.target nginx-love-backend.service
+Requires=nginx-love-backend.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory={{PROJECT_DIR}}/apps/web
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/pnpm preview --host 0.0.0.0 --port 8080
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/nginx-love-frontend.log
+StandardError=append:/var/log/nginx-love-frontend-error.log
+
+[Install]
+WantedBy=multi-user.target

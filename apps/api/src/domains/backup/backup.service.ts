@@ -299,6 +299,9 @@ export class BackupService {
       modsecCRS: 0,
       modsecCustom: 0,
       acl: 0,
+      botProfiles: 0,
+      botRules: 0,
+      botProfileDomains: 0,
       alertChannels: 0,
       alertRules: 0,
       users: 0,
@@ -331,6 +334,11 @@ export class BackupService {
       for (const rule of backupData.acl) {
         await this.restoreACLRule(rule, results);
       }
+    }
+
+    // 4b. Restore Bot Manager
+    if (backupData.botManager) {
+      await this.restoreBotManager(backupData.botManager, results);
     }
 
     // 5. Restore notification channels
@@ -444,6 +452,7 @@ export class BackupService {
           status: d.status,
           sslEnabled: d.sslEnabled,
           modsecEnabled: d.modsecEnabled,
+          botManagerEnabled: d.botManagerEnabled,
           upstreams: d.upstreams,
           loadBalancer: d.loadBalancer,
           vhostConfig: vhostConfig?.config,
@@ -492,6 +501,9 @@ export class BackupService {
 
     // Get ACL rules
     const aclRules = await backupRepository.getAllACLRules();
+    const botProfiles = await backupRepository.getAllBotProfiles();
+    const botRules = await backupRepository.getAllBotRules();
+    const botProfileDomains = await backupRepository.getAllBotProfileDomains();
 
     // Get notification channels
     const notificationChannels = await backupRepository.getAllNotificationChannels();
@@ -529,6 +541,31 @@ export class BackupService {
         action: r.action,
         enabled: r.enabled,
       })),
+      botManager: {
+        profiles: botProfiles.map((p) => ({
+          name: p.name,
+          description: p.description,
+          enabled: p.enabled,
+          policyMode: p.policyMode,
+        })),
+        rules: botRules.map((r) => ({
+          profileName: r.profile?.name ?? null,
+          name: r.name,
+          fingerprintType: r.fingerprintType,
+          fingerprint: r.fingerprint,
+          action: r.action,
+          enabled: r.enabled,
+          priority: r.priority,
+          notes: r.notes,
+          clientLabel: r.clientLabel,
+          isBuiltin: r.isBuiltin,
+        })),
+        profileDomains: botProfileDomains.map((j) => ({
+          profileName: j.profile.name,
+          domainName: j.domain.name,
+          enabled: j.enabled,
+        })),
+      },
       notificationChannels,
       alertRules: alertRules.map((r) => ({
         name: r.name,
@@ -902,6 +939,34 @@ export class BackupService {
       results.acl++;
     } catch (error) {
       logger.error(`Failed to restore ACL rule ${rule.name}:`, error);
+    }
+  }
+
+  private async restoreBotManager(botManager: any, results: ImportResults) {
+    try {
+      if (botManager.profiles) {
+        for (const profile of botManager.profiles) {
+          await backupRepository.upsertBotProfile(profile);
+          results.botProfiles++;
+        }
+      }
+      if (botManager.rules) {
+        for (const rule of botManager.rules) {
+          if (rule.isBuiltin) continue;
+          await backupRepository.createBotRule(rule);
+          results.botRules++;
+        }
+      }
+      if (botManager.profileDomains) {
+        for (const junction of botManager.profileDomains) {
+          await backupRepository.createBotProfileDomain(junction);
+          results.botProfileDomains++;
+        }
+      }
+      const { botNginxService } = await import('../bot-manager/services/bot-nginx.service');
+      await botNginxService.applyAll();
+    } catch (error) {
+      logger.error('Failed to restore Bot Manager data:', error);
     }
   }
 

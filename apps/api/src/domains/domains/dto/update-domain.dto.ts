@@ -7,6 +7,7 @@ export interface UpdateDomainDto {
   name?: string;
   status?: string;
   modsecEnabled?: boolean;
+  botManagerEnabled?: boolean;
   upstreams?: CreateUpstreamData[];
   loadBalancer?: LoadBalancerConfigData;
   realIpConfig?: RealIpConfigData;

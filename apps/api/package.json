@@ -15,6 +15,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "ts-node prisma/seed.ts",
+    "seed:waf-demo": "node dist/scripts/seed-waf-fingerprint-demo.js",
     "prisma:studio": "prisma studio"
   },
   "prisma": {

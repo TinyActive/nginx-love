@@ -5,6 +5,7 @@ export interface Domain {
   sslEnabled: boolean;
   sslExpiry?: string;
   modsecEnabled: boolean;
+  botManagerEnabled?: boolean;
   upstreams: Upstream[];
   loadBalancer: LoadBalancerConfig;
   sslCertificate?: SSLCertificate | null;

@@ -58,6 +58,7 @@ interface FormData {
   
   // Security
   modsecEnabled: boolean;
+  botManagerEnabled: boolean;
   autoCreateSSL: boolean;
   sslEmail: string;
   realIpEnabled: boolean;
@@ -99,6 +100,7 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave, isLoading =
       lbAlgorithm: 'round_robin',
       upstreams: [{ host: '', port: 80, protocol: 'http', sslVerify: true, weight: 1, maxFails: 3, failTimeout: 30 }],
       modsecEnabled: true,
+      botManagerEnabled: false,
       autoCreateSSL: false,
       sslEmail: '',
       realIpEnabled: false,
@@ -150,6 +152,7 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave, isLoading =
               }))
             : [{ host: '', port: 80, protocol: 'http', sslVerify: true, weight: 1, maxFails: 3, failTimeout: 30 }],
           modsecEnabled: domain.modsecEnabled !== undefined ? domain.modsecEnabled : true,
+          botManagerEnabled: domain.botManagerEnabled ?? false,
           realIpEnabled: (domain as any).realIpEnabled || false,
           realIpCloudflare: (domain as any).realIpCloudflare || false,
           healthCheckEnabled: domain.loadBalancer?.healthCheckEnabled !== undefined ? domain.loadBalancer.healthCheckEnabled : true,
@@ -170,6 +173,7 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave, isLoading =
           lbAlgorithm: 'round_robin',
           upstreams: [{ host: '', port: 80, protocol: 'http', sslVerify: true, weight: 1, maxFails: 3, failTimeout: 30 }],
           modsecEnabled: true,
+          botManagerEnabled: false,
           autoCreateSSL: false,
           sslEmail: '',
           realIpEnabled: false,
@@ -210,6 +214,7 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave, isLoading =
       name: data.name,
       status: data.status,
       modsecEnabled: data.modsecEnabled,
+      botManagerEnabled: data.botManagerEnabled,
       upstreams: data.upstreams.filter(u => u.host).map(u => ({
         host: u.host,
         port: Number(u.port),
@@ -470,6 +475,26 @@ export function DomainDialogV2({ open, onOpenChange, domain, onSave, isLoading =
                   render={({ field }) => (
                     <Switch
                       id="modsec"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3 border rounded-lg">
+                <div>
+                  <Label htmlFor="botManager">Enable Bot Manager (JA4)</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Fingerprint-based bot detection and access control via JA4 module
+                  </p>
+                </div>
+                <Controller
+                  name="botManagerEnabled"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id="botManager"
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />

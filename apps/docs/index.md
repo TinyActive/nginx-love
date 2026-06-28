@@ -1,37 +1,50 @@
 ---
 layout: home
 hero:
-  name: Nginx WAF
+  name: Nginx Love
   text: Nginx + ModSecurity Management Platform
-  tagline: A comprehensive platform for managing Nginx configurations, SSL certificates, and ModSecurity rules
+  tagline: Manage domains, SSL, WAF, and bot detection through a modern web interface — Docker-first deployment
   actions:
     - theme: brand
       text: Get Started
       link: /guide/introduction
     - theme: alt
+      text: Docker Install
+      link: /guide/docker
+    - theme: alt
       text: View on GitHub
-      link: https://github.com/nginx-love/nginx-love
+      link: https://github.com/TinyActive/nginx-love
 features:
-  - title: 🚀 Easy Management
-    details: Simplify your Nginx configuration management with an intuitive web interface
-  - title: 🔒 SSL Certificate Management
-    details: Automate SSL certificate issuance, renewal, and management with Let's Encrypt integration
-  - title: 🛡️ ModSecurity WAF
-    details: Protect your applications with advanced Web Application Firewall rules and monitoring
-  - title: 📊 Performance Monitoring
-    details: Monitor server performance, analyze traffic patterns, and optimize your setup
-  - title: 📝 Log Analysis
-    details: Analyze access and error logs to identify issues and optimize performance
-  - title: 👥 Multi-User Support
-    details: Manage multiple users with role-based access control and permissions
+  - title: Docker-first deployment
+    details: One-command install with Docker Compose — admin UI on :8080, API proxied at /api, no CORS setup
+  - title: ModSecurity WAF
+    details: OWASP CRS and custom rules with per-domain configuration and reload
+  - title: Bot Manager (JA4)
+    details: TLS fingerprint detection, profiles, and allow/deny policies
+  - title: SSL automation
+    details: Let's Encrypt issuance, renewal, and manual certificate upload
+  - title: Performance & alerts
+    details: Metrics, log analysis, and email/Telegram notifications
+  - title: Multi-user RBAC
+    details: Admin, moderator, and viewer roles with activity logging
 ---
 
 ## Quick Start
 
-To get started with nginx-love, follow our [installation guide](/guide/installation) and check out the [quick start tutorial](/guide/quick-start).
+```bash
+git clone https://github.com/TinyActive/nginx-love.git
+cd nginx-love
+bash scripts/install-docker.sh
+```
+
+Open **http://localhost:8080** — login `admin` / `admin123`.
 
 ## Documentation
 
-- [Guide](/guide/introduction) - Learn how to use nginx-love
-- [API Reference](/api/auth) - Explore the REST API
-- [Reference](/reference/configuration) - Find configuration options and troubleshooting tips
+| Section | Description |
+|---------|-------------|
+| [Guide](/guide/introduction) | Concepts, installation, features |
+| [Architecture](/guide/architecture) | Services, ports, request flow |
+| [API Reference](/api/auth) | REST API endpoints |
+| [Configuration](/reference/configuration) | Environment variables |
+| [Troubleshooting](/reference/troubleshooting) | Common issues |

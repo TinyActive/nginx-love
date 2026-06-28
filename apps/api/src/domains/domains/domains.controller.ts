@@ -166,7 +166,7 @@ export class DomainsController {
       }
 
       const { id } = req.params;
-      const { name, status, modsecEnabled, upstreams, loadBalancer, realIpConfig, advancedConfig } = req.body;
+      const { name, status, modsecEnabled, botManagerEnabled, upstreams, loadBalancer, realIpConfig, advancedConfig } = req.body;
 
       const domain = await domainsService.updateDomain(
         id,
@@ -174,6 +174,7 @@ export class DomainsController {
           name,
           status,
           modsecEnabled,
+          botManagerEnabled,
           upstreams,
           loadBalancer,
           realIpConfig,

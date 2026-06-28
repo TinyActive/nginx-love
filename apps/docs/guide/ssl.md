@@ -158,17 +158,17 @@ Configure notifications for renewal events:
 
 ## API Integration
 
-For programmatic SSL management, use the REST API:
+For programmatic SSL management, use the REST API. **Docker:** use `http://localhost:8080/api`. **Legacy VM / debug overlay:** use `http://localhost:3001/api`.
 
 ### List SSL Certificates
 ```bash
-curl -X GET http://localhost:3001/api/ssl \
+curl -X GET http://localhost:8080/api/ssl \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ### Issue Let's Encrypt Certificate
 ```bash
-curl -X POST http://localhost:3001/api/ssl/auto \
+curl -X POST http://localhost:8080/api/ssl/auto \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -180,7 +180,7 @@ curl -X POST http://localhost:3001/api/ssl/auto \
 
 ### Upload Manual Certificate
 ```bash
-curl -X POST http://localhost:3001/api/ssl/manual \
+curl -X POST http://localhost:8080/api/ssl/manual \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -194,13 +194,13 @@ curl -X POST http://localhost:3001/api/ssl/manual \
 
 ### Renew Certificate
 ```bash
-curl -X POST http://localhost:3001/api/ssl/CERTIFICATE_ID/renew \
+curl -X POST http://localhost:8080/api/ssl/CERTIFICATE_ID/renew \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ### Delete Certificate
 ```bash
-curl -X DELETE http://localhost:3001/api/ssl/CERTIFICATE_ID \
+curl -X DELETE http://localhost:8080/api/ssl/CERTIFICATE_ID \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 

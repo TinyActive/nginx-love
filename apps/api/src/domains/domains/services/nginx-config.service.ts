@@ -7,6 +7,8 @@ import { PATHS } from '../../../shared/constants/paths.constants';
 import { DomainWithRelations } from '../domains.types';
 import { cloudflareIpsService } from './cloudflare-ips.service';
 import { DEFAULT_CLIENT_MAX_BODY_SIZE } from '../../../shared/constants/domain.constants';
+import { sanitizeProfileName } from '../../bot-manager/utils/fingerprint-validators';
+import { setupAclRulesFile } from '../../../utils/nginx-setup';
 
 const execAsync = promisify(exec);
 
@@ -46,6 +48,8 @@ export class NginxConfigService {
     const configPath = path.join(this.sitesAvailable, `${domain.name}.conf`);
     const enabledPath = path.join(this.sitesEnabled, `${domain.name}.conf`);
     const backupPath = path.join(this.sitesAvailable, `${domain.name}.conf.backup`);
+
+    await setupAclRulesFile();
 
     // Debug logging
     logger.info(`Generating nginx config for ${domain.name}:`);
@@ -254,6 +258,7 @@ ${realIpBlock}
 
     // Generate Access Lists block
     const accessListsBlock = this.generateAccessListsBlock(domain);
+    const botManagerBlock = this.generateBotManagerBlock(domain, false);
 
     // Client max body size
     const clientMaxBodySize = this.getClientMaxBodySize(domain);
@@ -265,7 +270,7 @@ server {
     server_name ${domain.name};
 
 ${realIpBlock}
-${accessListsBlock}
+${accessListsBlock}${botManagerBlock}
     # Include ACL rules (IP whitelist/blacklist)
     include /etc/nginx/conf.d/acl-rules.conf;
 
@@ -277,7 +282,7 @@ ${accessListsBlock}
 
     ${domain.modsecEnabled ? 'modsecurity on;' : 'modsecurity off;'}
 
-    access_log /var/log/nginx/${domain.name}_access.log main;
+    access_log /var/log/nginx/${domain.name}_access.log ${domain.botManagerEnabled ? 'ja4_fingerprint' : 'main'};
     error_log /var/log/nginx/${domain.name}_error.log warn;
 
     location / {
@@ -326,6 +331,7 @@ ${accessListsBlock}
     
     // Generate Access Lists block
     const accessListsBlock = this.generateAccessListsBlock(domain);
+    const botManagerBlock = this.generateBotManagerBlock(domain, true);
 
     // Client max body size
     const clientMaxBodySize = this.getClientMaxBodySize(domain);
@@ -336,7 +342,7 @@ server {
     server_name ${domain.name};
 
 ${realIpBlock}
-${accessListsBlock}
+${accessListsBlock}${botManagerBlock}
     # Include ACL rules (IP whitelist/blacklist)
     include /etc/nginx/conf.d/acl-rules.conf;
 
@@ -365,7 +371,7 @@ ${accessListsBlock}
 
     ${domain.modsecEnabled ? 'modsecurity on;' : 'modsecurity off;'}
 
-    access_log /var/log/nginx/${domain.name}_ssl_access.log main;
+    access_log /var/log/nginx/${domain.name}_ssl_access.log ${domain.botManagerEnabled ? 'ja4_fingerprint' : 'main'};
     error_log /var/log/nginx/${domain.name}_ssl_error.log warn;
 
 ${customLocations}
@@ -442,6 +448,36 @@ ${customLocations}
         const configFile = `/etc/nginx/access-lists/${al.accessList.name}.conf`;
         lines.push(`    include ${configFile};`);
       });
+
+    lines.push('');
+    return lines.join('\n');
+  }
+
+  /**
+   * Generate Bot Manager (JA4 fingerprint) configuration block
+   */
+  private generateBotManagerBlock(domain: DomainWithRelations, isHttps: boolean): string {
+    if (!domain.botManagerEnabled) {
+      return '';
+    }
+
+    const lines: string[] = [];
+    lines.push('    # Bot Manager (JA4 Fingerprint)');
+    lines.push('    ja4 on;');
+    lines.push('    include /etc/nginx/conf.d/bot-manager-global.conf;');
+
+    if (domain.botProfiles && domain.botProfiles.length > 0) {
+      domain.botProfiles
+        .filter((bp) => bp.enabled && bp.profile.enabled)
+        .forEach((bp) => {
+          const configFile = `/etc/nginx/bot-profiles/${sanitizeProfileName(bp.profile.name)}.conf`;
+          lines.push(`    include ${configFile};`);
+        });
+    }
+
+    if (!isHttps) {
+      lines.push('    # Note: JA4 TLS fingerprints require HTTPS');
+    }
 
     lines.push('');
     return lines.join('\n');

@@ -163,6 +163,20 @@ export class BackupRepository {
     return prisma.aclRule.findMany();
   }
 
+  async getAllBotProfiles() {
+    return prisma.botProfile.findMany();
+  }
+
+  async getAllBotRules() {
+    return prisma.botRule.findMany({ include: { profile: true } });
+  }
+
+  async getAllBotProfileDomains() {
+    return prisma.botProfileDomain.findMany({
+      include: { profile: true, domain: true },
+    });
+  }
+
   /**
    * Get all notification channels
    */
@@ -417,6 +431,80 @@ export class BackupRepository {
   async deleteNLBUpstreamsByNLBId(nlbId: string) {
     return prisma.nLBUpstream.deleteMany({
       where: { nlbId },
+    });
+  }
+
+  async upsertBotProfile(data: {
+    name: string;
+    description?: string | null;
+    enabled: boolean;
+    policyMode: string;
+  }) {
+    return prisma.botProfile.upsert({
+      where: { name: data.name },
+      update: {
+        description: data.description,
+        enabled: data.enabled,
+        policyMode: data.policyMode as any,
+      },
+      create: {
+        name: data.name,
+        description: data.description,
+        enabled: data.enabled,
+        policyMode: data.policyMode as any,
+      },
+    });
+  }
+
+  async createBotRule(data: {
+    profileName?: string | null;
+    name: string;
+    fingerprintType: string;
+    fingerprint: string;
+    action: string;
+    enabled: boolean;
+    priority: number;
+    notes?: string | null;
+    clientLabel?: string | null;
+  }) {
+    let profileId: string | null = null;
+    if (data.profileName) {
+      const profile = await prisma.botProfile.findUnique({ where: { name: data.profileName } });
+      profileId = profile?.id ?? null;
+    }
+    return prisma.botRule.create({
+      data: {
+        profileId,
+        name: data.name,
+        fingerprintType: data.fingerprintType as any,
+        fingerprint: data.fingerprint,
+        action: data.action as any,
+        enabled: data.enabled,
+        priority: data.priority,
+        notes: data.notes,
+        clientLabel: data.clientLabel,
+        isBuiltin: false,
+      },
+    });
+  }
+
+  async createBotProfileDomain(data: {
+    profileName: string;
+    domainName: string;
+    enabled: boolean;
+  }) {
+    const profile = await prisma.botProfile.findUnique({ where: { name: data.profileName } });
+    const domain = await prisma.domain.findUnique({ where: { name: data.domainName } });
+    if (!profile || !domain) return null;
+
+    return prisma.botProfileDomain.upsert({
+      where: { profileId_domainId: { profileId: profile.id, domainId: domain.id } },
+      update: { enabled: data.enabled },
+      create: {
+        profileId: profile.id,
+        domainId: domain.id,
+        enabled: data.enabled,
+      },
     });
   }
 }

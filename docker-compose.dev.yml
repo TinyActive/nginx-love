@@ -1,0 +1,24 @@
+# Development overrides — expose ports, re-enable CORS for direct API access
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+
+  backend:
+    environment:
+      NODE_ENV: development
+      API_BEHIND_PROXY: "false"
+      DISABLE_CORS: "false"
+      CORS_MODE: auto
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080,http://localhost:5173}
+    ports:
+      - "127.0.0.1:${API_PORT:-3001}:3001"
+      - "80:80"
+      - "443:443"
+
+  frontend:
+    build:
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080/api}

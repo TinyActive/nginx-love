@@ -11,6 +11,10 @@ import { ParsedLogEntry } from '../logs.types';
  */
 export function parseAccessLogLine(line: string, index: number, domain?: string): ParsedLogEntry | null {
   try {
+    if (line.includes('JA4=')) {
+      return parseJa4FingerprintLogLine(line, index, domain);
+    }
+
     // Regex for nginx combined log format
     const regex = /^(\S+) - \S+ \[([^\]]+)\] "(\S+) (\S+) \S+" (\d+) \d+ "([^"]*)" "([^"]*)"/;
     const match = line.match(regex);
@@ -242,6 +246,58 @@ export function parseModSecLogLine(line: string, index: number): ParsedLogEntry 
     };
   } catch (error) {
     logger.warn(`Failed to parse ModSecurity log line: ${line}`);
+    return null;
+  }
+}
+
+/**
+ * Parse JA4 fingerprint access log line
+ * Format: $remote_addr - [$time_local] "$request" $status JA4="..." JA4H="..." ...
+ */
+export function parseJa4FingerprintLogLine(line: string, index: number, domain?: string): ParsedLogEntry | null {
+  try {
+    const regex = /^(\S+) - \[([^\]]+)\] "(\S+) (\S+) \S+" (\d+)/;
+    const match = line.match(regex);
+    if (!match) return null;
+
+    const [, ip, timeStr, method, path, statusStr] = match;
+    const statusCode = parseInt(statusStr);
+
+    const extractField = (field: string) => {
+      const m = line.match(new RegExp(`${field}="([^"]*)"`));
+      return m?.[1] || undefined;
+    };
+
+    const ja4 = extractField('JA4');
+    const ja4h = extractField('JA4H');
+    const ja4s = extractField('JA4S');
+    const ja4tcp = extractField('JA4TCP');
+    const ja4one = extractField('JA4one');
+
+    let level: 'info' | 'warning' | 'error' = 'info';
+    if (statusCode >= 500) level = 'error';
+    else if (statusCode >= 400) level = 'warning';
+
+    return {
+      id: `ja4_${Date.now()}_${index}`,
+      timestamp: timeStr,
+      level,
+      type: 'access',
+      source: 'nginx-ja4',
+      message: `${method} ${path} ${statusCode}`,
+      domain,
+      ip,
+      method,
+      path,
+      statusCode,
+      ja4,
+      ja4h,
+      ja4s,
+      ja4tcp,
+      ja4one,
+      fullMessage: line,
+    };
+  } catch {
     return null;
   }
 }

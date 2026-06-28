@@ -69,7 +69,7 @@ fi
 # Step 1: Check prerequisites
 log "Step 1/6: Checking prerequisites..."
 
-if ! comannd -v htpasswd &> /dev/null; then
+if ! command -v htpasswd &> /dev/null; then
     warn "htpasswd not found. Installing apache2-utils..."
     apt-get install -y apache2-utils >> "$LOG_FILE" 2>&1 || error "Failed to install apache2-utils"
     log "✓ htpasswd installed successfully"
@@ -307,6 +307,10 @@ log "  Backend:    tail -f /var/log/nginx-love-backend.log"
 log "  Frontend:   tail -f /var/log/nginx-love-frontend.log"
 log "  Database:   docker logs -f ${DB_CONTAINER_NAME}"
 log "  Update:     tail -f ${LOG_FILE}"
+log ""
+if command -v docker &>/dev/null && docker compose version &>/dev/null 2>&1; then
+  log "💡 Docker is available — consider migrating to Compose: sudo bash scripts/migrate-vm-to-docker.sh"
+fi
 log ""
 log "🔐 Access the portal at: http://${PUBLIC_IP}:8080"
 log ""

@@ -19,7 +19,7 @@ RUN chmod +x install-nginx-modsecurity.sh
 RUN mkdir -p /var/log/nginx /var/run /usr/local/src
 
 # Run installer during build (no active systemd)
-RUN ./install-nginx-modsecurity.sh
+RUN ./install-nginx-modsecurity.sh --docker-build
 # Enable and start nginx safely
 CMD ["nginx", "-g", "daemon off;"]
 

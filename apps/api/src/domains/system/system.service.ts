@@ -1,4 +1,5 @@
 import * as fs from 'fs/promises';
+import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import os from 'os';
@@ -97,8 +98,15 @@ export class SystemService {
       // Not installed, continue
     }
 
-    // Start installation script in background
-    const scriptPath = '/home/waf/nginx-love-ui/scripts/install-nginx-modsecurity.sh';
+    if (process.env.SKIP_NGINX_INSTALL === 'true') {
+      throw new Error('Nginx install is managed by the container image; set SKIP_NGINX_INSTALL only in Docker deployments');
+    }
+
+    const projectRoot = process.env.PROJECT_ROOT ?? path.resolve(__dirname, '../../../../../..');
+    const scriptPath =
+      process.env.NGINX_INSTALL_SCRIPT ??
+      path.join(projectRoot, 'scripts/install-nginx-modsecurity.sh');
+
     exec(`sudo ${scriptPath} > /var/log/nginx-install-output.log 2>&1 &`);
 
     logger.info(`Installation started by user ${username}`);

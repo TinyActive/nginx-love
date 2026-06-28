@@ -11,33 +11,27 @@ Before you begin, ensure you have:
 
 ## Step 1: First Login
 
-### Access the Login Page
+### Access the login page
 
-Open your web browser and navigate to the nginx-love interface:
-- **Development**: http://localhost:8080
-- **Production**: http://YOUR_IP:8080
+Open your browser:
 
-You'll see the login screen:
+- **Docker / production:** `http://YOUR_IP:8080` or `http://localhost:8080`
+- **Legacy VM dev:** frontend on `:8080`, API may also be on `:3000`/`3001` depending on setup
 
-![Login Screen](/reference/screenshots/login.png)
+API requests use **same-origin** `/api` in Docker — you do not need to configure CORS.
 
-### Initial Login
+### Initial login
 
-Use the default credentials:
 ```
 Username: admin
 Password: admin123
 ```
 
-⚠️ **Security Warning**: You'll be prompted to change the default password immediately after login.
+### Change password (recommended)
 
-### Change Default Password
+On Docker installs, you can use the portal immediately. For security, change the admin password from **Account → Change password** after first login.
 
-1. After successful login, you'll be redirected to the profile page
-2. Enter your current password (admin123)
-3. Set a strong new password with at least 8 characters
-4. Confirm the new password
-5. Click "Change Password"
+On some legacy installs you may be prompted to change the password on first login.
 
 ## Step 2: Dashboard Overview
 
