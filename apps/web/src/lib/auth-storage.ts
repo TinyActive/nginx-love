@@ -63,6 +63,9 @@ export const tokenStorage = {
 
   // Set all auth data
   setAuth: (user: UserProfile, accessToken: string, refreshToken: string): void => {
+    if (!accessToken || !refreshToken) {
+      return;
+    }
     tokenStorage.setUser(user);
     tokenStorage.setAccessToken(accessToken);
     tokenStorage.setRefreshToken(refreshToken);

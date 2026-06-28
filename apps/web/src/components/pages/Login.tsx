@@ -86,9 +86,9 @@ export default function Login() {
   const handlePasswordChanged = (require2FASetup: boolean) => {
     if (require2FASetup) {
       setCurrentStep('2faSetup');
-      toast.info('Please setup 2FA to secure your account');
+      toast.info('Bạn có thể bật 2FA để bảo mật tài khoản (tùy chọn)');
     } else {
-      // If 2FA already enabled, go to 2FA verify step
+      // 2FA already enabled — verify before dashboard access
       setCurrentStep('2faVerify');
       toast.info('Please enter your 2FA code');
     }

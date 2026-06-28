@@ -94,6 +94,7 @@ export class UsersRepository {
         fullName: data.fullName,
         role: data.role || 'viewer',
         status: data.status || 'active',
+        isFirstLogin: true,
         phone: data.phone,
         timezone: data.timezone || 'Asia/Ho_Chi_Minh',
         language: data.language || 'en',

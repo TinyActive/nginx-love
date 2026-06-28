@@ -22,12 +22,11 @@ export async function runSeedSafe(): Promise<void> {
         fullName: 'System Administrator',
         role: 'admin',
         status: 'active',
-        isFirstLogin: false,
+        isFirstLogin: true,
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin',
         phone: '+84 123 456 789',
         timezone: 'Asia/Ho_Chi_Minh',
         language: 'vi',
-        lastLogin: new Date(),
         profile: {
           create: {
             bio: 'System administrator with full access',
@@ -45,12 +44,11 @@ export async function runSeedSafe(): Promise<void> {
         fullName: 'System Operator',
         role: 'moderator',
         status: 'active',
-        isFirstLogin: false,
+        isFirstLogin: true,
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=operator',
         phone: '+84 987 654 321',
         timezone: 'Asia/Ho_Chi_Minh',
         language: 'en',
-        lastLogin: new Date(Date.now() - 86400000),
         profile: { create: { bio: 'System operator' } },
       },
     });
@@ -64,11 +62,10 @@ export async function runSeedSafe(): Promise<void> {
         fullName: 'Read Only User',
         role: 'viewer',
         status: 'active',
-        isFirstLogin: false,
+        isFirstLogin: true,
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=viewer',
         timezone: 'Asia/Singapore',
         language: 'en',
-        lastLogin: new Date(Date.now() - 172800000),
         profile: { create: { bio: 'Read-only access user' } },
       },
     });
@@ -105,6 +102,13 @@ export async function runSeedSafe(): Promise<void> {
     console.log('  viewer / viewer123 (viewer)');
   } else {
     console.log('ℹ️  Users already exist, skipping user creation');
+    if (process.env.FORCE_FIRST_LOGIN === 'true') {
+      const updated = await prisma.user.updateMany({
+        where: { username: { in: ['admin', 'operator', 'viewer'] } },
+        data: { isFirstLogin: true },
+      });
+      console.log(`ℹ️  FORCE_FIRST_LOGIN: ${updated.count} default user(s) must change password on next login`);
+    }
   }
 
   const existingCRSRules = await prisma.modSecCRSRule.count();
