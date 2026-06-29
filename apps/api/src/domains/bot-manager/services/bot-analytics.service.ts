@@ -122,12 +122,17 @@ export class BotAnalyticsService {
   }
 
   async readDomainLog(domain: string, limit = 100): Promise<string[]> {
+    if (!/^[a-zA-Z0-9._-]+$/.test(domain)) {
+      logger.warn(`Invalid domain name for log read: ${domain}`);
+      return [];
+    }
+
     const domainLog = `/var/log/nginx/${domain}_ssl_access.log`;
     try {
       const { execFile } = await import('child_process');
       const { promisify } = await import('util');
       const execFileAsync = promisify(execFile);
-      const { stdout } = await execFileAsync('tail', ['-n', String(limit), domainLog]);
+      const { stdout } = await execFileAsync('tail', ['-n', String(Math.min(limit, 1000)), domainLog]);
       return stdout.split('\n').filter(Boolean);
     } catch {
       logger.warn(`Could not read domain log: ${domainLog}`);

@@ -7,15 +7,22 @@ import type { CorsOptions } from 'cors';
  *   auto  — allow any http(s) browser origin (recommended for Docker)
  *   list  — exact match against CORS_ORIGIN comma-separated list (default)
  */
-export function createCorsOriginResolver(): CorsOptions['origin'] {
+
+export function isCorsAutoMode(): boolean {
   const mode = (process.env.CORS_MODE ?? '').trim().toLowerCase();
   const raw = (process.env.CORS_ORIGIN ?? '').trim();
-
-  const useAuto =
+  return (
     mode === 'auto' ||
     raw === 'auto' ||
     raw === '*' ||
-    process.env.CORS_ORIGIN_RELAXED === 'true';
+    process.env.CORS_ORIGIN_RELAXED === 'true'
+  );
+}
+
+export function createCorsOriginResolver(): CorsOptions['origin'] {
+  const raw = (process.env.CORS_ORIGIN ?? '').trim();
+
+  const useAuto = isCorsAutoMode();
 
   if (useAuto) {
     return (origin, callback) => {

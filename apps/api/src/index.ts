@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import { config } from './config';
-import { createCorsOriginResolver, describeCorsPolicy } from './config/cors';
+import { createCorsOriginResolver, describeCorsPolicy, isCorsAutoMode } from './config/cors';
 import routes from './routes';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import logger from './utils/logger';
@@ -35,7 +35,7 @@ if (process.env.DISABLE_CORS !== 'true') {
     origin: createCorsOriginResolver(),
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-    credentials: true,
+    credentials: !isCorsAutoMode(),
   }));
 }
 // Body parser
