@@ -124,8 +124,11 @@ export class BotAnalyticsService {
   async readDomainLog(domain: string, limit = 100): Promise<string[]> {
     const domainLog = `/var/log/nginx/${domain}_ssl_access.log`;
     try {
-      const content = await fs.readFile(domainLog, 'utf8');
-      return content.split('\n').filter(Boolean).slice(-limit);
+      const { execFile } = await import('child_process');
+      const { promisify } = await import('util');
+      const execFileAsync = promisify(execFile);
+      const { stdout } = await execFileAsync('tail', ['-n', String(limit), domainLog]);
+      return stdout.split('\n').filter(Boolean);
     } catch {
       logger.warn(`Could not read domain log: ${domainLog}`);
       return [];

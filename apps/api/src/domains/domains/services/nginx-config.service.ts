@@ -457,7 +457,7 @@ ${customLocations}
    * Generate Bot Manager (JA4 fingerprint) configuration block
    */
   private generateBotManagerBlock(domain: DomainWithRelations, isHttps: boolean): string {
-    if (!domain.botManagerEnabled) {
+    if (!domain.botManagerEnabled || !isHttps) {
       return '';
     }
 
@@ -473,10 +473,6 @@ ${customLocations}
           const configFile = `/etc/nginx/bot-profiles/${sanitizeProfileName(bp.profile.name)}.conf`;
           lines.push(`    include ${configFile};`);
         });
-    }
-
-    if (!isHttps) {
-      lines.push('    # Note: JA4 TLS fingerprints require HTTPS');
     }
 
     lines.push('');

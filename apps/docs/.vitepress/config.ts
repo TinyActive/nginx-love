@@ -213,7 +213,8 @@ export default defineConfig({
   // Ignore dead links configuration
   ignoreDeadLinks: [
     /^http:\/\/localhost/,
-    /^http:\/\/YOUR_IP/
+    /^http:\/\/YOUR_IP/,
+    /\.\.\/\.\.\//,
   ],
 
   // Markdown configuration

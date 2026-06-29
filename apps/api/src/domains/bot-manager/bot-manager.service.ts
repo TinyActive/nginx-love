@@ -94,7 +94,12 @@ export class BotManagerService {
     const existing = await botManagerRepository.findRuleById(id);
     if (!existing) throw new NotFoundError('Bot rule not found');
 
-    if (data.fingerprintType || data.fingerprint) {
+    if (
+      data.name !== undefined ||
+      data.fingerprintType !== undefined ||
+      data.fingerprint !== undefined ||
+      data.action !== undefined
+    ) {
       this.validateRuleInput({
         fingerprintType: data.fingerprintType ?? existing.fingerprintType,
         fingerprint: data.fingerprint ?? existing.fingerprint,

@@ -1,6 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 import { hashPassword } from '../utils/password';
 
+const DEMO_SEED_IP = process.env.SEED_DEMO_IP ?? '127.0.0.1';
+
 const prisma = new PrismaClient();
 
 export async function runSeedSafe(): Promise<void> {
@@ -78,7 +80,7 @@ export async function runSeedSafe(): Promise<void> {
           userId: admin.id,
           action: 'User logged in',
           type: 'login',
-          ip: '192.168.1.100',
+          ip: DEMO_SEED_IP,
           userAgent: 'Mozilla/5.0',
           timestamp: new Date(Date.now() - 3600000),
           success: true,
@@ -87,7 +89,7 @@ export async function runSeedSafe(): Promise<void> {
           userId: admin.id,
           action: 'System initialized',
           type: 'system',
-          ip: '192.168.1.100',
+          ip: DEMO_SEED_IP,
           userAgent: 'Mozilla/5.0',
           timestamp: new Date(),
           details: 'Initial system setup completed',

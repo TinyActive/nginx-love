@@ -25,7 +25,8 @@ export function createCorsOriginResolver(): CorsOptions['origin'] {
         return;
       }
       if (/^https?:\/\/[^\s/]+(:\d+)?$/i.test(origin)) {
-        callback(null, true);
+        // Echo the specific origin — required when credentials: true (never use wildcard reflect)
+        callback(null, origin);
         return;
       }
       callback(new Error(`CORS: invalid origin format: ${origin}`));

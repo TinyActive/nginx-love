@@ -116,7 +116,6 @@ const resources = {
       'nav.dashboard': 'Bảng điều khiển',
       'nav.domains': 'Tên miền',
       'nav.modsecurity': 'ModSecurity',
-      'nav.bot-manager': 'Bot Manager',
       'nav.ssl': 'Chứng chỉ SSL',
       'nav.logs': 'Nhật ký',
       'nav.alerts': 'Cảnh báo',

@@ -13,7 +13,7 @@ export interface FingerprintLibraryEntry {
 }
 
 /**
- * Fingerprints observed against waf.autogate.cc (nginx 1.27.3 + JA4 module).
+ * Fingerprints for the built-in Bot Manager library (TLS/HTTP/JA4 module).
  * Re-collect from Bot Manager → Analytics if clients run from a different host/OS.
  */
 export const FINGERPRINT_LIBRARY: FingerprintLibraryEntry[] = [

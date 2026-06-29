@@ -15,7 +15,6 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "ts-node prisma/seed.ts",
-    "seed:waf-demo": "node dist/scripts/seed-waf-fingerprint-demo.js",
     "prisma:studio": "prisma studio"
   },
   "prisma": {
@@ -30,6 +29,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@nginx-love/shared": "workspace:*",
     "@prisma/client": "^5.18.0",
     "axios": "^1.7.2",
     "bcrypt": "^5.1.1",

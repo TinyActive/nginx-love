@@ -35,8 +35,8 @@ describe('BotNginxService config generation', () => {
         id: '1',
         profileId: 'p1',
         name: 'Allow Chrome',
-        fingerprintType: 'ja4tcp',
-        fingerprint: '65535_2-4-8-3_1460_7',
+        fingerprintType: 'ja4h',
+        fingerprint: 'ge11n05_b223a0ebb0b5b794fff2fd565b0ce57e055a418b5ccf7f0729f2ffe1',
         action: 'allow',
         enabled: true,
         priority: 100,
@@ -49,8 +49,8 @@ describe('BotNginxService config generation', () => {
     ];
 
     const config = (service as any).buildConfigFile('Profile', rules, 'whitelist');
-    expect(config).toContain('ja4tcp_allow "65535_2-4-8-3_1460_7"');
-    expect(config).toContain('ja4tcp_deny "all"');
+    expect(config).toContain('ja4h_allow "ge11n05_b223a0ebb0b5b794fff2fd565b0ce57e055a418b5ccf7f0729f2ffe1"');
+    expect(config).toContain('ja4h_deny "all"');
   });
 
   it('skips log_only rules in nginx output', () => {

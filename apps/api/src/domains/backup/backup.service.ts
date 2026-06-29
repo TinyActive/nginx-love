@@ -959,8 +959,8 @@ export class BackupService {
       }
       if (botManager.profileDomains) {
         for (const junction of botManager.profileDomains) {
-          await backupRepository.createBotProfileDomain(junction);
-          results.botProfileDomains++;
+          const res = await backupRepository.createBotProfileDomain(junction);
+          if (res) results.botProfileDomains++;
         }
       }
       const { botNginxService } = await import('../bot-manager/services/bot-nginx.service');

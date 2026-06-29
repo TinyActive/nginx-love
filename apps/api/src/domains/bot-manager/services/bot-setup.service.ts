@@ -16,7 +16,7 @@ export class BotSetupService {
       logger.info('Initializing Bot Manager (JA4) configuration...');
 
       await fs.mkdir(BOT_PROFILES_DIR, { recursive: true });
-      await fs.chmod(BOT_PROFILES_DIR, 0o755);
+      await fs.chmod(BOT_PROFILES_DIR, 0o750);
       logger.info(`Bot profiles directory ready: ${BOT_PROFILES_DIR}`);
 
       await fs.mkdir('/etc/nginx/conf.d', { recursive: true });
