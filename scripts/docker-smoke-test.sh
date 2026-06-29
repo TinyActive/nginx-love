@@ -14,11 +14,11 @@ fail() { echo "[smoke] FAIL: $*" >&2; exit 1; }
 
 wait_healthy() {
   local elapsed=0
-  while [ "$elapsed" -lt "$MAX_WAIT" ]; do
+  while [[ "$elapsed" -lt "$MAX_WAIT" ]]; do
     if docker compose ps --format json 2>/dev/null | grep -q '"Health":"healthy"'; then
       local unhealthy
       unhealthy="$(docker compose ps | grep -v healthy | grep -E 'backend|frontend|postgres' || true)"
-      if [ -z "$unhealthy" ]; then
+      if [[ -z "$unhealthy" ]]; then
         log "All services healthy"
         return 0
       fi
@@ -47,14 +47,41 @@ log "UI routes"
 curl_ok "${BASE}/"
 curl_ok "${BASE}/login"
 
-log "Auth login"
-LOGIN_RESP="$(curl -sf -X POST "${BASE}/api/auth/login" \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"admin123"}')" || fail "Login request failed"
+json_field() {
+  echo "$1" | grep -o "\"$2\":\"[^\"]*\"" | head -1 | cut -d'"' -f4 || true
+}
 
-TOKEN="$(echo "$LOGIN_RESP" | grep -o '"accessToken":"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
-if [ -z "$TOKEN" ]; then
-  fail "No accessToken in login response (user may need password change — check seed-safe)"
+log "Auth login"
+login_as() {
+  curl -s -X POST "${BASE}/api/auth/login" \
+    -H 'Content-Type: application/json' \
+    -d "{\"username\":\"admin\",\"password\":\"$1\"}"
+}
+
+LOGIN_RESP="$(login_as admin123)"
+if ! echo "$LOGIN_RESP" | grep -qE '"accessToken"|"requirePasswordChange"|"tempToken"'; then
+  LOGIN_RESP="$(login_as 'Admin123!')"
+fi
+if ! echo "$LOGIN_RESP" | grep -qE '"accessToken"|"requirePasswordChange"|"tempToken"'; then
+  fail "Login request failed"
+fi
+
+TOKEN="$(json_field "$LOGIN_RESP" accessToken)"
+if [[ -z "$TOKEN" ]]; then
+  TEMP_TOKEN="$(json_field "$LOGIN_RESP" tempToken)"
+  USER_ID="$(json_field "$LOGIN_RESP" userId)"
+  if [[ -n "$TEMP_TOKEN" && -n "$USER_ID" ]]; then
+    log "First login — completing password change"
+    CHANGE_RESP="$(curl -sf -X POST "${BASE}/api/auth/first-login/change-password" \
+      -H 'Content-Type: application/json' \
+      -d "{\"userId\":\"${USER_ID}\",\"tempToken\":\"${TEMP_TOKEN}\",\"newPassword\":\"Admin123!\"}")" \
+      || fail "First-login password change failed"
+    TOKEN="$(json_field "$CHANGE_RESP" accessToken)"
+  fi
+fi
+
+if [[ -z "$TOKEN" ]]; then
+  fail "No accessToken after login (check seed-safe / auth flow)"
 fi
 
 auth_curl() {

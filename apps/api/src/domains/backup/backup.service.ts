@@ -126,7 +126,7 @@ export class BackupService {
       nextRun,
     });
 
-    logger.info(`Backup schedule created: ${dto.name}`, {
+    logger.info('Backup schedule created', {
       userId,
       scheduleId: newSchedule.id,
       nextRun: nextRun?.toISOString(),
@@ -159,7 +159,7 @@ export class BackupService {
 
     const updatedSchedule = await backupRepository.updateSchedule(id, updateData);
 
-    logger.info(`Backup schedule updated: ${id}`, { userId });
+    logger.info('Backup schedule updated', { scheduleId: id, userId });
 
     return updatedSchedule;
   }
@@ -169,7 +169,7 @@ export class BackupService {
    */
   async deleteBackupSchedule(id: string, userId?: string) {
     await backupRepository.deleteSchedule(id);
-    logger.info(`Backup schedule deleted: ${id}`, { userId });
+    logger.info('Backup schedule deleted', { scheduleId: id, userId });
   }
 
   /**
@@ -196,7 +196,9 @@ export class BackupService {
 
     const updated = await backupRepository.updateSchedule(id, updateData);
 
-    logger.info(`Backup schedule toggled: ${id} (enabled: ${updated.enabled})`, {
+    logger.info('Backup schedule toggled', {
+      scheduleId: id,
+      enabled: updated.enabled,
       userId,
     });
 
@@ -944,29 +946,38 @@ export class BackupService {
 
   private async restoreBotManager(botManager: any, results: ImportResults) {
     try {
-      if (botManager.profiles) {
-        for (const profile of botManager.profiles) {
-          await backupRepository.upsertBotProfile(profile);
-          results.botProfiles++;
-        }
-      }
-      if (botManager.rules) {
-        for (const rule of botManager.rules) {
-          if (rule.isBuiltin) continue;
-          await backupRepository.createBotRule(rule);
-          results.botRules++;
-        }
-      }
-      if (botManager.profileDomains) {
-        for (const junction of botManager.profileDomains) {
-          const res = await backupRepository.createBotProfileDomain(junction);
-          if (res) results.botProfileDomains++;
-        }
-      }
+      await this.restoreBotProfiles(botManager.profiles, results);
+      await this.restoreBotRules(botManager.rules, results);
+      await this.restoreBotProfileDomains(botManager.profileDomains, results);
       const { botNginxService } = await import('../bot-manager/services/bot-nginx.service');
       await botNginxService.applyAll();
     } catch (error) {
       logger.error('Failed to restore Bot Manager data:', error);
+    }
+  }
+
+  private async restoreBotProfiles(profiles: any[] | undefined, results: ImportResults) {
+    if (!profiles) return;
+    for (const profile of profiles) {
+      await backupRepository.upsertBotProfile(profile);
+      results.botProfiles++;
+    }
+  }
+
+  private async restoreBotRules(rules: any[] | undefined, results: ImportResults) {
+    if (!rules) return;
+    for (const rule of rules) {
+      if (rule.isBuiltin) continue;
+      await backupRepository.createBotRule(rule);
+      results.botRules++;
+    }
+  }
+
+  private async restoreBotProfileDomains(junctions: any[] | undefined, results: ImportResults) {
+    if (!junctions) return;
+    for (const junction of junctions) {
+      const res = await backupRepository.createBotProfileDomain(junction);
+      if (res) results.botProfileDomains++;
     }
   }
 

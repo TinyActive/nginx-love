@@ -22,12 +22,12 @@ import { Route as AuthModsecurityRouteImport } from './routes/_auth/modsecurity'
 import { Route as AuthLogsRouteImport } from './routes/_auth/logs'
 import { Route as AuthDomainsRouteImport } from './routes/_auth/domains'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
+import { Route as AuthBotManagerRouteImport } from './routes/_auth/bot-manager'
 import { Route as AuthBackupRouteImport } from './routes/_auth/backup'
 import { Route as AuthAlertsRouteImport } from './routes/_auth/alerts'
 import { Route as AuthAclRouteImport } from './routes/_auth/acl'
 import { Route as AuthAccountRouteImport } from './routes/_auth/account'
 import { Route as AuthAccessListsRouteImport } from './routes/_auth/access-lists'
-import { Route as AuthBotManagerRouteImport } from './routes/_auth/bot-manager'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -93,6 +93,11 @@ const AuthDashboardRoute = AuthDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthBotManagerRoute = AuthBotManagerRouteImport.update({
+  id: '/bot-manager',
+  path: '/bot-manager',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthBackupRoute = AuthBackupRouteImport.update({
   id: '/backup',
   path: '/backup',
@@ -118,21 +123,16 @@ const AuthAccessListsRoute = AuthAccessListsRouteImport.update({
   path: '/access-lists',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthBotManagerRoute = AuthBotManagerRouteImport.update({
-  id: '/bot-manager',
-  path: '/bot-manager',
-  getParentRoute: () => AuthRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/$catchall': typeof CatchallRoute
   '/login': typeof LoginRoute
   '/access-lists': typeof AuthAccessListsRoute
-  '/bot-manager': typeof AuthBotManagerRoute
   '/account': typeof AuthAccountRoute
   '/acl': typeof AuthAclRoute
   '/alerts': typeof AuthAlertsRoute
   '/backup': typeof AuthBackupRoute
+  '/bot-manager': typeof AuthBotManagerRoute
   '/dashboard': typeof AuthDashboardRoute
   '/domains': typeof AuthDomainsRoute
   '/logs': typeof AuthLogsRoute
@@ -148,11 +148,11 @@ export interface FileRoutesByTo {
   '/$catchall': typeof CatchallRoute
   '/login': typeof LoginRoute
   '/access-lists': typeof AuthAccessListsRoute
-  '/bot-manager': typeof AuthBotManagerRoute
   '/account': typeof AuthAccountRoute
   '/acl': typeof AuthAclRoute
   '/alerts': typeof AuthAlertsRoute
   '/backup': typeof AuthBackupRoute
+  '/bot-manager': typeof AuthBotManagerRoute
   '/dashboard': typeof AuthDashboardRoute
   '/domains': typeof AuthDomainsRoute
   '/logs': typeof AuthLogsRoute
@@ -170,11 +170,11 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/login': typeof LoginRoute
   '/_auth/access-lists': typeof AuthAccessListsRoute
-  '/_auth/bot-manager': typeof AuthBotManagerRoute
   '/_auth/account': typeof AuthAccountRoute
   '/_auth/acl': typeof AuthAclRoute
   '/_auth/alerts': typeof AuthAlertsRoute
   '/_auth/backup': typeof AuthBackupRoute
+  '/_auth/bot-manager': typeof AuthBotManagerRoute
   '/_auth/dashboard': typeof AuthDashboardRoute
   '/_auth/domains': typeof AuthDomainsRoute
   '/_auth/logs': typeof AuthLogsRoute
@@ -192,11 +192,11 @@ export interface FileRouteTypes {
     | '/$catchall'
     | '/login'
     | '/access-lists'
-    | '/bot-manager'
     | '/account'
     | '/acl'
     | '/alerts'
     | '/backup'
+    | '/bot-manager'
     | '/dashboard'
     | '/domains'
     | '/logs'
@@ -212,11 +212,11 @@ export interface FileRouteTypes {
     | '/$catchall'
     | '/login'
     | '/access-lists'
-    | '/bot-manager'
     | '/account'
     | '/acl'
     | '/alerts'
     | '/backup'
+    | '/bot-manager'
     | '/dashboard'
     | '/domains'
     | '/logs'
@@ -237,6 +237,7 @@ export interface FileRouteTypes {
     | '/_auth/acl'
     | '/_auth/alerts'
     | '/_auth/backup'
+    | '/_auth/bot-manager'
     | '/_auth/dashboard'
     | '/_auth/domains'
     | '/_auth/logs'
@@ -348,6 +349,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthDashboardRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/bot-manager': {
+      id: '/_auth/bot-manager'
+      path: '/bot-manager'
+      fullPath: '/bot-manager'
+      preLoaderRoute: typeof AuthBotManagerRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/backup': {
       id: '/_auth/backup'
       path: '/backup'
@@ -383,23 +391,16 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAccessListsRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_auth/bot-manager': {
-      id: '/_auth/bot-manager'
-      path: '/bot-manager'
-      fullPath: '/bot-manager'
-      preLoaderRoute: typeof AuthBotManagerRouteImport
-      parentRoute: typeof AuthRoute
-    }
   }
 }
 
 interface AuthRouteChildren {
   AuthAccessListsRoute: typeof AuthAccessListsRoute
-  AuthBotManagerRoute: typeof AuthBotManagerRoute
   AuthAccountRoute: typeof AuthAccountRoute
   AuthAclRoute: typeof AuthAclRoute
   AuthAlertsRoute: typeof AuthAlertsRoute
   AuthBackupRoute: typeof AuthBackupRoute
+  AuthBotManagerRoute: typeof AuthBotManagerRoute
   AuthDashboardRoute: typeof AuthDashboardRoute
   AuthDomainsRoute: typeof AuthDomainsRoute
   AuthLogsRoute: typeof AuthLogsRoute
@@ -414,11 +415,11 @@ interface AuthRouteChildren {
 
 const AuthRouteChildren: AuthRouteChildren = {
   AuthAccessListsRoute: AuthAccessListsRoute,
-  AuthBotManagerRoute: AuthBotManagerRoute,
   AuthAccountRoute: AuthAccountRoute,
   AuthAclRoute: AuthAclRoute,
   AuthAlertsRoute: AuthAlertsRoute,
   AuthBackupRoute: AuthBackupRoute,
+  AuthBotManagerRoute: AuthBotManagerRoute,
   AuthDashboardRoute: AuthDashboardRoute,
   AuthDomainsRoute: AuthDomainsRoute,
   AuthLogsRoute: AuthLogsRoute,

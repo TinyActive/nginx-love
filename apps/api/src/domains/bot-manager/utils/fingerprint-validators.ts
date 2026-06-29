@@ -10,7 +10,7 @@ export interface FingerprintValidationResult {
   error?: string;
 }
 
-export { sanitizeNginxCommentText, hasInvalidNameCharacters };
+export { sanitizeNginxCommentText, hasInvalidNameCharacters } from '@nginx-love/shared';
 
 export function validateFingerprint(
   type: Ja4FingerprintType,

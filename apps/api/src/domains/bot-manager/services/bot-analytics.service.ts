@@ -1,11 +1,17 @@
-import fs from 'fs/promises';
-import { createReadStream } from 'fs';
-import { createInterface } from 'readline';
+import fs from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { createInterface } from 'node:readline';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import logger from '../../../utils/logger';
 import prisma from '../../../config/database';
 import { BotAnalyticsResult, FingerprintStats, Ja4FingerprintType } from '../bot-manager.types';
 
+const execFileAsync = promisify(execFile);
+
 const JA4_GLOBAL_LOG_PATH = '/var/log/nginx/ja4-fingerprints.log';
+const SAFE_DOMAIN_RE = /^[a-zA-Z0-9._-]+$/;
+const ALLOWED_LOG_PREFIX = '/var/log/nginx/';
 
 const JA4_FIELD_MAP: Record<string, Ja4FingerprintType> = {
   JA4: 'ja4',
@@ -15,6 +21,21 @@ const JA4_FIELD_MAP: Record<string, Ja4FingerprintType> = {
   JA4one: 'ja4one',
 };
 
+function isSafeDomainName(domain: string): boolean {
+  return SAFE_DOMAIN_RE.test(domain);
+}
+
+function domainLogPaths(domain: string): string[] {
+  return [
+    `/var/log/nginx/${domain}_ssl_access.log`,
+    `/var/log/nginx/${domain}_access.log`,
+  ];
+}
+
+function isAllowedLogPath(logPath: string): boolean {
+  return logPath.startsWith(ALLOWED_LOG_PREFIX) && !logPath.includes('..');
+}
+
 export class BotAnalyticsService {
   async getAnalytics(options: {
     domain?: string;
@@ -22,9 +43,7 @@ export class BotAnalyticsService {
     logPath?: string;
   } = {}): Promise<BotAnalyticsResult> {
     const limit = options.limit ?? 20;
-    const logPaths = options.logPath
-      ? [options.logPath]
-      : await this.resolveLogPaths(options.domain);
+    const logPaths = await this.resolveLogPaths(options);
 
     const counts = new Map<string, FingerprintStats>();
     const byType: Record<string, number> = {};
@@ -37,29 +56,17 @@ export class BotAnalyticsService {
         continue;
       }
 
-      const stream = createReadStream(logPath, { encoding: 'utf8' });
-      const rl = createInterface({ input: stream, crlfDelay: Infinity });
-
-      for await (const line of rl) {
-        if (!this.isJa4LogLine(line)) continue;
-
-        totalRequests++;
-
-        for (const [field, type] of Object.entries(JA4_FIELD_MAP)) {
-          const match = line.match(new RegExp(`${field}="([^"]*)"`, 'i'));
-          if (!match || !match[1] || match[1] === '-' || match[1] === '') continue;
-
-          const fingerprint = match[1];
-          const key = `${type}:${fingerprint}`;
-
-          byType[type] = (byType[type] || 0) + 1;
-
-          const existing = counts.get(key);
-          if (existing) {
-            existing.count++;
-          } else {
-            counts.set(key, { fingerprintType: type, fingerprint, count: 1 });
-          }
+      const lineStats = await this.collectLineStats(logPath);
+      totalRequests += lineStats.totalRequests;
+      for (const [type, count] of Object.entries(lineStats.byType)) {
+        byType[type] = (byType[type] || 0) + count;
+      }
+      for (const [key, stat] of lineStats.counts) {
+        const existing = counts.get(key);
+        if (existing) {
+          existing.count += stat.count;
+        } else {
+          counts.set(key, { ...stat });
         }
       }
     }
@@ -76,16 +83,20 @@ export class BotAnalyticsService {
     };
   }
 
-  private isJa4LogLine(line: string): boolean {
-    return /JA4(H|S|TCP)?="/i.test(line);
-  }
+  private async resolveLogPaths(options: {
+    domain?: string;
+    logPath?: string;
+  }): Promise<string[]> {
+    if (options.logPath) {
+      return isAllowedLogPath(options.logPath) ? [options.logPath] : [];
+    }
 
-  private async resolveLogPaths(domain?: string): Promise<string[]> {
-    if (domain) {
-      return [
-        `/var/log/nginx/${domain}_ssl_access.log`,
-        `/var/log/nginx/${domain}_access.log`,
-      ];
+    if (options.domain) {
+      if (!isSafeDomainName(options.domain)) {
+        logger.warn('Invalid domain name for analytics');
+        return [];
+      }
+      return domainLogPaths(options.domain);
     }
 
     try {
@@ -95,10 +106,9 @@ export class BotAnalyticsService {
       });
 
       if (domains.length > 0) {
-        return domains.flatMap((d) => [
-          `/var/log/nginx/${d.name}_ssl_access.log`,
-          `/var/log/nginx/${d.name}_access.log`,
-        ]);
+        return domains
+          .filter((d) => isSafeDomainName(d.name))
+          .flatMap((d) => domainLogPaths(d.name));
       }
     } catch (error: unknown) {
       const err = error as Error;
@@ -106,6 +116,54 @@ export class BotAnalyticsService {
     }
 
     return [JA4_GLOBAL_LOG_PATH];
+  }
+
+  private async collectLineStats(logPath: string): Promise<{
+    totalRequests: number;
+    counts: Map<string, FingerprintStats>;
+    byType: Record<string, number>;
+  }> {
+    const counts = new Map<string, FingerprintStats>();
+    const byType: Record<string, number> = {};
+    let totalRequests = 0;
+
+    const stream = createReadStream(logPath, { encoding: 'utf8' });
+    const rl = createInterface({ input: stream, crlfDelay: Infinity });
+
+    for await (const line of rl) {
+      if (!this.isJa4LogLine(line)) continue;
+
+      totalRequests++;
+      this.extractFingerprintsFromLine(line, counts, byType);
+    }
+
+    return { totalRequests, counts, byType };
+  }
+
+  private extractFingerprintsFromLine(
+    line: string,
+    counts: Map<string, FingerprintStats>,
+    byType: Record<string, number>
+  ): void {
+    for (const [field, type] of Object.entries(JA4_FIELD_MAP)) {
+      const match = line.match(new RegExp(`${field}="([^"]*)"`, 'i'));
+      const fingerprint = match?.[1];
+      if (!fingerprint || fingerprint === '-' || fingerprint === '') continue;
+
+      const key = `${type}:${fingerprint}`;
+      byType[type] = (byType[type] || 0) + 1;
+
+      const existing = counts.get(key);
+      if (existing) {
+        existing.count++;
+      } else {
+        counts.set(key, { fingerprintType: type, fingerprint, count: 1 });
+      }
+    }
+  }
+
+  private isJa4LogLine(line: string): boolean {
+    return /JA4(H|S|TCP)?="/i.test(line);
   }
 
   async discoverFingerprints(options: {
@@ -122,20 +180,21 @@ export class BotAnalyticsService {
   }
 
   async readDomainLog(domain: string, limit = 100): Promise<string[]> {
-    if (!/^[a-zA-Z0-9._-]+$/.test(domain)) {
-      logger.warn(`Invalid domain name for log read: ${domain}`);
+    if (!isSafeDomainName(domain)) {
+      logger.warn('Invalid domain name for log read');
       return [];
     }
 
     const domainLog = `/var/log/nginx/${domain}_ssl_access.log`;
     try {
-      const { execFile } = await import('child_process');
-      const { promisify } = await import('util');
-      const execFileAsync = promisify(execFile);
-      const { stdout } = await execFileAsync('tail', ['-n', String(Math.min(limit, 1000)), domainLog]);
+      const { stdout } = await execFileAsync('tail', [
+        '-n',
+        String(Math.min(limit, 1000)),
+        domainLog,
+      ]);
       return stdout.split('\n').filter(Boolean);
     } catch {
-      logger.warn(`Could not read domain log: ${domainLog}`);
+      logger.warn('Could not read domain log');
       return [];
     }
   }

@@ -4,7 +4,7 @@ const JA4_PATTERN = /^t\d+d\d+h\d+_[a-f0-9]{64}_[a-f0-9]{64}$/i;
 const JA4H_PATTERN = /^[a-z]{2}\d{2}[nc]\d{2}_[a-f0-9]{64}$/i;
 const JA4S_PATTERN = /^h2\d+_\d+_[a-f0-9]+_\d+_\d+$/i;
 const JA4TCP_PATTERN = /^\d+_\d+(-\d+)*_\d+_\d+$/;
-const JA4ONE_PATTERN = /^.+_.+$/;
+const JA4ONE_PATTERN = /^[^_\r\n]{1,256}_[^_\r\n]{1,256}$/;
 
 export const FINGERPRINT_PATTERNS: Record<Ja4FingerprintType, RegExp> = {
   ja4: JA4_PATTERN,

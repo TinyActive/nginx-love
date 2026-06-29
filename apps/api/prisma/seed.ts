@@ -1,6 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 import { hashPassword } from '../src/utils/password';
 
+const DEMO_SEED_IP = process.env.SEED_DEMO_IP ?? '127.0.0.1';
+
 const prisma = new PrismaClient();
 
 async function main() {
@@ -95,7 +97,7 @@ async function main() {
         userId: admin.id,
         action: 'User logged in',
         type: 'login',
-        ip: '192.168.1.100',
+        ip: DEMO_SEED_IP,
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         timestamp: new Date(Date.now() - 3600000), // 1 hour ago
         success: true,
@@ -104,7 +106,7 @@ async function main() {
         userId: admin.id,
         action: 'Updated domain configuration for api.example.com',
         type: 'config_change',
-        ip: '192.168.1.100',
+        ip: DEMO_SEED_IP,
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         timestamp: new Date(Date.now() - 7200000), // 2 hours ago
         details: 'Modified SSL settings and upstream configuration',
@@ -124,7 +126,7 @@ async function main() {
         userId: admin.id,
         action: 'Created new ACL rule',
         type: 'user_action',
-        ip: '192.168.1.100',
+        ip: DEMO_SEED_IP,
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         timestamp: new Date(Date.now() - 172800000), // 2 days ago
         details: 'Added IP blacklist rule for 192.168.1.200',
@@ -134,7 +136,7 @@ async function main() {
         userId: admin.id,
         action: 'Changed account password',
         type: 'security',
-        ip: '192.168.1.100',
+        ip: DEMO_SEED_IP,
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         timestamp: new Date(Date.now() - 259200000), // 3 days ago
         success: true,

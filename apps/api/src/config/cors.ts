@@ -8,6 +8,8 @@ import type { CorsOptions } from 'cors';
  *   list  — exact match against CORS_ORIGIN comma-separated list (default)
  */
 
+const UI_PORTS = new Set(['8080', '5173', '80', '443', '3001', '']);
+
 export function isCorsAutoMode(): boolean {
   const mode = (process.env.CORS_MODE ?? '').trim().toLowerCase();
   const raw = (process.env.CORS_ORIGIN ?? '').trim();
@@ -19,20 +21,33 @@ export function isCorsAutoMode(): boolean {
   );
 }
 
+function isRelaxedOriginMatch(origin: string, allowed: string[]): boolean {
+  try {
+    const req = new URL(origin);
+    for (const entry of allowed) {
+      const base = new URL(entry);
+      const reqPort = req.port || (req.protocol === 'https:' ? '443' : '80');
+      const basePort = base.port || (base.protocol === 'https:' ? '443' : '80');
+      if (req.hostname === base.hostname && UI_PORTS.has(reqPort) && UI_PORTS.has(basePort)) {
+        return true;
+      }
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 export function createCorsOriginResolver(): CorsOptions['origin'] {
   const raw = (process.env.CORS_ORIGIN ?? '').trim();
 
-  const useAuto = isCorsAutoMode();
-
-  if (useAuto) {
+  if (isCorsAutoMode()) {
     return (origin, callback) => {
-      // Server-to-server / same-origin proxy (no Origin header)
       if (!origin) {
         callback(null, true);
         return;
       }
       if (/^https?:\/\/[^\s/]+(:\d+)?$/i.test(origin)) {
-        // Echo the specific origin — required when credentials: true (never use wildcard reflect)
         callback(null, origin);
         return;
       }
@@ -54,23 +69,9 @@ export function createCorsOriginResolver(): CorsOptions['origin'] {
       return;
     }
 
-    // Optional: same hostname, UI ports only (Docker behind IP/domain)
-    if (process.env.CORS_ORIGIN_RELAXED === 'true') {
-      try {
-        const req = new URL(origin);
-        const uiPorts = new Set(['8080', '5173', '80', '443', '3001', '']);
-        for (const entry of allowed) {
-          const base = new URL(entry);
-          const reqPort = req.port || (req.protocol === 'https:' ? '443' : '80');
-          const basePort = base.port || (base.protocol === 'https:' ? '443' : '80');
-          if (req.hostname === base.hostname && uiPorts.has(reqPort) && uiPorts.has(basePort)) {
-            callback(null, true);
-            return;
-          }
-        }
-      } catch {
-        // fall through
-      }
+    if (process.env.CORS_ORIGIN_RELAXED === 'true' && isRelaxedOriginMatch(origin, allowed)) {
+      callback(null, true);
+      return;
     }
 
     callback(new Error(`CORS: origin not allowed: ${origin}`));

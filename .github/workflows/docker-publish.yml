@@ -13,7 +13,7 @@ jobs:
   build-base:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ccae466f8ef446229ade89 # v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Log in to Docker Hub
         uses: docker/login-action@97815241d9a6f21be6eef4bea8f062204fb8ef6a # v3.3.0
@@ -46,7 +46,7 @@ jobs:
     needs: build-base
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ccae466f8ef446229ade89 # v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Log in to Docker Hub
         uses: docker/login-action@97815241d9a6f21be6eef4bea8f062204fb8ef6a # v3.3.0
@@ -80,7 +80,7 @@ jobs:
   build-frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ccae466f8ef446229ade89 # v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Log in to Docker Hub
         uses: docker/login-action@97815241d9a6f21be6eef4bea8f062204fb8ef6a # v3.3.0

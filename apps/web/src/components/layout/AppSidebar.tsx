@@ -97,6 +97,7 @@ export function AppSidebar() {
   const { theme, setTheme } = useTheme();
   const { user: currentUser, logout } = useAuth();
   const router = useRouter();
+  const matchRoute = useMatchRoute();
 
   const handleLogout = async () => {
     await logout();
@@ -127,8 +128,6 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => {
-                  // Use useMatchRoute to determine if the current route is active
-                  const matchRoute = useMatchRoute();
                   const isActive = matchRoute({ to: item.path, fuzzy: true });
                   
                   return (

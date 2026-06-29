@@ -1,6 +1,6 @@
-import fs from 'fs/promises';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import fs from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import logger from '../../../utils/logger';
 import { botManagerRepository } from '../bot-manager.repository';
 import {
@@ -12,13 +12,11 @@ import {
 } from '../bot-manager.types';
 import { sanitizeProfileName, sanitizeNginxCommentText } from '../utils/fingerprint-validators';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export class BotNginxService {
   private readonly GLOBAL_CONF = '/etc/nginx/conf.d/bot-manager-global.conf';
   private readonly PROFILES_DIR = '/etc/nginx/bot-profiles';
-  private readonly NGINX_TEST_CMD = 'nginx -t';
-  private readonly NGINX_RELOAD_CMD = 'nginx -s reload';
 
   async generateGlobalConfig(): Promise<string> {
     const rules = await botManagerRepository.findGlobalRules(true);
@@ -118,7 +116,7 @@ export class BotNginxService {
 
   async testNginxConfig(): Promise<boolean> {
     try {
-      await execAsync(this.NGINX_TEST_CMD);
+      await execFileAsync('nginx', ['-t']);
       return true;
     } catch (error: unknown) {
       const err = error as { stderr?: string; message?: string };
@@ -128,8 +126,17 @@ export class BotNginxService {
   }
 
   async reloadNginx(): Promise<void> {
-    await execAsync(this.NGINX_RELOAD_CMD);
+    await execFileAsync('nginx', ['-s', 'reload']);
     logger.info('Nginx reloaded after Bot Manager config update');
+  }
+
+  private async finalizeApply(successMessage: string, failureMessage: string): Promise<BotNginxResult> {
+    const testPassed = await this.testNginxConfig();
+    if (!testPassed) {
+      return { success: false, message: failureMessage };
+    }
+    await this.reloadNginx();
+    return { success: true, message: successMessage };
   }
 
   async applyAll(): Promise<BotNginxResult> {
@@ -149,17 +156,10 @@ export class BotNginxService {
         }
       }
 
-      const testPassed = await this.testNginxConfig();
-      if (!testPassed) {
-        return {
-          success: false,
-          message: 'Nginx configuration test failed. Bot rules not applied.',
-        };
-      }
-
-      await this.reloadNginx();
-
-      return { success: true, message: 'Bot Manager rules applied successfully' };
+      return this.finalizeApply(
+        'Bot Manager rules applied successfully',
+        'Nginx configuration test failed. Bot rules not applied.'
+      );
     } catch (error: unknown) {
       const err = error as Error;
       logger.error('Failed to apply Bot Manager rules:', err);
@@ -184,13 +184,10 @@ export class BotNginxService {
       const globalConfig = await this.generateGlobalConfig();
       await this.writeGlobalConfig(globalConfig);
 
-      const testPassed = await this.testNginxConfig();
-      if (!testPassed) {
-        return { success: false, message: 'Nginx configuration test failed.' };
-      }
-
-      await this.reloadNginx();
-      return { success: true, message: 'Bot profile applied successfully' };
+      return this.finalizeApply(
+        'Bot profile applied successfully',
+        'Nginx configuration test failed.'
+      );
     } catch (error: unknown) {
       const err = error as Error;
       return { success: false, message: err.message };
