@@ -36,6 +36,10 @@ export function validateFingerprintPattern(
     return { valid: false, error: 'Fingerprint is required' };
   }
 
+  if (/[\r\n]/.test(trimmed)) {
+    return { valid: false, error: 'Fingerprint cannot contain newline characters' };
+  }
+
   if (trimmed.length > 512) {
     return { valid: false, error: 'Fingerprint is too long' };
   }

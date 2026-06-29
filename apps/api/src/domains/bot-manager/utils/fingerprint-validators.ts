@@ -1,8 +1,4 @@
-import {
-  validateFingerprintPattern,
-  sanitizeNginxCommentText,
-  hasInvalidNameCharacters,
-} from '@nginx-love/shared';
+import { validateFingerprintPattern } from '@nginx-love/shared';
 import { Ja4FingerprintType } from '../bot-manager.types';
 
 export interface FingerprintValidationResult {
@@ -20,7 +16,7 @@ export function validateFingerprint(
 }
 
 export function sanitizeFingerprint(fingerprint: string): string {
-  return fingerprint.trim();
+  return fingerprint.trim().replace(/[\r\n]/g, '');
 }
 
 export function sanitizeProfileName(name: string): string {

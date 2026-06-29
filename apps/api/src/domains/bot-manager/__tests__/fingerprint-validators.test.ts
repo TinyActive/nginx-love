@@ -21,4 +21,9 @@ describe('fingerprint-validators', () => {
   it('sanitizes profile names for nginx filenames', () => {
     expect(sanitizeProfileName('API Strict!')).toBe('api-strict-');
   });
+
+  it('rejects fingerprint with newline characters', () => {
+    const result = validateFingerprint('ja4h', 'ge11n03_abc\ninjected');
+    expect(result.valid).toBe(false);
+  });
 });

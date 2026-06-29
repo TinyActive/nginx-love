@@ -253,8 +253,10 @@ export class BackupService {
         status: 'success',
       });
 
-      logger.info(`Manual backup completed: ${filename}`, {
+      logger.info('Manual backup completed', {
         userId,
+        scheduleId: id,
+        filename,
         size: stats.size,
       });
 
@@ -428,13 +430,13 @@ export class BackupService {
     try {
       await fs.unlink(backup.filepath);
     } catch (error) {
-      logger.warn(`Failed to delete backup file from disk: ${backup.filepath}`, error);
+      logger.warn('Failed to delete backup file from disk', { filepath: backup.filepath, error });
     }
 
     // Delete from database
     await backupRepository.deleteBackupFile(id);
 
-    logger.info(`Backup deleted: ${backup.filename}`, { userId });
+    logger.info('Backup deleted', { userId, filename: backup.filename });
   }
 
   /**
@@ -641,7 +643,7 @@ export class BackupService {
         enabled: isEnabled,
       };
     } catch (error) {
-      logger.warn(`Nginx vhost config not found for ${domainName}`);
+      logger.warn('Nginx vhost config not found for domain restore');
       return null;
     }
   }
@@ -662,7 +664,7 @@ export class BackupService {
       `${domainName}.conf`
     );
     await fs.writeFile(vhostPath, config, 'utf-8');
-    logger.info(`Nginx vhost config written for ${domainName}`);
+    logger.info('Nginx vhost config written for domain restore');
 
     if (enabled) {
       const enabledPath = path.join(
@@ -675,7 +677,7 @@ export class BackupService {
         // Ignore
       }
       await fs.symlink(vhostPath, enabledPath);
-      logger.info(`Nginx vhost enabled for ${domainName}`);
+      logger.info('Nginx vhost enabled for domain restore');
     }
   }
 
@@ -697,13 +699,13 @@ export class BackupService {
     try {
       sslFiles.certificate = await fs.readFile(certPath, 'utf-8');
     } catch {
-      logger.warn(`SSL certificate not found for ${domainName}`);
+      logger.warn('SSL certificate not found for domain restore');
     }
 
     try {
       sslFiles.privateKey = await fs.readFile(keyPath, 'utf-8');
     } catch {
-      logger.warn(`SSL private key not found for ${domainName}`);
+      logger.warn('SSL private key not found for domain restore');
     }
 
     try {
@@ -730,14 +732,14 @@ export class BackupService {
         `${domainName}.crt`
       );
       await fs.writeFile(certPath, sslFiles.certificate, 'utf-8');
-      logger.info(`SSL certificate written for ${domainName}`);
+      logger.info('SSL certificate written for domain restore');
     }
 
     if (sslFiles.privateKey) {
       const keyPath = path.join(BACKUP_CONSTANTS.SSL_CERTS_PATH, `${domainName}.key`);
       await fs.writeFile(keyPath, sslFiles.privateKey, 'utf-8');
       await fs.chmod(keyPath, 0o600);
-      logger.info(`SSL private key written for ${domainName}`);
+      logger.info('SSL private key written for domain restore');
     }
 
     if (sslFiles.chain) {
@@ -746,7 +748,7 @@ export class BackupService {
         `${domainName}.chain.crt`
       );
       await fs.writeFile(chainPath, sslFiles.chain, 'utf-8');
-      logger.info(`SSL chain written for ${domainName}`);
+      logger.info('SSL chain written for domain restore');
     }
   }
 
@@ -823,7 +825,7 @@ export class BackupService {
         }
       }
     } catch (error) {
-      logger.error(`Failed to restore domain ${domainData.name}:`, error);
+      logger.error('Failed to restore domain', { domainId: domainData.id, error });
     }
   }
 
@@ -834,7 +836,7 @@ export class BackupService {
     try {
       const domain = await backupRepository.findDomainByName(sslCert.domainName);
       if (!domain) {
-        logger.warn(`Domain not found for SSL cert: ${sslCert.domainName}`);
+        logger.warn('Domain not found for SSL cert restore', { domainName: sslCert.domainName });
         return;
       }
 
@@ -876,7 +878,7 @@ export class BackupService {
         results.sslFiles++;
       }
     } catch (error) {
-      logger.error(`Failed to restore SSL cert for ${sslCert.domainName}:`, error);
+      logger.error('Failed to restore SSL cert', { domainName: sslCert.domainName, error });
     }
   }
 
@@ -900,7 +902,7 @@ export class BackupService {
           );
           results.modsecCRS++;
         } catch (error) {
-          logger.error(`Failed to restore CRS rule ${rule.ruleFile}:`, error);
+          logger.error('Failed to restore CRS rule', { ruleFile: rule.ruleFile, error });
         }
       }
     }
@@ -918,7 +920,7 @@ export class BackupService {
           });
           results.modsecCustom++;
         } catch (error) {
-          logger.error(`Failed to restore custom ModSec rule ${rule.name}:`, error);
+          logger.error('Failed to restore custom ModSec rule', { ruleId: rule.id, error });
         }
       }
     }
@@ -940,7 +942,7 @@ export class BackupService {
       });
       results.acl++;
     } catch (error) {
-      logger.error(`Failed to restore ACL rule ${rule.name}:`, error);
+      logger.error('Failed to restore ACL rule', { ruleId: rule.id, error });
     }
   }
 
@@ -994,7 +996,7 @@ export class BackupService {
       });
       results.alertChannels++;
     } catch (error) {
-      logger.error(`Failed to restore notification channel ${channel.name}:`, error);
+      logger.error('Failed to restore notification channel', { channelId: channel.id, error });
     }
   }
 
@@ -1023,7 +1025,7 @@ export class BackupService {
       }
       results.alertRules++;
     } catch (error) {
-      logger.error(`Failed to restore alert rule ${rule.name}:`, error);
+      logger.error('Failed to restore alert rule', { ruleId: rule.id, error });
     }
   }
 
@@ -1079,9 +1081,9 @@ export class BackupService {
       }
 
       results.users++;
-      logger.info(`User ${userData.username} restored`);
+      logger.info('User restored', { userId: userData.id });
     } catch (error) {
-      logger.error(`Failed to restore user ${userData.username}:`, error);
+      logger.error('Failed to restore user', { userId: userData.id, error });
     }
   }
 
@@ -1105,7 +1107,7 @@ export class BackupService {
       );
       results.nginxConfigs++;
     } catch (error) {
-      logger.error(`Failed to restore nginx config ${config.id}:`, error);
+      logger.error('Failed to restore nginx config', { configId: config.id, error });
     }
   }
 
@@ -1177,9 +1179,9 @@ export class BackupService {
         }
       }
 
-      logger.info(`Network Load Balancer ${nlbData.name} restored`);
+      logger.info('Network Load Balancer restored', { nlbId: nlbData.id });
     } catch (error) {
-      logger.error(`Failed to restore Network Load Balancer ${nlbData.name}:`, error);
+      logger.error('Failed to restore Network Load Balancer', { nlbId: nlbData.id, error });
     }
   }
 
@@ -1343,7 +1345,7 @@ server {
       await fs.symlink(configPath, enabledPath);
     }
 
-    logger.info(`Nginx configuration generated for ${domain.name}`);
+    logger.info('Nginx configuration generated for domain', { domainId: domain.id });
   }
 }
 

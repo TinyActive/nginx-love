@@ -87,13 +87,16 @@ export class BotNginxService {
   }
 
   private escapeFingerprint(fingerprint: string): string {
-    return fingerprint.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    return fingerprint
+      .replace(/[\r\n]/g, '')
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"');
   }
 
   async writeGlobalConfig(config: string): Promise<void> {
     await fs.mkdir('/etc/nginx/conf.d', { recursive: true });
     await fs.writeFile(this.GLOBAL_CONF, config, 'utf8');
-    logger.info(`Bot Manager global config written to ${this.GLOBAL_CONF}`);
+    logger.info('Bot Manager global config written');
   }
 
   async writeProfileConfig(profileName: string, config: string): Promise<void> {
@@ -101,7 +104,7 @@ export class BotNginxService {
     const safeName = sanitizeProfileName(profileName);
     const filePath = `${this.PROFILES_DIR}/${safeName}.conf`;
     await fs.writeFile(filePath, config, 'utf8');
-    logger.info(`Bot profile config written to ${filePath}`);
+    logger.info('Bot profile config written', { profileFile: safeName });
   }
 
   async deleteProfileConfig(profileName: string): Promise<void> {

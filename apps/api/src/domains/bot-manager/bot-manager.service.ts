@@ -34,7 +34,7 @@ export class BotManagerService {
 
     const profile = await botManagerRepository.createProfile(data);
     await botNginxService.applyAll();
-    logger.info(`Bot profile created: ${profile.name}`);
+    logger.info('Bot profile created', { profileId: profile.id });
     return profile;
   }
 

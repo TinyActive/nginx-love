@@ -12,6 +12,16 @@ function validateNameField(name: unknown, requiredMessage: string, emptyMessage:
   return null;
 }
 
+function validateFingerprintField(fingerprint: unknown): string | null {
+  if (typeof fingerprint !== 'string' || !fingerprint.trim()) {
+    return 'Fingerprint is required';
+  }
+  if (/[\r\n]/.test(fingerprint)) {
+    return 'Fingerprint cannot contain newline characters';
+  }
+  return null;
+}
+
 export function validateCreateBotProfile(body: Record<string, unknown>): string[] {
   const errors: string[] = [];
   const nameError = validateNameField(body.name, 'Profile name is required', 'Profile name cannot be empty');
@@ -43,6 +53,9 @@ export function validateCreateBotRule(body: Record<string, unknown>): string[] {
   }
   if (!body.fingerprint || typeof body.fingerprint !== 'string' || !body.fingerprint.trim()) {
     errors.push('Fingerprint is required');
+  } else {
+    const fpError = validateFingerprintField(body.fingerprint);
+    if (fpError) errors.push(fpError);
   }
   if (!body.action || !RULE_ACTIONS.includes(body.action as typeof RULE_ACTIONS[number])) {
     errors.push('Valid action is required');
@@ -55,6 +68,10 @@ export function validateUpdateBotRule(body: Record<string, unknown>): string[] {
   if (body.name !== undefined) {
     const nameError = validateNameField(body.name, 'Rule name cannot be empty', 'Rule name cannot be empty');
     if (nameError) errors.push(nameError);
+  }
+  if (body.fingerprint !== undefined) {
+    const fpError = validateFingerprintField(body.fingerprint);
+    if (fpError) errors.push(fpError);
   }
   if (body.fingerprintType && !FINGERPRINT_TYPES.includes(body.fingerprintType as typeof FINGERPRINT_TYPES[number])) {
     errors.push('Invalid fingerprint type');

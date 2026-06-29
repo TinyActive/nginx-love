@@ -76,4 +76,52 @@ describe('BotNginxService config generation', () => {
     expect(config).not.toContain('ja4tcp_deny');
     expect(config).toContain('No active rules');
   });
+
+  it('sanitizes newline injection in profile title and rule names', () => {
+    const rules: BotRuleEntity[] = [
+      {
+        id: '1',
+        profileId: null,
+        name: 'evil\r\nja4 on;\n#',
+        fingerprintType: 'ja4h',
+        fingerprint: 'ge11n05_b223a0ebb0b5b794fff2fd565b0ce57e055a418b5ccf7f0729f2ffe1',
+        action: 'deny',
+        enabled: true,
+        priority: 100,
+        notes: null,
+        clientLabel: null,
+        isBuiltin: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+
+    const config = (service as any).buildConfigFile('Profile\ninjected', rules, 'blacklist');
+    expect(config).not.toContain('\nja4 on;');
+    expect(config).not.toContain('\ninjected');
+    expect(config).toContain('# evilja4 on;#');
+  });
+
+  it('strips newlines from fingerprint values in directives', () => {
+    const rules: BotRuleEntity[] = [
+      {
+        id: '1',
+        profileId: null,
+        name: 'Test',
+        fingerprintType: 'ja4h',
+        fingerprint: 'ge11n05_abc\nmalicious',
+        action: 'deny',
+        enabled: true,
+        priority: 100,
+        notes: null,
+        clientLabel: null,
+        isBuiltin: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+
+    const config = (service as any).buildConfigFile('Test', rules, 'blacklist');
+    expect(config).not.toMatch(/ja4h_deny "[^"]*\n/);
+  });
 });
