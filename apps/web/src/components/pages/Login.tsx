@@ -216,6 +216,7 @@ export default function Login() {
 
             {currentStep === 'login' && (
               <p className="text-xs text-center text-muted-foreground mt-4">
+                First login: admin / admin123 — you will be asked to change password and set up 2FA
               </p>
             )}
           </form>

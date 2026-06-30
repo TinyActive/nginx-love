@@ -3,7 +3,38 @@ import { hashPassword } from '../utils/password';
 
 const DEMO_SEED_IP = process.env.SEED_DEMO_IP ?? '127.0.0.1';
 
+const DEMO_CREDENTIALS = [
+  { username: 'admin', password: 'admin123' },
+  { username: 'operator', password: 'operator123' },
+  { username: 'viewer', password: 'viewer123' },
+] as const;
+
 const prisma = new PrismaClient();
+
+function skipFirstLoginOnSeed(): boolean {
+  return process.env.SEED_SKIP_FIRST_LOGIN === 'true';
+}
+
+async function ensureDemoPasswords(): Promise<void> {
+  if (process.env.SEED_ENSURE_DEMO_PASSWORDS !== 'true') {
+    return;
+  }
+
+  console.log('🔑 Resetting default demo passwords (SEED_ENSURE_DEMO_PASSWORDS=true)...');
+  for (const demo of DEMO_CREDENTIALS) {
+    const password = await hashPassword(demo.password);
+    const updated = await prisma.user.updateMany({
+      where: { username: demo.username },
+      data: {
+        password,
+        status: 'active',
+      },
+    });
+    if (updated.count > 0) {
+      console.log(`  ✓ ${demo.username} password reset to default`);
+    }
+  }
+}
 
 export async function runSeedSafe(): Promise<void> {
   console.log('🌱 Starting safe database seed...');
@@ -16,6 +47,7 @@ export async function runSeedSafe(): Promise<void> {
     console.log('Creating default users...');
 
     const adminPassword = await hashPassword('admin123');
+    const firstLoginFlag = skipFirstLoginOnSeed() ? false : true;
     const admin = await prisma.user.create({
       data: {
         username: 'admin',
@@ -24,7 +56,7 @@ export async function runSeedSafe(): Promise<void> {
         fullName: 'System Administrator',
         role: 'admin',
         status: 'active',
-        isFirstLogin: true,
+        isFirstLogin: firstLoginFlag,
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin',
         phone: '+84 123 456 789',
         timezone: 'Asia/Ho_Chi_Minh',
@@ -46,7 +78,7 @@ export async function runSeedSafe(): Promise<void> {
         fullName: 'System Operator',
         role: 'moderator',
         status: 'active',
-        isFirstLogin: true,
+        isFirstLogin: firstLoginFlag,
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=operator',
         phone: '+84 987 654 321',
         timezone: 'Asia/Ho_Chi_Minh',
@@ -64,7 +96,7 @@ export async function runSeedSafe(): Promise<void> {
         fullName: 'Read Only User',
         role: 'viewer',
         status: 'active',
-        isFirstLogin: true,
+        isFirstLogin: firstLoginFlag,
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=viewer',
         timezone: 'Asia/Singapore',
         language: 'en',
@@ -112,6 +144,8 @@ export async function runSeedSafe(): Promise<void> {
       console.log(`ℹ️  FORCE_FIRST_LOGIN: ${updated.count} default user(s) must change password on next login`);
     }
   }
+
+  await ensureDemoPasswords();
 
   const existingCRSRules = await prisma.modSecCRSRule.count();
   if (existingCRSRules === 0) {
