@@ -106,11 +106,12 @@ export const JA4_DIRECTIVE_MAP: Record<Ja4FingerprintType, { allow: string; deny
   ja4one: { allow: 'ja4one_allow', deny: 'ja4one_deny' },
 };
 
-/** Types supported by the bundled TinyActive JA4 dynamic module (no ja4tcp_* directives). */
+/** Types supported by the bundled TinyActive JA4 dynamic module (Feature/uypdate). */
 export const JA4_ENFORCEABLE_TYPES: Ja4FingerprintType[] = [
   'ja4',
   'ja4h',
   'ja4s',
+  'ja4tcp',
   'ja4one',
 ];
 

@@ -8,11 +8,31 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { LogEntry } from "@/types";
+import {
+  FINGERPRINT_TYPE_LABELS,
+  truncateFingerprint,
+} from "@/utils/fingerprint-validators";
+import type { Ja4FingerprintType } from "@/services/bot-manager.service";
 
 interface LogDetailsDialogProps {
   log: LogEntry | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+function Ja4InlineField({
+  type,
+  value,
+}: {
+  type: Ja4FingerprintType;
+  value: string;
+}) {
+  return (
+    <div className="min-w-0" title={value}>
+      <span className="font-medium text-muted-foreground">{FINGERPRINT_TYPE_LABELS[type]}:</span>{" "}
+      <code className="text-xs font-mono break-all">{truncateFingerprint(value, 36)}</code>
+    </div>
+  );
 }
 
 export function LogDetailsDialog({ log, open, onOpenChange }: LogDetailsDialogProps) {
@@ -65,27 +85,42 @@ export function LogDetailsDialog({ log, open, onOpenChange }: LogDetailsDialogPr
             {/* Basic Information */}
             <div>
               <h3 className="text-sm font-semibold mb-2">Basic Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-3 text-sm">
                 <div>
                   <span className="font-medium">Source:</span> {log.source}
                 </div>
-                <div>
-                  <span className="font-medium">Timestamp:</span>{" "}
-                  {new Date(log.timestamp).toLocaleString()}
+
+                <div className="space-y-2 min-w-0">
+                  <div>
+                    <span className="font-medium">Timestamp:</span>{" "}
+                    {new Date(log.timestamp).toLocaleString()}
+                  </div>
+                  {log.ja4 && <Ja4InlineField type="ja4" value={log.ja4} />}
+                  {log.ja4h && <Ja4InlineField type="ja4h" value={log.ja4h} />}
                 </div>
-                {log.domain && (
+
+                <div className="space-y-2 min-w-0">
                   <div>
                     <span className="font-medium">Domain:</span>{" "}
-                    <Badge variant="outline" className="font-mono">
-                      {log.domain}
-                    </Badge>
+                    {log.domain ? (
+                      <Badge variant="outline" className="font-mono">
+                        {log.domain}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </div>
-                )}
-                {log.ip && (
+                  {log.ja4s && <Ja4InlineField type="ja4s" value={log.ja4s} />}
+                  {log.ja4tcp && <Ja4InlineField type="ja4tcp" value={log.ja4tcp} />}
+                </div>
+
+                <div className="space-y-2 min-w-0 md:col-span-1">
                   <div>
-                    <span className="font-medium">IP Address:</span> {log.ip}
+                    <span className="font-medium">IP Address:</span>{" "}
+                    {log.ip ?? <span className="text-muted-foreground">—</span>}
                   </div>
-                )}
+                  {log.ja4one && <Ja4InlineField type="ja4one" value={log.ja4one} />}
+                </div>
               </div>
             </div>
 
@@ -237,10 +272,10 @@ export function LogDetailsDialog({ log, open, onOpenChange }: LogDetailsDialogPr
               </div>
             </div>
 
-            {/* Full Log Entry */}
+            {/* Raw Log Line */}
             {log.fullMessage && (
               <div>
-                <h3 className="text-sm font-semibold mb-2">Complete Log Entry</h3>
+                <h3 className="text-sm font-semibold mb-2">Raw Log Line</h3>
                 <div className="bg-muted p-3 rounded-md max-h-[300px] overflow-y-auto">
                   <pre className="text-xs whitespace-pre-wrap break-all font-mono">
                     {log.fullMessage}

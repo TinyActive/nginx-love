@@ -186,6 +186,18 @@ const LogDetailsCell = ({ log }: { log: LogEntry }) => {
       truncate: true 
     },
     { condition: log.statusCode, label: "Status", value: log.statusCode },
+    {
+      condition: log.ja4h,
+      label: "JA4H",
+      value: log.ja4h,
+      truncate: true,
+    },
+    {
+      condition: log.ja4 && !log.ja4h,
+      label: "JA4",
+      value: log.ja4,
+      truncate: true,
+    },
     { condition: log.responseTime, label: "RT", value: `${log.responseTime}ms` },
     { 
       condition: log.ruleId, 

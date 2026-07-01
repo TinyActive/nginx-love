@@ -3,6 +3,10 @@ import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import {
+  extractJa4FieldsFromLogLine,
+  isJa4AccessLogLine,
+} from '@nginx-love/shared';
 import logger from '../../../utils/logger';
 import prisma from '../../../config/database';
 import { BotAnalyticsResult, FingerprintStats, Ja4FingerprintType } from '../bot-manager.types';
@@ -12,14 +16,6 @@ const execFileAsync = promisify(execFile);
 const JA4_GLOBAL_LOG_PATH = '/var/log/nginx/ja4-fingerprints.log';
 const SAFE_DOMAIN_RE = /^[a-zA-Z0-9._-]+$/;
 const ALLOWED_LOG_PREFIX = '/var/log/nginx/';
-
-const JA4_FIELD_MAP: Record<string, Ja4FingerprintType> = {
-  JA4: 'ja4',
-  JA4H: 'ja4h',
-  JA4S: 'ja4s',
-  JA4TCP: 'ja4tcp',
-  JA4one: 'ja4one',
-};
 
 function isSafeDomainName(domain: string): boolean {
   return SAFE_DOMAIN_RE.test(domain);
@@ -101,14 +97,19 @@ export class BotAnalyticsService {
 
     try {
       const domains = await prisma.domain.findMany({
-        where: { botManagerEnabled: true },
-        select: { name: true },
+        select: { name: true, sslEnabled: true },
       });
 
-      if (domains.length > 0) {
-        return domains
-          .filter((d) => isSafeDomainName(d.name))
-          .flatMap((d) => domainLogPaths(d.name));
+      const domainPaths = domains
+        .filter((d) => isSafeDomainName(d.name))
+        .flatMap((d) =>
+          d.sslEnabled
+            ? [`/var/log/nginx/${d.name}_ssl_access.log`, `/var/log/nginx/${d.name}_access.log`]
+            : [`/var/log/nginx/${d.name}_access.log`]
+        );
+
+      if (domainPaths.length > 0) {
+        return [...new Set([...domainPaths, JA4_GLOBAL_LOG_PATH])];
       }
     } catch (error: unknown) {
       const err = error as Error;
@@ -145,11 +146,9 @@ export class BotAnalyticsService {
     counts: Map<string, FingerprintStats>,
     byType: Record<string, number>
   ): void {
-    for (const [field, type] of Object.entries(JA4_FIELD_MAP)) {
-      const match = line.match(new RegExp(`${field}="([^"]*)"`, 'i'));
-      const fingerprint = match?.[1];
-      if (!fingerprint || fingerprint === '-' || fingerprint === '') continue;
+    const fields = extractJa4FieldsFromLogLine(line);
 
+    for (const [type, fingerprint] of Object.entries(fields) as [Ja4FingerprintType, string][]) {
       const key = `${type}:${fingerprint}`;
       byType[type] = (byType[type] || 0) + 1;
 
@@ -163,7 +162,7 @@ export class BotAnalyticsService {
   }
 
   private isJa4LogLine(line: string): boolean {
-    return /JA4(H|S|TCP)?="/i.test(line);
+    return isJa4AccessLogLine(line);
   }
 
   async discoverFingerprints(options: {

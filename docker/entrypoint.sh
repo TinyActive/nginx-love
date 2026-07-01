@@ -44,24 +44,9 @@ if [ ! -f /etc/nginx/conf.d/acl-rules.conf ]; then
 EOF
 fi
 
-if [ ! -f /etc/nginx/nginx.conf ]; then
-  cp /app/config/nginx.conf /etc/nginx/nginx.conf
-else
-  if ! grep -q 'ngx_http_ja4_module.so' /etc/nginx/nginx.conf; then
-    sed -i '/ngx_http_modsecurity_module.so/a load_module /usr/lib/nginx/modules/ngx_http_ja4_module.so;' /etc/nginx/nginx.conf
-  fi
-  if ! grep -q 'log_format ja4_fingerprint' /etc/nginx/nginx.conf; then
-    sed -i '/log_format main /a\
-\
-    log_format ja4_fingerprint '\''$remote_addr - [$time_local] "$request" $status '\''\
-                             '\''JA4="$http_ssl_ja4" JA4H="$http_ssl_ja4h" '\''\
-                             '\''JA4S="$http_ssl_ja4s" JA4TCP="$http_ssl_ja4tcp" '\''\
-                             '\''JA4one="$http_ssl_ja4one"'\'';' /etc/nginx/nginx.conf
-  fi
-  if ! grep -q 'ja4-fingerprints.log' /etc/nginx/nginx.conf; then
-    sed -i '/access_log \/var\/log\/nginx\/access.log main;/a\    access_log /var/log/nginx/ja4-fingerprints.log ja4_fingerprint;' /etc/nginx/nginx.conf
-  fi
-fi
+# Always sync base nginx.conf from image template (JA4 log formats, modules).
+# Domain vhosts in sites-enabled/ are managed separately by the API.
+cp /app/config/nginx.conf /etc/nginx/nginx.conf
 
 echo "Testing nginx configuration..."
 nginx -t

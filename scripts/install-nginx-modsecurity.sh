@@ -135,7 +135,7 @@ update_status "ja4_download" "running" "Downloading JA4 nginx module..."
 
 cd /usr/local/src
 rm -rf ja4-nginx-module
-git clone --depth 1 https://github.com/TinyActive/ja4-nginx-module.git >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to clone ja4-nginx-module"
+git clone --depth 1 -b Feature/uypdate https://github.com/TinyActive/ja4-nginx-module.git >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to clone ja4-nginx-module"
 
 # Fix Windows CRLF in module config (breaks nginx ./configure in Linux containers)
 find ja4-nginx-module -type f \( -name 'config' -o -name '*.sh' -o -name '*.c' -o -name '*.h' \) \
@@ -306,9 +306,16 @@ http {
                     '$status $body_bytes_sent "$http_referer" '
                     '"$http_user_agent" "$http_x_forwarded_for"';
 
+    log_format main_ja4 '$remote_addr - $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for" '
+                        '"JA4: $http_ssl_ja4" "JA4H: $http_ssl_ja4h" "JA4one: $http_ssl_ja4one" '
+                        '"JA4TCP: $http_ssl_ja4tcp" "JA4S: $http_ssl_ja4s"';
+
     log_format ja4_fingerprint '$remote_addr - [$time_local] "$request" $status '
-                             'JA4H="$http_ssl_ja4h" '
-                             'JA4S="$http_ssl_ja4s" JA4TCP="$http_ssl_ja4tcp"';
+                             'JA4="$http_ssl_ja4" JA4H="$http_ssl_ja4h" '
+                             'JA4S="$http_ssl_ja4s" JA4TCP="$http_ssl_ja4tcp" '
+                             'JA4one="$http_ssl_ja4one"';
 
     access_log /var/log/nginx/access.log main;
     access_log /var/log/nginx/ja4-fingerprints.log ja4_fingerprint;

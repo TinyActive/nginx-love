@@ -258,7 +258,7 @@ ${realIpBlock}
 
     // Generate Access Lists block
     const accessListsBlock = this.generateAccessListsBlock(domain);
-    const botManagerBlock = this.generateBotManagerBlock(domain, false);
+    const ja4Block = this.generateJa4Block(domain, false);
 
     // Client max body size
     const clientMaxBodySize = this.getClientMaxBodySize(domain);
@@ -270,7 +270,7 @@ server {
     server_name ${domain.name};
 
 ${realIpBlock}
-${accessListsBlock}${botManagerBlock}
+${accessListsBlock}${ja4Block}
     # Include ACL rules (IP whitelist/blacklist)
     include /etc/nginx/conf.d/acl-rules.conf;
 
@@ -331,7 +331,7 @@ ${accessListsBlock}${botManagerBlock}
     
     // Generate Access Lists block
     const accessListsBlock = this.generateAccessListsBlock(domain);
-    const botManagerBlock = this.generateBotManagerBlock(domain, true);
+    const ja4Block = this.generateJa4Block(domain, true);
 
     // Client max body size
     const clientMaxBodySize = this.getClientMaxBodySize(domain);
@@ -342,7 +342,7 @@ server {
     server_name ${domain.name};
 
 ${realIpBlock}
-${accessListsBlock}${botManagerBlock}
+${accessListsBlock}${ja4Block}
     # Include ACL rules (IP whitelist/blacklist)
     include /etc/nginx/conf.d/acl-rules.conf;
 
@@ -371,7 +371,7 @@ ${accessListsBlock}${botManagerBlock}
 
     ${domain.modsecEnabled ? 'modsecurity on;' : 'modsecurity off;'}
 
-    access_log /var/log/nginx/${domain.name}_ssl_access.log ${domain.botManagerEnabled ? 'ja4_fingerprint' : 'main'};
+    access_log /var/log/nginx/${domain.name}_ssl_access.log main_ja4;
     error_log /var/log/nginx/${domain.name}_ssl_error.log warn;
 
 ${customLocations}
@@ -454,25 +454,29 @@ ${customLocations}
   }
 
   /**
-   * Generate Bot Manager (JA4 fingerprint) configuration block
+   * JA4 module block — always enable on HTTPS for fingerprint logging (TinyActive uypdate).
+   * Bot Manager rules are included when enabled on the domain.
    */
-  private generateBotManagerBlock(domain: DomainWithRelations, isHttps: boolean): string {
-    if (!domain.botManagerEnabled || !isHttps) {
+  private generateJa4Block(domain: DomainWithRelations, isHttps: boolean): string {
+    if (!isHttps) {
       return '';
     }
 
     const lines: string[] = [];
-    lines.push('    # Bot Manager (JA4 Fingerprint)');
+    lines.push('    # JA4 fingerprinting (TinyActive ja4-nginx-module)');
     lines.push('    ja4 on;');
-    lines.push('    include /etc/nginx/conf.d/bot-manager-global.conf;');
 
-    if (domain.botProfiles && domain.botProfiles.length > 0) {
-      domain.botProfiles
-        .filter((bp) => bp.enabled && bp.profile.enabled)
-        .forEach((bp) => {
-          const configFile = `/etc/nginx/bot-profiles/${sanitizeProfileName(bp.profile.name)}.conf`;
-          lines.push(`    include ${configFile};`);
-        });
+    if (domain.botManagerEnabled) {
+      lines.push('    include /etc/nginx/conf.d/bot-manager-global.conf;');
+
+      if (domain.botProfiles && domain.botProfiles.length > 0) {
+        domain.botProfiles
+          .filter((bp) => bp.enabled && bp.profile.enabled)
+          .forEach((bp) => {
+            const configFile = `/etc/nginx/bot-profiles/${sanitizeProfileName(bp.profile.name)}.conf`;
+            lines.push(`    include ${configFile};`);
+          });
+      }
     }
 
     lines.push('');
