@@ -10,9 +10,11 @@ set -e
 
 # Parse flags
 DOCKER_BUILD=false
+UPGRADE=false
 for arg in "$@"; do
     case "$arg" in
         --docker-build) DOCKER_BUILD=true ;;
+        --upgrade) UPGRADE=true ;;
     esac
 done
 
@@ -57,8 +59,19 @@ if [[ "${EUID}" -ne 0 ]]; then
 fi
 
 log "================================================"
-log "Nginx + ModSecurity Installation Started"
+if [ "${UPGRADE}" = true ]; then
+    log "Nginx + ModSecurity Core Upgrade Started"
+else
+    log "Nginx + ModSecurity Installation Started"
+fi
 log "================================================"
+
+if [ "${UPGRADE}" = true ] && [ "${DOCKER_BUILD}" = false ]; then
+    if systemctl is-active --quiet nginx 2>/dev/null; then
+        systemctl stop nginx >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to stop nginx before upgrade"
+        log "Stopped nginx for core upgrade"
+    fi
+fi
 
 # Step 1: Install dependencies
 log "Step 1/8: Installing dependencies..."
@@ -97,6 +110,11 @@ update_status "modsecurity_download" "running" "Downloading ModSecurity..."
 cd /usr/local/src
 if [ ! -d "ModSecurity" ]; then
     git clone --depth 1 -b v${MODSECURITY_VERSION} --single-branch https://github.com/owasp-modsecurity/ModSecurity >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to clone ModSecurity"
+elif [ "${UPGRADE}" = true ]; then
+    cd ModSecurity
+    git fetch --depth 1 origin "v${MODSECURITY_VERSION}" >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to fetch ModSecurity v${MODSECURITY_VERSION}"
+    git checkout "v${MODSECURITY_VERSION}" >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to checkout ModSecurity v${MODSECURITY_VERSION}"
+    cd /usr/local/src
 fi
 
 log "ModSecurity downloaded successfully"
@@ -122,6 +140,9 @@ log "Step 4/8: Downloading ModSecurity-nginx connector..."
 update_status "connector_download" "running" "Downloading ModSecurity-nginx connector..."
 
 cd /usr/local/src
+if [ "${UPGRADE}" = true ]; then
+    rm -rf ModSecurity-nginx
+fi
 if [ ! -d "ModSecurity-nginx" ]; then
     git clone --depth 1 https://github.com/owasp-modsecurity/ModSecurity-nginx.git >> "${INSTALL_LOG}" 2>&1 || error_exit "Failed to clone ModSecurity-nginx"
 fi
@@ -218,6 +239,23 @@ log "ModSecurity and JA4 modules copied to /usr/lib/nginx/modules/"
 
 log "Nginx built and installed successfully"
 update_status "nginx_build" "completed" "Nginx compiled and installed"
+
+if [ "${UPGRADE}" = true ]; then
+  ldconfig >> "${INSTALL_LOG}" 2>&1 || true
+  log "Core upgrade finished — preserved existing /etc/nginx configuration"
+  update_status "completed" "success" "Nginx core upgraded (config preserved)"
+  log "================================================"
+  log "Core upgrade completed successfully!"
+  log "================================================"
+  log "Nginx version: $(nginx -v 2>&1)"
+  log "Modules: /usr/lib/nginx/modules/"
+  log "Configuration: /etc/nginx (unchanged)"
+  log "================================================"
+  echo -e "${GREEN}✓ Nginx core upgrade completed successfully!${NC}"
+  echo -e "Configuration and site files were not modified."
+  echo -e "Logs: tail -f /var/log/nginx-modsecurity-install.log"
+  exit 0
+fi
 
 # Step 7: Configure ModSecurity
 log "Step 7/8: Configuring ModSecurity..."

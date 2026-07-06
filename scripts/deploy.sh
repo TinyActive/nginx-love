@@ -249,6 +249,10 @@ if ! command -v nginx &> /dev/null; then
     info "Nginx not found. Installing..."
     bash "${PROJECT_DIR}/scripts/install-nginx-modsecurity.sh" || error "Failed to install Nginx + ModSecurity"
     log "✓ Nginx + ModSecurity installed"
+elif nginx_needs_core_upgrade "${PROJECT_DIR}"; then
+    info "Nginx core upgrade required (missing modules or version mismatch)..."
+    upgrade_nginx_core "${PROJECT_DIR}" "${LOG_FILE}" || error "Failed to upgrade Nginx core"
+    log "✓ Nginx core upgraded ($(nginx -v 2>&1 | cut -d'/' -f2))"
 else
     log "✓ Nginx already installed ($(nginx -v 2>&1 | cut -d'/' -f2))"
 fi

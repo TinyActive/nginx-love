@@ -70,7 +70,7 @@ if ! docker ps -a | grep -q "${DB_CONTAINER_NAME}"; then
 fi
 
 # Step 1: Check prerequisites
-log "Step 1/6: Checking prerequisites..."
+log "Step 1/7: Checking prerequisites..."
 
 if ! command -v htpasswd &> /dev/null; then
     warn "htpasswd not found. Installing apache2-utils..."
@@ -99,7 +99,15 @@ fi
 log "✓ Prerequisites check passed"
 
 # Step 2: Stop services before update
-log "Step 2/6: Stopping services for update..."
+log "Step 2/7: Stopping services for update..."
+
+# Stop nginx before core rebuild (if needed) and config swap
+if systemctl is-active --quiet nginx 2>/dev/null; then
+    systemctl stop nginx
+    log "✓ Nginx stopped"
+else
+    warn "Nginx was not running"
+fi
 
 # Stop backend service
 if systemctl is-active --quiet nginx-love-backend.service; then
@@ -117,8 +125,22 @@ else
     warn "Frontend service was not running"
 fi
 
-# Step 3: Update dependencies and build backend
-log "Step 3/6: Building backend..."
+# Step 3: Rebuild nginx core when bundled modules/version changed (preserves /etc/nginx sites + ModSecurity)
+log "Step 3/7: Checking nginx core..."
+
+if nginx_needs_core_upgrade "${PROJECT_DIR}"; then
+    EXPECTED_NGINX_VERSION="$(get_expected_nginx_version "${PROJECT_DIR}/scripts/install-nginx-modsecurity.sh")"
+    CURRENT_NGINX_VERSION="$(nginx -v 2>&1 | sed -n 's/.*nginx\/\([^ ]*\).*/\1/p' || echo 'not installed')"
+    warn "Nginx core upgrade required (current: ${CURRENT_NGINX_VERSION}, expected: ${EXPECTED_NGINX_VERSION})"
+    log "Rebuilding nginx + ModSecurity + JA4 modules (site configs and SSL files are preserved)..."
+    upgrade_nginx_core "${PROJECT_DIR}" "${LOG_FILE}" || error "Failed to upgrade nginx core"
+    log "✓ Nginx core upgraded to $(nginx -v 2>&1 | sed -n 's/.*nginx\/\([^ ]*\).*/\1/p')"
+else
+    log "✓ Nginx core is up to date"
+fi
+
+# Step 4: Update dependencies and build backend
+log "Step 4/7: Building backend..."
 
 cd "${PROJECT_DIR}"
 
@@ -156,8 +178,8 @@ build_vm_backend "${PROJECT_DIR}" "${LOG_FILE}" || error "Failed to build backen
 
 log "✓ Backend build completed"
 
-# Step 4: Build frontend
-log "Step 4/6: Building frontend..."
+# Step 5: Build frontend
+log "Step 5/7: Building frontend..."
 
 cd "${FRONTEND_DIR}"
 
@@ -186,8 +208,8 @@ log "✓ Frontend build completed"
 install_vm_frontend_nginx "${PROJECT_DIR}" "${LOG_FILE}"
 log "✓ Frontend nginx proxy configured (port 8080 → API :3001)"
 
-# Step 5: Restart services
-log "Step 5/6: Starting services..."
+# Step 6: Restart services
+log "Step 6/7: Starting services..."
 
 # Database should already be running from Step 3, just verify
 if ! docker ps | grep -q "${DB_CONTAINER_NAME}"; then
@@ -239,7 +261,11 @@ if ! nginx -t >> "$LOG_FILE" 2>&1; then
     error "Nginx configuration test failed. Check logs: tail -f $LOG_FILE"
 else
     log "✓ Nginx configuration test passed"
-    systemctl reload nginx || error "Failed to reload nginx"
+    if systemctl is-active --quiet nginx; then
+        systemctl reload nginx || error "Failed to reload nginx"
+    else
+        systemctl start nginx || error "Failed to start nginx"
+    fi
 fi
 
 # Ensure nginx is running
@@ -248,8 +274,8 @@ if ! systemctl is-active --quiet nginx; then
 fi
 log "✓ Nginx is running"
 
-# Step 6: Health check and summary
-log "Step 6/6: Performing health checks..."
+# Step 7: Health check and summary
+log "Step 7/7: Performing health checks..."
 
 # Health check with retries
 log "Performing health checks..."
@@ -294,6 +320,7 @@ log "Update Completed Successfully!"
 log "=================================="
 log ""
 log "📋 Updated Components:"
+log "  • Nginx core: Rebuilt when required modules/version changed"
 log "  • Backend API: Rebuilt and restarted"
 log "  • Frontend UI: Rebuilt and restarted"
 log "  • Database: Migrations applied, missing data created (existing data preserved)"
