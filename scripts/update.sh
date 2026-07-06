@@ -22,6 +22,9 @@ BACKEND_DIR="$PROJECT_DIR/apps/api"
 FRONTEND_DIR="$PROJECT_DIR/apps/web"
 LOG_FILE="/var/log/nginx-love-ui-update.log"
 
+# shellcheck source=lib/vm-legacy.sh
+source "${SCRIPT_DIR}/lib/vm-legacy.sh"
+
 # Database configuration
 DB_CONTAINER_NAME="nginx-love-postgres"
 
@@ -146,10 +149,10 @@ log "Seeding database safely..."
 cd "${BACKEND_DIR}"
 pnpm ts-node prisma/seed-safe.ts >> "$LOG_FILE" 2>&1 || warn "Failed to seed database safely"
 
-# Build backend
-log "Building backend..."
-cd "${BACKEND_DIR}"
-pnpm build >> "${LOG_FILE}" 2>&1 || error "Failed to build backend"
+# Build backend (shared package must be built from monorepo root)
+log "Building shared package..."
+cd "${PROJECT_DIR}"
+build_vm_backend "${PROJECT_DIR}" "${LOG_FILE}" || error "Failed to build backend"
 
 log "✓ Backend build completed"
 
@@ -164,10 +167,10 @@ if [ -d "dist" ]; then
     rm -rf dist
 fi
 
-# Build frontend
+# Build frontend (from monorepo root so workspace filters resolve correctly)
 log "Building frontend..."
-cd "${FRONTEND_DIR}"
-pnpm build >> "${LOG_FILE}" 2>&1 || error "Failed to build frontend"
+cd "${PROJECT_DIR}"
+pnpm --filter @nginx-love/web build >> "${LOG_FILE}" 2>&1 || error "Failed to build frontend"
 
 # Get public IP for CSP update
 PUBLIC_IP=$(curl -s ifconfig.me || curl -s icanhazip.com || curl -s ipinfo.io/ip || echo "localhost")
@@ -178,6 +181,10 @@ sed -i "s|__API_URL__|http://${PUBLIC_IP}:3001 http://localhost:3001|g" "${FRONT
 sed -i "s|__WS_URL__|ws://${PUBLIC_IP}:* ws://localhost:*|g" "${FRONTEND_DIR}/dist/index.html"
 
 log "✓ Frontend build completed"
+
+# Legacy VM: nginx on :8080 proxies /api (production frontend uses same-origin /api)
+install_vm_frontend_nginx "${PROJECT_DIR}" "${LOG_FILE}"
+log "✓ Frontend nginx proxy configured (port 8080 → API :3001)"
 
 # Step 5: Restart services
 log "Step 5/6: Starting services..."
@@ -223,14 +230,13 @@ fi
 
 # test nginx config
 if ! nginx -t >> "$LOG_FILE" 2>&1; then
-    error "Nginx configuration test failed. Check logs: tail -f $LOG_FILE"
-    # restore backup
+    # restore backup before exiting
     if [ -f "${BACKUP_FILE}" ]; then
-        rm "${ORIGINAL_FILE_NGINX}"
+        rm -f "${ORIGINAL_FILE_NGINX}"
         mv "${BACKUP_FILE}" "${ORIGINAL_FILE_NGINX}" || warn "Failed to restore nginx config from backup"
         log "✓ Nginx config restored from backup"
     fi
-
+    error "Nginx configuration test failed. Check logs: tail -f $LOG_FILE"
 else
     log "✓ Nginx configuration test passed"
     systemctl reload nginx || error "Failed to reload nginx"
@@ -249,10 +255,10 @@ log "Step 6/6: Performing health checks..."
 log "Performing health checks..."
 sleep 5
 
-# Backend health check
+# Backend health check (via frontend /api proxy, same as Docker)
 BACKEND_HEALTHY=false
 for i in {1..10}; do
-    if curl -s http://localhost:3001/api/health | grep -q "success"; then
+    if curl -s http://localhost:8080/api/health | grep -q "success"; then
         BACKEND_HEALTHY=true
         break
     fi

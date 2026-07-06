@@ -32,6 +32,9 @@ BACKEND_DIR="$PROJECT_DIR/apps/api"
 FRONTEND_DIR="$PROJECT_DIR/apps/web"
 LOG_FILE="/var/log/nginx-love-ui-deploy.log"
 
+# shellcheck source=lib/vm-legacy.sh
+source "${SCRIPT_DIR}/lib/vm-legacy.sh"
+
 # Database configuration
 DB_CONTAINER_NAME="nginx-love-postgres"
 DB_NAME="nginx_love_db"
@@ -329,7 +332,7 @@ log "✓ Backend setup completed"
 # Step 5: Build Backend
 log "Step 5/8: Building Backend..."
 cd "${PROJECT_DIR}"
-pnpm --filter @nginx-love/api build >> "${LOG_FILE}" 2>&1 || error "Failed to build backend"
+build_vm_backend "${PROJECT_DIR}" "${LOG_FILE}" || error "Failed to build backend"
 log "✓ Backend built successfully"
 
 # Step 6: Setup Frontend
@@ -401,9 +404,7 @@ sed "s|{{PROJECT_DIR}}|${PROJECT_DIR}|g" \
   "${PROJECT_DIR}/deploy/systemd/nginx-love-backend.service" \
   > /etc/systemd/system/nginx-love-backend.service
 
-sed "s|{{PROJECT_DIR}}|${PROJECT_DIR}|g" \
-  "${PROJECT_DIR}/deploy/systemd/nginx-love-frontend.service" \
-  > /etc/systemd/system/nginx-love-frontend.service
+install_vm_frontend_nginx "${PROJECT_DIR}" "${LOG_FILE}"
 
 # Reload systemd
 systemctl daemon-reload
