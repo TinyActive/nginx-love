@@ -21,6 +21,16 @@ The default [`docker-compose.yml`](../../docker-compose.yml) defines:
 - `backend` — API + nginx + ModSecurity + JA4
 - `frontend` — Admin UI on port 8080
 
+### Persistent volumes
+
+| Volume | Mount | Purpose |
+|--------|-------|---------|
+| `nginx_conf` | `/etc/nginx` | SSL certs, domain vhosts, bot profiles |
+| `nginx_logs` | `/var/log` | Access and error logs (including JA4) |
+| `postgres_data` | Postgres data directory | Application database |
+
+On every backend start, the entrypoint syncs the bundled `nginx.conf` and **regenerates domain vhosts from the database**, so upgrades from older images without JA4 pick up `ja4 on` and `main_ja4` logging automatically.
+
 ## Environment
 
 Key variables (see [`.env.docker.example`](../../.env.docker.example)):

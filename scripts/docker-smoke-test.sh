@@ -95,4 +95,19 @@ auth_curl "${BASE}/api/bot-manager/global-rules"
 log "Domains API"
 auth_curl "${BASE}/api/domains"
 
+log "JA4 vhost config (Docker backend)"
+if docker exec nginx-love-backend sh -c 'ls /etc/nginx/sites-enabled/*.conf >/dev/null 2>&1'; then
+  ssl_sites="$(docker exec nginx-love-backend sh -c 'grep -l "listen.*443.*ssl" /etc/nginx/sites-enabled/*.conf 2>/dev/null || true')"
+  if [[ -n "$ssl_sites" ]]; then
+    if ! docker exec nginx-love-backend grep -q 'ja4 on' /etc/nginx/sites-enabled/*.conf 2>/dev/null; then
+      fail "SSL vhost(s) missing 'ja4 on' — domain vhost regeneration may have failed"
+    fi
+    log "SSL vhosts include JA4 fingerprinting"
+  else
+    log "No SSL vhosts configured yet (skipped JA4 check)"
+  fi
+else
+  log "No domain vhosts yet (skipped JA4 check)"
+fi
+
 log "All smoke checks passed"

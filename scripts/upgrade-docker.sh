@@ -45,5 +45,29 @@ else
   ${COMPOSE} --env-file .env up -d --build
 fi
 
-log "Upgrade complete. Migrations run automatically on backend start."
-log "Verify: curl -s http://localhost:8080/api/health"
+log "Upgrade complete. Migrations and domain vhost sync run automatically on backend start."
+log "  (nginx.conf + JA4 vhosts regenerated from database each backend container start)"
+
+WEB_PORT="${WEB_PORT:-8080}"
+MAX_WAIT=120
+elapsed=0
+while [[ "$elapsed" -lt "$MAX_WAIT" ]]; do
+  if docker inspect -f '{{.State.Health.Status}}' nginx-love-backend 2>/dev/null | grep -q healthy; then
+    break
+  fi
+  sleep 3
+  elapsed=$((elapsed + 3))
+done
+
+if docker inspect -f '{{.State.Health.Status}}' nginx-love-backend 2>/dev/null | grep -q healthy; then
+  log "Backend healthy"
+  if docker exec nginx-love-backend grep -rq 'ja4 on' /etc/nginx/sites-enabled/ 2>/dev/null; then
+    log "JA4 vhosts present in sites-enabled"
+  else
+    log "No SSL domains yet, or JA4 vhosts will appear after you add domains with HTTPS"
+  fi
+else
+  log "Backend still starting — check: docker compose logs -f backend"
+fi
+
+log "Verify: curl -s http://localhost:${WEB_PORT}/api/health"

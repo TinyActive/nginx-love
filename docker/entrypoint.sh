@@ -55,6 +55,15 @@ echo "Starting nginx..."
 nginx -g "daemon off;" &
 NGINX_PID=$!
 
+# Sync domain vhosts from database on every start (JA4, Bot Manager, SSL templates).
+# shellcheck source=/app/scripts/lib/nginx-vhost-upgrade.sh
+source /app/scripts/lib/nginx-vhost-upgrade.sh
+if regenerate_domain_nginx_configs "/app" /dev/stdout; then
+  echo "Domain vhost configs regenerated"
+else
+  echo "WARN: Domain vhost regeneration failed — check logs; API will still start" >&2
+fi
+
 echo "Starting Node.js API..."
 node /app/apps/api/dist/index.js &
 NODE_PID=$!
