@@ -61,7 +61,6 @@ services:
     volumes:
       - nginx_conf:/etc/nginx
       - nginx_logs:/var/log
-      - nginx_ssl:/etc/nginx/ssl
       - acme_challenge:/var/www/html/.well-known/acme-challenge
       - backups:/var/backups
     networks:
