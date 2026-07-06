@@ -70,7 +70,7 @@ if ! docker ps -a | grep -q "${DB_CONTAINER_NAME}"; then
 fi
 
 # Step 1: Check prerequisites
-log "Step 1/7: Checking prerequisites..."
+log "Step 1/8: Checking prerequisites..."
 
 if ! command -v htpasswd &> /dev/null; then
     warn "htpasswd not found. Installing apache2-utils..."
@@ -99,7 +99,7 @@ fi
 log "✓ Prerequisites check passed"
 
 # Step 2: Stop services before update
-log "Step 2/7: Stopping services for update..."
+log "Step 2/8: Stopping services for update..."
 
 # Stop nginx before core rebuild (if needed) and config swap
 if systemctl is-active --quiet nginx 2>/dev/null; then
@@ -126,7 +126,9 @@ else
 fi
 
 # Step 3: Rebuild nginx core when bundled modules/version changed (preserves /etc/nginx sites + ModSecurity)
-log "Step 3/7: Checking nginx core..."
+log "Step 3/8: Checking nginx core..."
+
+NGINX_CORE_UPGRADED=false
 
 if nginx_needs_core_upgrade "${PROJECT_DIR}"; then
     EXPECTED_NGINX_VERSION="$(get_expected_nginx_version "${PROJECT_DIR}/scripts/install-nginx-modsecurity.sh")"
@@ -134,13 +136,14 @@ if nginx_needs_core_upgrade "${PROJECT_DIR}"; then
     warn "Nginx core upgrade required (current: ${CURRENT_NGINX_VERSION}, expected: ${EXPECTED_NGINX_VERSION})"
     log "Rebuilding nginx + ModSecurity + JA4 modules (site configs and SSL files are preserved)..."
     upgrade_nginx_core "${PROJECT_DIR}" "${LOG_FILE}" || error "Failed to upgrade nginx core"
+    NGINX_CORE_UPGRADED=true
     log "✓ Nginx core upgraded to $(nginx -v 2>&1 | sed -n 's/.*nginx\/\([^ ]*\).*/\1/p')"
 else
     log "✓ Nginx core is up to date"
 fi
 
 # Step 4: Update dependencies and build backend
-log "Step 4/7: Building backend..."
+log "Step 4/8: Building backend..."
 
 cd "${PROJECT_DIR}"
 
@@ -179,7 +182,7 @@ build_vm_backend "${PROJECT_DIR}" "${LOG_FILE}" || error "Failed to build backen
 log "✓ Backend build completed"
 
 # Step 5: Build frontend
-log "Step 5/7: Building frontend..."
+log "Step 5/8: Building frontend..."
 
 cd "${FRONTEND_DIR}"
 
@@ -209,7 +212,7 @@ install_vm_frontend_nginx "${PROJECT_DIR}" "${LOG_FILE}"
 log "✓ Frontend nginx proxy configured (port 8080 → API :3001)"
 
 # Step 6: Restart services
-log "Step 6/7: Starting services..."
+log "Step 6/8: Starting services..."
 
 # Database should already be running from Step 3, just verify
 if ! docker ps | grep -q "${DB_CONTAINER_NAME}"; then
@@ -274,8 +277,21 @@ if ! systemctl is-active --quiet nginx; then
 fi
 log "✓ Nginx is running"
 
-# Step 7: Health check and summary
-log "Step 7/7: Performing health checks..."
+# Step 7: Regenerate legacy vhosts after JA4/nginx core upgrades (old installs lack `ja4 on;`).
+log "Step 7/8: Upgrading domain vhost configs (JA4)..."
+
+if [ "${NGINX_CORE_UPGRADED}" = true ] || nginx_vhosts_need_ja4_regeneration "${PROJECT_DIR}"; then
+    if regenerate_domain_nginx_configs "${PROJECT_DIR}" "${LOG_FILE}"; then
+        log "✓ JA4 domain vhost upgrade completed"
+    else
+        warn "Domain vhost regeneration failed — re-save domains in the UI or run: cd ${BACKEND_DIR} && node dist/scripts/regenerate-domain-configs.js"
+    fi
+else
+    log "✓ Domain vhosts already include JA4 (no regeneration needed)"
+fi
+
+# Step 8: Health check and summary
+log "Step 8/8: Performing health checks..."
 
 # Health check with retries
 log "Performing health checks..."
@@ -321,6 +337,7 @@ log "=================================="
 log ""
 log "📋 Updated Components:"
 log "  • Nginx core: Rebuilt when required modules/version changed"
+log "  • Domain vhosts: Regenerated when JA4 upgrade is required"
 log "  • Backend API: Rebuilt and restarted"
 log "  • Frontend UI: Rebuilt and restarted"
 log "  • Database: Migrations applied, missing data created (existing data preserved)"

@@ -79,6 +79,53 @@ build_vm_backend() {
         || return 1
 }
 
+# True when bundled nginx.conf expects JA4 but an SSL vhost still lacks `ja4 on;`.
+nginx_vhosts_need_ja4_regeneration() {
+    local project_dir="$1"
+    local config_file="${project_dir}/config/nginx.conf"
+
+    if [ ! -f "${config_file}" ] || ! grep -q 'ja4_module' "${config_file}"; then
+        return 1
+    fi
+
+    local site
+    for site in /etc/nginx/sites-enabled/*.conf; do
+        [ -f "${site}" ] || continue
+        if grep -qE 'listen\s+443\s+ssl' "${site}" && ! grep -q 'ja4 on' "${site}"; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+# Rewrite all domain vhosts from the database (JA4, Bot Manager, SSL, etc.).
+regenerate_domain_nginx_configs() {
+    local project_dir="$1"
+    local log_file="${2:-/dev/null}"
+    local backend_dir="${project_dir}/apps/api"
+    local script_js="${backend_dir}/dist/scripts/regenerate-domain-configs.js"
+
+    if [ ! -f "${script_js}" ]; then
+        warn "Regenerate script not found (${script_js}); rebuild backend first"
+        return 1
+    fi
+
+    if [ ! -f "${backend_dir}/.env" ]; then
+        warn "Backend .env not found; skipping domain nginx config regeneration"
+        return 1
+    fi
+
+    log "Regenerating domain vhost configs from database..."
+    if (cd "${backend_dir}" && node dist/scripts/regenerate-domain-configs.js) >> "${log_file}" 2>&1; then
+        log "✓ Domain vhost configs regenerated"
+        return 0
+    fi
+
+    warn "Failed to regenerate domain vhost configs (see ${log_file})"
+    return 1
+}
+
 # nginx on :8080 serves dist/ and proxies /api -> localhost:3001 (same as Docker frontend).
 install_vm_frontend_nginx() {
     local project_dir="$1"
