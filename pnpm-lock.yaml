@@ -54,8 +54,8 @@ importers:
         specifier: ^1.10.0
         version: 1.10.1
       node-forge:
-        specifier: ^1.3.1
-        version: 1.3.1
+        specifier: ^1.3.2
+        version: 1.3.2
       nodemailer:
         specifier: ^6.9.14
         version: 6.10.1
@@ -337,7 +337,7 @@ importers:
         version: 4.1.14(vite@7.1.9)
       '@tanstack/react-router-devtools':
         specifier: ^1.132.33
-        version: 1.132.33(@tanstack/react-router@1.132.33)(@tanstack/router-core@1.132.33)(@types/node@24.6.2)(csstype@3.1.3)(react-dom@19.2.0)(react@19.2.0)(solid-js@1.9.9)(tiny-invariant@1.3.3)
+        version: 1.132.33(@tanstack/react-router@1.132.33)(@tanstack/router-core@1.140.0)(@types/node@24.6.2)(csstype@3.2.3)(react-dom@19.2.0)(react@19.2.0)(solid-js@1.9.10)(tiny-invariant@1.3.3)
       '@tanstack/router-plugin':
         specifier: ^1.132.33
         version: 1.132.33(@tanstack/react-router@1.132.33)(vite@7.1.9)
@@ -3859,6 +3859,11 @@ packages:
     resolution: {integrity: sha512-UCHM2uS0t/uSszqPEo+SBSSoQVeQ+LlOWAVBl5SA7+AedeAbKafIPjFn8huZCXNLAYb0WKV2+wETr7lDK9uz7g==}
     engines: {node: '>=12'}
 
+  /@tanstack/history@1.140.0:
+    resolution: {integrity: sha512-u+/dChlWlT3kYa/RmFP+E7xY5EnzvKEKcvKk+XrgWMpBWExQIh3RQX/eUqhqwCXJPNc4jfm1Coj8umnm/hDgyA==}
+    engines: {node: '>=12'}
+    dev: true
+
   /@tanstack/query-core@5.90.2:
     resolution: {integrity: sha512-k/TcR3YalnzibscALLwxeiLUub6jN5EDLwKDiO7q5f4ICEoptJ+n9+7vcEFy5/x/i6Q+Lb/tXrsKCggf5uQJXQ==}
     dev: false
@@ -3872,7 +3877,7 @@ packages:
       react: 19.2.0
     dev: false
 
-  /@tanstack/react-router-devtools@1.132.33(@tanstack/react-router@1.132.33)(@tanstack/router-core@1.132.33)(@types/node@24.6.2)(csstype@3.1.3)(react-dom@19.2.0)(react@19.2.0)(solid-js@1.9.9)(tiny-invariant@1.3.3):
+  /@tanstack/react-router-devtools@1.132.33(@tanstack/react-router@1.132.33)(@tanstack/router-core@1.140.0)(@types/node@24.6.2)(csstype@3.2.3)(react-dom@19.2.0)(react@19.2.0)(solid-js@1.9.10)(tiny-invariant@1.3.3):
     resolution: {integrity: sha512-QXoSjFOK0dy/M7s14b7D+vUqXfPET8KuIxS1ebTPP8NWdlodHqxYUEj1/r66Ar+FFH7OyXbWr8wcCu1BRY0nBg==}
     engines: {node: '>=12'}
     peerDependencies:
@@ -3881,7 +3886,7 @@ packages:
       react-dom: '>=18.0.0 || >=19.0.0'
     dependencies:
       '@tanstack/react-router': 1.132.33(react-dom@19.2.0)(react@19.2.0)
-      '@tanstack/router-devtools-core': 1.132.33(@tanstack/router-core@1.132.33)(@types/node@24.6.2)(csstype@3.1.3)(solid-js@1.9.9)(tiny-invariant@1.3.3)
+      '@tanstack/router-devtools-core': 1.132.33(@tanstack/router-core@1.140.0)(@types/node@24.6.2)(csstype@3.2.3)(solid-js@1.9.10)(tiny-invariant@1.3.3)
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)
       vite: 7.1.9(@types/node@24.6.2)
@@ -3954,7 +3959,20 @@ packages:
       tiny-invariant: 1.3.3
       tiny-warning: 1.0.3
 
-  /@tanstack/router-devtools-core@1.132.33(@tanstack/router-core@1.132.33)(@types/node@24.6.2)(csstype@3.1.3)(solid-js@1.9.9)(tiny-invariant@1.3.3):
+  /@tanstack/router-core@1.140.0:
+    resolution: {integrity: sha512-/Te/mlAzi5FEpZ9NF9RhVw/n+cWYLiCHpvevNKo7JPA8ZYWF58wkalPtNWSocftX4P+OIBNerFAW9UbLgSbvSw==}
+    engines: {node: '>=12'}
+    dependencies:
+      '@tanstack/history': 1.140.0
+      '@tanstack/store': 0.8.0
+      cookie-es: 2.0.0
+      seroval: 1.4.0
+      seroval-plugins: 1.4.0(seroval@1.4.0)
+      tiny-invariant: 1.3.3
+      tiny-warning: 1.0.3
+    dev: true
+
+  /@tanstack/router-devtools-core@1.132.33(@tanstack/router-core@1.140.0)(@types/node@24.6.2)(csstype@3.2.3)(solid-js@1.9.10)(tiny-invariant@1.3.3):
     resolution: {integrity: sha512-PFiINWuGltDrSzbOsGniZjEppvDPVGGDjeH4gX2Q0CMqwurapegEna0D0PO++OwVD0aVr6VvFRkmumBwr5vkTA==}
     engines: {node: '>=12'}
     peerDependencies:
@@ -3966,11 +3984,11 @@ packages:
       csstype:
         optional: true
     dependencies:
-      '@tanstack/router-core': 1.132.33
+      '@tanstack/router-core': 1.140.0
       clsx: 2.1.1
-      csstype: 3.1.3
-      goober: 2.1.18(csstype@3.1.3)
-      solid-js: 1.9.9
+      csstype: 3.2.3
+      goober: 2.1.18(csstype@3.2.3)
+      solid-js: 1.9.10
       tiny-invariant: 1.3.3
       vite: 7.1.9(@types/node@24.6.2)
     transitivePeerDependencies:
@@ -4062,6 +4080,10 @@ packages:
 
   /@tanstack/store@0.7.7:
     resolution: {integrity: sha512-xa6pTan1bcaqYDS9BDpSiS63qa6EoDkPN9RsRaxHuDdVDNntzq3xNwR5YKTU/V3SkSyC9T4YVOPh2zRQN0nhIQ==}
+
+  /@tanstack/store@0.8.0:
+    resolution: {integrity: sha512-Om+BO0YfMZe//X2z0uLF2j+75nQga6TpTJgLJQBiq85aOyZNIhkCgleNcud2KQg4k4v9Y9l+Uhru3qWMPGTOzQ==}
+    dev: true
 
   /@tanstack/table-core@8.21.3:
     resolution: {integrity: sha512-ldZXEhOBb8Is7xLs01fR3YEc3DERiz5silj8tnGkFZytt1abEvl/GhUmCE0PMLaMPTa3Jk4HbKmRlHmu+gCftg==}
@@ -5431,6 +5453,10 @@ packages:
   /csstype@3.1.3:
     resolution: {integrity: sha512-M1uQkMl8rQK/szD0LNhtqxIPLpimGm8sOBwU7lLnCpSbTyY3yeU1Vc7l4KT5zT4s/yOxHH5O7tIuuLOCnLADRw==}
 
+  /csstype@3.2.3:
+    resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+    dev: true
+
   /d3-array@3.2.4:
     resolution: {integrity: sha512-tdQAmyA18i4J7wprpYq8ClcxZy3SC31QMeByyCFyRt7BVHdREQZ5lpzoe5mFEYZUWe+oq8HBvk9JjpibyEV4Jg==}
     engines: {node: '>=12'}
@@ -6300,12 +6326,12 @@ packages:
     engines: {node: '>=18'}
     dev: true
 
-  /goober@2.1.18(csstype@3.1.3):
+  /goober@2.1.18(csstype@3.2.3):
     resolution: {integrity: sha512-2vFqsaDVIT9Gz7N6kAL++pLpp41l3PfDuusHcjnGLfR6+huZkl6ziX+zgVC3ZxpqWhzH6pyDdGrCeDhMIvwaxw==}
     peerDependencies:
       csstype: ^3.0.10
     dependencies:
-      csstype: 3.1.3
+      csstype: 3.2.3
     dev: true
 
   /gopd@1.2.0:
@@ -7182,8 +7208,8 @@ packages:
       whatwg-url: 5.0.0
     dev: false
 
-  /node-forge@1.3.1:
-    resolution: {integrity: sha512-dPEtOeMvF9VMcYV/1Wb8CPoVAXtp6MKMlcbAt4ddqmGqUJ6fQZFXkNZNkNlfevtNkGtaSoXf/vNNNSvgrdXwtA==}
+  /node-forge@1.3.2:
+    resolution: {integrity: sha512-6xKiQ+cph9KImrRh0VsjH2d8/GXA4FIMlgU4B757iI1ApvcyA9VlouP0yZJha01V+huImO+kKMU7ih+2+E14fw==}
     engines: {node: '>= 6.13.0'}
     dev: false
 
@@ -7937,9 +7963,23 @@ packages:
     dependencies:
       seroval: 1.3.2
 
+  /seroval-plugins@1.4.0(seroval@1.4.0):
+    resolution: {integrity: sha512-zir1aWzoiax6pbBVjoYVd0O1QQXgIL3eVGBMsBsNmM8Ukq90yGaWlfx0AB9dTS8GPqrOrbXn79vmItCUP9U3BQ==}
+    engines: {node: '>=10'}
+    peerDependencies:
+      seroval: ^1.0
+    dependencies:
+      seroval: 1.4.0
+    dev: true
+
   /seroval@1.3.2:
     resolution: {integrity: sha512-RbcPH1n5cfwKrru7v7+zrZvjLurgHhGyso3HTyGtRivGWgYjbOmGuivCQaORNELjNONoK35nj28EoWul9sb1zQ==}
     engines: {node: '>=10'}
+
+  /seroval@1.4.0:
+    resolution: {integrity: sha512-BdrNXdzlofomLTiRnwJTSEAaGKyHHZkbMXIywOh7zlzp4uZnXErEwl9XZ+N1hJSNpeTtNxWvVwN0wUzAIQ4Hpg==}
+    engines: {node: '>=10'}
+    dev: true
 
   /serve-static@1.16.2:
     resolution: {integrity: sha512-VqpjJZKadQB/PEbEwvFdO43Ax5dFBZ2UECszz8bQ7pi7wt//PWe1P6MN7eCnjsatYtBT6EuiClbjSWP2WrIoTw==}
@@ -8049,10 +8089,10 @@ packages:
       totalist: 3.0.1
     dev: true
 
-  /solid-js@1.9.9:
-    resolution: {integrity: sha512-A0ZBPJQldAeGCTW0YRYJmt7RCeh5rbFfPZ2aOttgYnctHE7HgKeHCBB/PVc2P7eOfmNXqMFFFoYYdm3S4dcbkA==}
+  /solid-js@1.9.10:
+    resolution: {integrity: sha512-Coz956cos/EPDlhs6+jsdTxKuJDPT7B5SVIWgABwROyxjY7Xbr8wkzD68Et+NxnV7DLJ3nJdAC2r9InuV/4Jew==}
     dependencies:
-      csstype: 3.1.3
+      csstype: 3.2.3
       seroval: 1.3.2
       seroval-plugins: 1.3.3(seroval@1.3.2)
     dev: true
