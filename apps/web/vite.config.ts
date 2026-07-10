@@ -13,6 +13,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@nginx-love/shared": path.resolve(__dirname, "../../packages/shared/src/index.ts"),
     },
   },
   server: {

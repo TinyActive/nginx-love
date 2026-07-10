@@ -1,11 +1,37 @@
-#!/bin/bash
-
+#!/usr/bin/env bash
 ################################################################################
-# Nginx Love UI - Quick Start Script
-# Triển khai nhanh cho development/testing
+# Nginx Love — Quick Start
+# Default: Docker Compose dev profile
+# Legacy host dev: bash scripts/quickstart.sh --legacy
 ################################################################################
 
 set -e
+
+USE_DOCKER=true
+USE_LEGACY=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --docker) USE_DOCKER=true; USE_LEGACY=false ;;
+    --legacy) USE_LEGACY=true; USE_DOCKER=false ;;
+  esac
+done
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+if [ "$USE_DOCKER" = true ] && [ "$USE_LEGACY" = false ]; then
+  echo "🚀 Nginx Love — Docker dev quick start"
+  echo "========================================"
+  cd "${PROJECT_DIR}"
+  if [ ! -f .env ]; then
+    cp .env.docker.example .env
+    echo "Created .env from .env.docker.example — edit secrets for production."
+  fi
+  exec docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env up --build
+fi
+
+# --- Legacy host-native dev flow below ---
 
 # Colors
 GREEN='\033[0;32m'

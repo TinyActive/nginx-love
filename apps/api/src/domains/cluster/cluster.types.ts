@@ -73,6 +73,9 @@ export interface SyncConfigData {
   modsecCRSRules: SyncModSecCRSRule[];
   modsecCustomRules: SyncModSecCustomRule[];
   aclRules: SyncACLRule[];
+  botProfiles: SyncBotProfile[];
+  botRules: SyncBotRule[];
+  botProfileDomains: SyncBotProfileDomain[];
   users: SyncUser[];
   networkLoadBalancers: SyncNetworkLoadBalancer[];
 }
@@ -85,6 +88,7 @@ export interface SyncDomain {
   status: string;
   sslEnabled: boolean;
   modsecEnabled: boolean;
+  botManagerEnabled: boolean;
   upstreams: SyncUpstream[];
   loadBalancer: SyncLoadBalancer | null;
 }
@@ -162,6 +166,41 @@ export interface SyncACLRule {
   conditionOperator: string;
   conditionValue: string;
   action: string;
+  enabled: boolean;
+}
+
+/**
+ * Sync Bot Profile
+ */
+export interface SyncBotProfile {
+  name: string;
+  description?: string | null;
+  enabled: boolean;
+  policyMode: string;
+}
+
+/**
+ * Sync Bot Rule
+ */
+export interface SyncBotRule {
+  profileName?: string | null;
+  name: string;
+  fingerprintType: string;
+  fingerprint: string;
+  action: string;
+  enabled: boolean;
+  priority: number;
+  notes?: string | null;
+  clientLabel?: string | null;
+  isBuiltin: boolean;
+}
+
+/**
+ * Sync Bot Profile Domain junction
+ */
+export interface SyncBotProfileDomain {
+  profileName: string;
+  domainName: string;
   enabled: boolean;
 }
 

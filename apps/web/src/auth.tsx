@@ -48,18 +48,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const response = await authService.login({ username, password })
 
-      if (response.requires2FA) {
-        // Don't set user yet if 2FA is required
-        return response
-      } else {
-        // Set user and tokens if login is complete
-        setAuth(response.user, response.accessToken, response.refreshToken)
+      if (response.requirePasswordChange) {
+        clearAuth()
         return response
       }
+
+      if (response.requires2FA) {
+        clearAuth()
+        return response
+      }
+
+      setAuth(response.user, response.accessToken, response.refreshToken)
+      return response
     } finally {
       setIsLoading(false)
     }
-  }, [setAuth])
+  }, [setAuth, clearAuth])
 
   const loginWith2FA = React.useCallback(async (userId: string, token: string): Promise<LoginResponse> => {
     setIsLoading(true)

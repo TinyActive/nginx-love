@@ -22,6 +22,7 @@ import { Route as AuthModsecurityRouteImport } from './routes/_auth/modsecurity'
 import { Route as AuthLogsRouteImport } from './routes/_auth/logs'
 import { Route as AuthDomainsRouteImport } from './routes/_auth/domains'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
+import { Route as AuthBotManagerRouteImport } from './routes/_auth/bot-manager'
 import { Route as AuthBackupRouteImport } from './routes/_auth/backup'
 import { Route as AuthAlertsRouteImport } from './routes/_auth/alerts'
 import { Route as AuthAclRouteImport } from './routes/_auth/acl'
@@ -92,6 +93,11 @@ const AuthDashboardRoute = AuthDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthBotManagerRoute = AuthBotManagerRouteImport.update({
+  id: '/bot-manager',
+  path: '/bot-manager',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthBackupRoute = AuthBackupRouteImport.update({
   id: '/backup',
   path: '/backup',
@@ -126,6 +132,7 @@ export interface FileRoutesByFullPath {
   '/acl': typeof AuthAclRoute
   '/alerts': typeof AuthAlertsRoute
   '/backup': typeof AuthBackupRoute
+  '/bot-manager': typeof AuthBotManagerRoute
   '/dashboard': typeof AuthDashboardRoute
   '/domains': typeof AuthDomainsRoute
   '/logs': typeof AuthLogsRoute
@@ -145,6 +152,7 @@ export interface FileRoutesByTo {
   '/acl': typeof AuthAclRoute
   '/alerts': typeof AuthAlertsRoute
   '/backup': typeof AuthBackupRoute
+  '/bot-manager': typeof AuthBotManagerRoute
   '/dashboard': typeof AuthDashboardRoute
   '/domains': typeof AuthDomainsRoute
   '/logs': typeof AuthLogsRoute
@@ -166,6 +174,7 @@ export interface FileRoutesById {
   '/_auth/acl': typeof AuthAclRoute
   '/_auth/alerts': typeof AuthAlertsRoute
   '/_auth/backup': typeof AuthBackupRoute
+  '/_auth/bot-manager': typeof AuthBotManagerRoute
   '/_auth/dashboard': typeof AuthDashboardRoute
   '/_auth/domains': typeof AuthDomainsRoute
   '/_auth/logs': typeof AuthLogsRoute
@@ -187,6 +196,7 @@ export interface FileRouteTypes {
     | '/acl'
     | '/alerts'
     | '/backup'
+    | '/bot-manager'
     | '/dashboard'
     | '/domains'
     | '/logs'
@@ -206,6 +216,7 @@ export interface FileRouteTypes {
     | '/acl'
     | '/alerts'
     | '/backup'
+    | '/bot-manager'
     | '/dashboard'
     | '/domains'
     | '/logs'
@@ -226,6 +237,7 @@ export interface FileRouteTypes {
     | '/_auth/acl'
     | '/_auth/alerts'
     | '/_auth/backup'
+    | '/_auth/bot-manager'
     | '/_auth/dashboard'
     | '/_auth/domains'
     | '/_auth/logs'
@@ -337,6 +349,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthDashboardRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/bot-manager': {
+      id: '/_auth/bot-manager'
+      path: '/bot-manager'
+      fullPath: '/bot-manager'
+      preLoaderRoute: typeof AuthBotManagerRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/backup': {
       id: '/_auth/backup'
       path: '/backup'
@@ -381,6 +400,7 @@ interface AuthRouteChildren {
   AuthAclRoute: typeof AuthAclRoute
   AuthAlertsRoute: typeof AuthAlertsRoute
   AuthBackupRoute: typeof AuthBackupRoute
+  AuthBotManagerRoute: typeof AuthBotManagerRoute
   AuthDashboardRoute: typeof AuthDashboardRoute
   AuthDomainsRoute: typeof AuthDomainsRoute
   AuthLogsRoute: typeof AuthLogsRoute
@@ -399,6 +419,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthAclRoute: AuthAclRoute,
   AuthAlertsRoute: AuthAlertsRoute,
   AuthBackupRoute: AuthBackupRoute,
+  AuthBotManagerRoute: AuthBotManagerRoute,
   AuthDashboardRoute: AuthDashboardRoute,
   AuthDomainsRoute: AuthDomainsRoute,
   AuthLogsRoute: AuthLogsRoute,

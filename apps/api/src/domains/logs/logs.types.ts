@@ -26,6 +26,11 @@ export interface ParsedLogEntry {
   line?: string;
   data?: string;
   fullMessage?: string; // Store complete log message without truncation
+  ja4?: string;
+  ja4h?: string;
+  ja4s?: string;
+  ja4tcp?: string;
+  ja4one?: string;
 }
 
 export interface LogFilterOptions {

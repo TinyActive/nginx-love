@@ -31,7 +31,10 @@ export default defineConfig({
         text: 'Documentation',
         items: [
           { text: 'Getting Started', link: '/guide/introduction' },
+          { text: 'Architecture', link: '/guide/architecture' },
           { text: 'Installation', link: '/guide/installation' },
+          { text: 'Docker', link: '/guide/docker' },
+          { text: 'Upgrade', link: '/guide/upgrade' },
           { text: 'Quick Start', link: '/guide/quick-start' }
         ]
       },
@@ -41,6 +44,7 @@ export default defineConfig({
           { text: 'Domain Management', link: '/guide/domains' },
           { text: 'SSL Management', link: '/guide/ssl' },
           { text: 'ModSecurity', link: '/guide/modsecurity' },
+          { text: 'Bot Manager', link: '/guide/bot-manager' },
           { text: 'Performance', link: '/guide/performance' },
           { text: 'Log Analysis', link: '/guide/logs' }
         ]
@@ -75,7 +79,10 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: 'Introduction', link: '/guide/introduction' },
+            { text: 'Architecture', link: '/guide/architecture' },
             { text: 'Installation', link: '/guide/installation' },
+            { text: 'Docker Deployment', link: '/guide/docker' },
+            { text: 'Upgrade', link: '/guide/upgrade' },
             { text: 'Quick Start', link: '/guide/quick-start' }
           ]
         },
@@ -86,6 +93,7 @@ export default defineConfig({
             { text: 'Domain Management', link: '/guide/domains' },
             { text: 'SSL Management', link: '/guide/ssl' },
             { text: 'ModSecurity', link: '/guide/modsecurity' },
+            { text: 'Bot Manager (JA4)', link: '/guide/bot-manager' },
             { text: 'Performance Monitoring', link: '/guide/performance' },
             { text: 'Log Analysis', link: '/guide/logs' }
           ]
@@ -205,7 +213,8 @@ export default defineConfig({
   // Ignore dead links configuration
   ignoreDeadLinks: [
     /^http:\/\/localhost/,
-    /^http:\/\/YOUR_IP/
+    /^http:\/\/YOUR_IP/,
+    /\.\.\/\.\.\//,
   ],
 
   // Markdown configuration

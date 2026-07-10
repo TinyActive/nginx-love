@@ -1,0 +1,20 @@
+[Unit]
+Description=Nginx Love Backend API
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory={{PROJECT_DIR}}/apps/api
+EnvironmentFile={{PROJECT_DIR}}/apps/api/.env
+Environment=NODE_ENV=production
+Environment=PROJECT_ROOT={{PROJECT_DIR}}
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/nginx-love-backend.log
+StandardError=append:/var/log/nginx-love-backend-error.log
+
+[Install]
+WantedBy=multi-user.target

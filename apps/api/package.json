@@ -5,8 +5,9 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
+    "build": "pnpm --filter @nginx-love/shared build && tsc",
     "start": "node dist/index.js",
+    "pretest": "pnpm --filter @nginx-love/shared build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
@@ -29,6 +30,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@nginx-love/shared": "workspace:*",
     "@prisma/client": "^5.18.0",
     "axios": "^1.7.2",
     "bcrypt": "^5.1.1",

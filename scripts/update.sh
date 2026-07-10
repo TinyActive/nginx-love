@@ -22,6 +22,9 @@ BACKEND_DIR="$PROJECT_DIR/apps/api"
 FRONTEND_DIR="$PROJECT_DIR/apps/web"
 LOG_FILE="/var/log/nginx-love-ui-update.log"
 
+# shellcheck source=lib/vm-legacy.sh
+source "${SCRIPT_DIR}/lib/vm-legacy.sh"
+
 # Database configuration
 DB_CONTAINER_NAME="nginx-love-postgres"
 
@@ -67,9 +70,9 @@ if ! docker ps -a | grep -q "${DB_CONTAINER_NAME}"; then
 fi
 
 # Step 1: Check prerequisites
-log "Step 1/6: Checking prerequisites..."
+log "Step 1/8: Checking prerequisites..."
 
-if ! comannd -v htpasswd &> /dev/null; then
+if ! command -v htpasswd &> /dev/null; then
     warn "htpasswd not found. Installing apache2-utils..."
     apt-get install -y apache2-utils >> "$LOG_FILE" 2>&1 || error "Failed to install apache2-utils"
     log "✓ htpasswd installed successfully"
@@ -96,7 +99,15 @@ fi
 log "✓ Prerequisites check passed"
 
 # Step 2: Stop services before update
-log "Step 2/6: Stopping services for update..."
+log "Step 2/8: Stopping services for update..."
+
+# Stop nginx before core rebuild (if needed) and config swap
+if systemctl is-active --quiet nginx 2>/dev/null; then
+    systemctl stop nginx
+    log "✓ Nginx stopped"
+else
+    warn "Nginx was not running"
+fi
 
 # Stop backend service
 if systemctl is-active --quiet nginx-love-backend.service; then
@@ -114,8 +125,25 @@ else
     warn "Frontend service was not running"
 fi
 
-# Step 3: Update dependencies and build backend
-log "Step 3/6: Building backend..."
+# Step 3: Rebuild nginx core when bundled modules/version changed (preserves /etc/nginx sites + ModSecurity)
+log "Step 3/8: Checking nginx core..."
+
+NGINX_CORE_UPGRADED=false
+
+if nginx_needs_core_upgrade "${PROJECT_DIR}"; then
+    EXPECTED_NGINX_VERSION="$(get_expected_nginx_version "${PROJECT_DIR}/scripts/install-nginx-modsecurity.sh")"
+    CURRENT_NGINX_VERSION="$(nginx -v 2>&1 | sed -n 's/.*nginx\/\([^ ]*\).*/\1/p' || echo 'not installed')"
+    warn "Nginx core upgrade required (current: ${CURRENT_NGINX_VERSION}, expected: ${EXPECTED_NGINX_VERSION})"
+    log "Rebuilding nginx + ModSecurity + JA4 modules (site configs and SSL files are preserved)..."
+    upgrade_nginx_core "${PROJECT_DIR}" "${LOG_FILE}" || error "Failed to upgrade nginx core"
+    NGINX_CORE_UPGRADED=true
+    log "✓ Nginx core upgraded to $(nginx -v 2>&1 | sed -n 's/.*nginx\/\([^ ]*\).*/\1/p')"
+else
+    log "✓ Nginx core is up to date"
+fi
+
+# Step 4: Update dependencies and build backend
+log "Step 4/8: Building backend..."
 
 cd "${PROJECT_DIR}"
 
@@ -146,15 +174,15 @@ log "Seeding database safely..."
 cd "${BACKEND_DIR}"
 pnpm ts-node prisma/seed-safe.ts >> "$LOG_FILE" 2>&1 || warn "Failed to seed database safely"
 
-# Build backend
-log "Building backend..."
-cd "${BACKEND_DIR}"
-pnpm build >> "${LOG_FILE}" 2>&1 || error "Failed to build backend"
+# Build backend (shared package must be built from monorepo root)
+log "Building shared package..."
+cd "${PROJECT_DIR}"
+build_vm_backend "${PROJECT_DIR}" "${LOG_FILE}" || error "Failed to build backend"
 
 log "✓ Backend build completed"
 
-# Step 4: Build frontend
-log "Step 4/6: Building frontend..."
+# Step 5: Build frontend
+log "Step 5/8: Building frontend..."
 
 cd "${FRONTEND_DIR}"
 
@@ -164,10 +192,10 @@ if [ -d "dist" ]; then
     rm -rf dist
 fi
 
-# Build frontend
+# Build frontend (from monorepo root so workspace filters resolve correctly)
 log "Building frontend..."
-cd "${FRONTEND_DIR}"
-pnpm build >> "${LOG_FILE}" 2>&1 || error "Failed to build frontend"
+cd "${PROJECT_DIR}"
+pnpm --filter @nginx-love/web build >> "${LOG_FILE}" 2>&1 || error "Failed to build frontend"
 
 # Get public IP for CSP update
 PUBLIC_IP=$(curl -s ifconfig.me || curl -s icanhazip.com || curl -s ipinfo.io/ip || echo "localhost")
@@ -179,8 +207,12 @@ sed -i "s|__WS_URL__|ws://${PUBLIC_IP}:* ws://localhost:*|g" "${FRONTEND_DIR}/di
 
 log "✓ Frontend build completed"
 
-# Step 5: Restart services
-log "Step 5/6: Starting services..."
+# Legacy VM: nginx on :8080 proxies /api (production frontend uses same-origin /api)
+install_vm_frontend_nginx "${PROJECT_DIR}" "${LOG_FILE}"
+log "✓ Frontend nginx proxy configured (port 8080 → API :3001)"
+
+# Step 6: Restart services
+log "Step 6/8: Starting services..."
 
 # Database should already be running from Step 3, just verify
 if ! docker ps | grep -q "${DB_CONTAINER_NAME}"; then
@@ -223,17 +255,20 @@ fi
 
 # test nginx config
 if ! nginx -t >> "$LOG_FILE" 2>&1; then
-    error "Nginx configuration test failed. Check logs: tail -f $LOG_FILE"
-    # restore backup
+    # restore backup before exiting
     if [ -f "${BACKUP_FILE}" ]; then
-        rm "${ORIGINAL_FILE_NGINX}"
+        rm -f "${ORIGINAL_FILE_NGINX}"
         mv "${BACKUP_FILE}" "${ORIGINAL_FILE_NGINX}" || warn "Failed to restore nginx config from backup"
         log "✓ Nginx config restored from backup"
     fi
-
+    error "Nginx configuration test failed. Check logs: tail -f $LOG_FILE"
 else
     log "✓ Nginx configuration test passed"
-    systemctl reload nginx || error "Failed to reload nginx"
+    if systemctl is-active --quiet nginx; then
+        systemctl reload nginx || error "Failed to reload nginx"
+    else
+        systemctl start nginx || error "Failed to start nginx"
+    fi
 fi
 
 # Ensure nginx is running
@@ -242,17 +277,30 @@ if ! systemctl is-active --quiet nginx; then
 fi
 log "✓ Nginx is running"
 
-# Step 6: Health check and summary
-log "Step 6/6: Performing health checks..."
+# Step 7: Regenerate legacy vhosts after JA4/nginx core upgrades (old installs lack `ja4 on;`).
+log "Step 7/8: Upgrading domain vhost configs (JA4)..."
+
+if [ "${NGINX_CORE_UPGRADED}" = true ] || nginx_vhosts_need_ja4_regeneration "${PROJECT_DIR}"; then
+    if regenerate_domain_nginx_configs "${PROJECT_DIR}" "${LOG_FILE}"; then
+        log "✓ JA4 domain vhost upgrade completed"
+    else
+        warn "Domain vhost regeneration failed — re-save domains in the UI or run: cd ${BACKEND_DIR} && node dist/scripts/regenerate-domain-configs.js"
+    fi
+else
+    log "✓ Domain vhosts already include JA4 (no regeneration needed)"
+fi
+
+# Step 8: Health check and summary
+log "Step 8/8: Performing health checks..."
 
 # Health check with retries
 log "Performing health checks..."
 sleep 5
 
-# Backend health check
+# Backend health check (via frontend /api proxy, same as Docker)
 BACKEND_HEALTHY=false
 for i in {1..10}; do
-    if curl -s http://localhost:3001/api/health | grep -q "success"; then
+    if curl -s http://localhost:8080/api/health | grep -q "success"; then
         BACKEND_HEALTHY=true
         break
     fi
@@ -288,6 +336,8 @@ log "Update Completed Successfully!"
 log "=================================="
 log ""
 log "📋 Updated Components:"
+log "  • Nginx core: Rebuilt when required modules/version changed"
+log "  • Domain vhosts: Regenerated when JA4 upgrade is required"
 log "  • Backend API: Rebuilt and restarted"
 log "  • Frontend UI: Rebuilt and restarted"
 log "  • Database: Migrations applied, missing data created (existing data preserved)"
@@ -307,6 +357,10 @@ log "  Backend:    tail -f /var/log/nginx-love-backend.log"
 log "  Frontend:   tail -f /var/log/nginx-love-frontend.log"
 log "  Database:   docker logs -f ${DB_CONTAINER_NAME}"
 log "  Update:     tail -f ${LOG_FILE}"
+log ""
+if command -v docker &>/dev/null && docker compose version &>/dev/null 2>&1; then
+  log "💡 Docker is available — consider migrating to Compose: sudo bash scripts/migrate-vm-to-docker.sh"
+fi
 log ""
 log "🔐 Access the portal at: http://${PUBLIC_IP}:8080"
 log ""

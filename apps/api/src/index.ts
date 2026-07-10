@@ -4,11 +4,13 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import { config } from './config';
+import { createCorsOriginResolver, describeCorsPolicy, isCorsAutoMode } from './config/cors';
 import routes from './routes';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import logger from './utils/logger';
 import { initializeNginxForSSL } from './utils/nginx-setup';
 import { modSecSetupService } from './domains/modsec/services/modsec-setup.service';
+import { botSetupService } from './domains/bot-manager/services/bot-setup.service';
 import { startAlertMonitoring, stopAlertMonitoring } from './domains/alerts/services/alert-monitoring.service';
 import { startSlaveNodeStatusCheck, stopSlaveNodeStatusCheck } from './domains/cluster/services/slave-status-checker.service';
 import { backupSchedulerService } from './domains/backup/services/backup-scheduler.service';
@@ -23,13 +25,19 @@ let sslSchedulerTimer: NodeJS.Timeout | null = null;
 // Security middleware
 // app.use(helmet());
 
-// CORS
-app.use(cors({
-  origin: config.cors.origin,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-  credentials: true,
-}));
+if (process.env.API_BEHIND_PROXY === 'true') {
+  app.set('trust proxy', 1);
+}
+
+// CORS — disabled when API is behind same-origin nginx proxy (Docker production)
+if (process.env.DISABLE_CORS !== 'true') {
+  app.use(cors({
+    origin: createCorsOriginResolver(),
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    credentials: !isCorsAutoMode(),
+  }));
+}
 // Body parser
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -63,9 +71,18 @@ modSecSetupService.initializeModSecurityConfig().catch((error) => {
   logger.warn('CRS rule management features may not work properly.');
 });
 
+// Initialize Bot Manager (JA4) directories and config placeholders
+botSetupService.initializeBotManagerConfig().catch((error) => {
+  logger.warn(`Failed to initialize Bot Manager config: ${error.message}`);
+});
+
 const server = app.listen(PORT, async () => {
   logger.info(`🚀 Server running on port ${PORT} in ${config.nodeEnv} mode`);
-  logger.info(`📡 CORS enabled for: ${config.cors.origin}`);
+  if (process.env.DISABLE_CORS === 'true') {
+    logger.info('📡 CORS disabled — API behind same-origin proxy');
+  } else {
+    logger.info(`📡 CORS policy: ${describeCorsPolicy()}`);
+  }
   
   // Start alert monitoring service (global scan every 10 seconds)
   // Each rule has its own checkInterval for when to actually check

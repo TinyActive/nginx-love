@@ -21,6 +21,7 @@ import {
   Settings,
   LogOut,
   Network,
+  Bot,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -65,6 +66,7 @@ const menuGroups = [
     title: 'Security',
     items: [
       { key: 'modsecurity', icon: Shield, path: '/modsecurity' },
+      { key: 'bot-manager', icon: Bot, path: '/bot-manager' },
       { key: 'acl', icon: UserCog, path: '/acl' },
       { key: 'access-lists', icon: Lock, path: '/access-lists' },
     ]
@@ -95,6 +97,7 @@ export function AppSidebar() {
   const { theme, setTheme } = useTheme();
   const { user: currentUser, logout } = useAuth();
   const router = useRouter();
+  const matchRoute = useMatchRoute();
 
   const handleLogout = async () => {
     await logout();
@@ -125,8 +128,6 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => {
-                  // Use useMatchRoute to determine if the current route is active
-                  const matchRoute = useMatchRoute();
                   const isActive = matchRoute({ to: item.path, fuzzy: true });
                   
                   return (

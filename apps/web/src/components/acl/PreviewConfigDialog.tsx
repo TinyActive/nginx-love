@@ -30,7 +30,7 @@ export function PreviewConfigDialog({ open, onOpenChange }: PreviewConfigDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[80vh]">
+      <DialogContent className="flex max-h-[85vh] w-full max-w-[calc(100%-2rem)] flex-col gap-4 overflow-hidden sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileCode className="h-5 w-5" />
@@ -64,8 +64,8 @@ export function PreviewConfigDialog({ open, onOpenChange }: PreviewConfigDialogP
                 </AlertDescription>
               </Alert>
 
-              <div className="relative">
-                <div className="absolute right-2 top-2 z-10">
+              <div className="flex min-h-0 min-w-0 flex-col gap-2">
+                <div className="flex shrink-0 justify-end">
                   <Button
                     size="sm"
                     variant="secondary"
@@ -85,7 +85,7 @@ export function PreviewConfigDialog({ open, onOpenChange }: PreviewConfigDialogP
                     )}
                   </Button>
                 </div>
-                <pre className="bg-muted p-4 rounded-lg overflow-auto max-h-[50vh] text-sm">
+                <pre className="min-h-0 min-w-0 max-h-[50vh] overflow-auto rounded-lg bg-muted p-4 text-sm whitespace-pre-wrap break-all">
                   <code>{data.config}</code>
                 </pre>
               </div>

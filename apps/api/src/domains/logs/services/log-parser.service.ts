@@ -1,9 +1,47 @@
 import logger from '../../../utils/logger';
 import { ParsedLogEntry } from '../logs.types';
+import {
+  extractJa4FieldsFromLogLine,
+  hasJa4FingerprintData,
+  isJa4AccessLogLine,
+} from '@nginx-love/shared';
 
 /**
  * Log parser service for nginx access.log, error.log, and modsecurity audit log
  */
+
+function parseNginxTime(timeStr: string): string {
+  const timeParts = timeStr.match(/(\d+)\/(\w+)\/(\d+):(\d+):(\d+):(\d+)/);
+  if (!timeParts) return new Date().toISOString();
+
+  const [, day, monthStr, year, hour, min, sec] = timeParts;
+  const months: Record<string, string> = {
+    Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
+    Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12',
+  };
+  const month = months[monthStr] || '01';
+  return `${year}-${month}-${day.padStart(2, '0')}T${hour}:${min}:${sec}Z`;
+}
+
+function levelFromStatus(statusCode: number): 'info' | 'warning' | 'error' {
+  if (statusCode >= 500) return 'error';
+  if (statusCode >= 400) return 'warning';
+  return 'info';
+}
+
+function applyJa4Fields(entry: ParsedLogEntry, line: string): ParsedLogEntry {
+  const ja4Fields = extractJa4FieldsFromLogLine(line);
+  if (!hasJa4FingerprintData(ja4Fields)) {
+    return { ...entry, fullMessage: line };
+  }
+
+  return {
+    ...entry,
+    ...ja4Fields,
+    source: entry.source === 'nginx' ? 'nginx-ja4' : entry.source,
+    fullMessage: line,
+  };
+}
 
 /**
  * Parse nginx access log line (combined format)
@@ -11,8 +49,13 @@ import { ParsedLogEntry } from '../logs.types';
  */
 export function parseAccessLogLine(line: string, index: number, domain?: string): ParsedLogEntry | null {
   try {
-    // Regex for nginx combined log format
-    const regex = /^(\S+) - \S+ \[([^\]]+)\] "(\S+) (\S+) \S+" (\d+) \d+ "([^"]*)" "([^"]*)"/;
+    if (isJa4AccessLogLine(line)) {
+      const compact = parseJa4FingerprintLogLine(line, index, domain);
+      if (compact) return compact;
+    }
+
+    // Combined / main_ja4 log format (referer, user-agent, x-forwarded-for, optional JA4 fields)
+    const regex = /^(\S+) - \S+ \[([^\]]+)\] "(\S+) (\S+) [^"]+" (\d+)/;
     const match = line.match(regex);
 
     if (!match) return null;
@@ -20,30 +63,10 @@ export function parseAccessLogLine(line: string, index: number, domain?: string)
     const [, ip, timeStr, method, path, statusStr] = match;
     const statusCode = parseInt(statusStr);
 
-    // Parse time
-    // Format: 29/Mar/2025:14:35:22 +0000
-    const timeParts = timeStr.match(/(\d+)\/(\w+)\/(\d+):(\d+):(\d+):(\d+) ([+-]\d+)/);
-    let timestamp = new Date().toISOString();
-
-    if (timeParts) {
-      const [, day, monthStr, year, hour, min, sec] = timeParts;
-      const months: { [key: string]: string } = {
-        Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
-        Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12'
-      };
-      const month = months[monthStr] || '01';
-      timestamp = `${year}-${month}-${day.padStart(2, '0')}T${hour}:${min}:${sec}Z`;
-    }
-
-    // Determine level based on status code
-    let level: 'info' | 'warning' | 'error' = 'info';
-    if (statusCode >= 500) level = 'error';
-    else if (statusCode >= 400) level = 'warning';
-
-    return {
+    const entry: ParsedLogEntry = {
       id: `access_${Date.now()}_${index}`,
-      timestamp,
-      level,
+      timestamp: parseNginxTime(timeStr),
+      level: levelFromStatus(statusCode),
       type: 'access',
       source: 'nginx',
       message: `${method} ${path} ${statusCode}`,
@@ -51,9 +74,11 @@ export function parseAccessLogLine(line: string, index: number, domain?: string)
       ip,
       method,
       path,
-      statusCode
+      statusCode,
     };
-  } catch (error) {
+
+    return applyJa4Fields(entry, line);
+  } catch {
     logger.warn(`Failed to parse access log line: ${line}`);
     return null;
   }
@@ -242,6 +267,42 @@ export function parseModSecLogLine(line: string, index: number): ParsedLogEntry 
     };
   } catch (error) {
     logger.warn(`Failed to parse ModSecurity log line: ${line}`);
+    return null;
+  }
+}
+
+/**
+ * Parse JA4 fingerprint access log line
+ * Formats:
+ *   $remote_addr - [$time_local] "$request" $status JA4="..." JA4H="..." ...
+ *   $remote_addr - $remote_user [$time_local] "$request" $status ... "JA4: ..." "JA4H: ..."
+ */
+export function parseJa4FingerprintLogLine(line: string, index: number, domain?: string): ParsedLogEntry | null {
+  try {
+    const regex = /^(\S+) - (?:\S+ )?\[([^\]]+)\] "(\S+) (\S+) [^"]+" (\d+)/;
+    const match = line.match(regex);
+    if (!match) return null;
+
+    const [, ip, timeStr, method, path, statusStr] = match;
+    const statusCode = parseInt(statusStr);
+    const ja4Fields = extractJa4FieldsFromLogLine(line);
+
+    return {
+      id: `ja4_${Date.now()}_${index}`,
+      timestamp: parseNginxTime(timeStr),
+      level: levelFromStatus(statusCode),
+      type: 'access',
+      source: hasJa4FingerprintData(ja4Fields) ? 'nginx-ja4' : 'nginx',
+      message: `${method} ${path} ${statusCode}`,
+      domain,
+      ip,
+      method,
+      path,
+      statusCode,
+      ...ja4Fields,
+      fullMessage: line,
+    };
+  } catch {
     return null;
   }
 }

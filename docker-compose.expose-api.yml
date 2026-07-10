@@ -1,0 +1,10 @@
+# Debug override — expose API on localhost only (re-enables CORS for direct access)
+# Usage: docker compose -f docker-compose.yml -f docker-compose.expose-api.yml up -d
+
+services:
+  backend:
+    ports:
+      - "127.0.0.1:${API_PORT:-3001}:3001"
+    environment:
+      DISABLE_CORS: "false"
+      CORS_MODE: auto

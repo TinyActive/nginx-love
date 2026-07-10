@@ -5,12 +5,14 @@ on:
     branches: [main, develop, beta_developer]
     paths:
       - 'apps/api/**'
+      - 'packages/shared/**'
       - '.github/workflows/api-test.yml'
       - 'pnpm-lock.yaml'
   pull_request:
     branches: [main, develop, beta_developer]
     paths:
       - 'apps/api/**'
+      - 'packages/shared/**'
       - '.github/workflows/api-test.yml'
       - 'pnpm-lock.yaml'
 
@@ -39,8 +41,7 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -55,6 +56,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build shared package
+        run: pnpm --filter @nginx-love/shared build
 
       - name: Setup test environment
         working-directory: apps/api

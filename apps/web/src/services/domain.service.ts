@@ -4,6 +4,7 @@ import {  Domain, Upstream, LoadBalancerConfig, Pagination, ApiResponse } from '
 export interface CreateDomainRequest {
   name: string;
   modsecEnabled?: boolean;
+  botManagerEnabled?: boolean;
   upstreams: {
     host: string;
     port: number;
@@ -24,6 +25,7 @@ export interface UpdateDomainRequest {
   name?: string;
   status?: 'active' | 'inactive' | 'error';
   modsecEnabled?: boolean;
+  botManagerEnabled?: boolean;
   upstreams?: {
     host: string;
     port: number;
@@ -50,6 +52,7 @@ export const getDomains = async (params?: {
   status?: string;
   sslEnabled?: boolean;
   modsecEnabled?: boolean;
+  botManagerEnabled?: boolean;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }): Promise<{ data: Domain[]; pagination: Pagination }> => {

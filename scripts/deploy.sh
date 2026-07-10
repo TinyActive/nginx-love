@@ -8,6 +8,16 @@
 
 set -e
 
+# Parse flags
+FORCE_RECREATE_DB=false
+for arg in "$@"; do
+    case "$arg" in
+        --force-recreate-db)
+            FORCE_RECREATE_DB=true
+            ;;
+    esac
+done
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -21,6 +31,9 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BACKEND_DIR="$PROJECT_DIR/apps/api"
 FRONTEND_DIR="$PROJECT_DIR/apps/web"
 LOG_FILE="/var/log/nginx-love-ui-deploy.log"
+
+# shellcheck source=lib/vm-legacy.sh
+source "${SCRIPT_DIR}/lib/vm-legacy.sh"
 
 # Database configuration
 DB_CONTAINER_NAME="nginx-love-postgres"
@@ -168,17 +181,23 @@ log "✓ Package manager: ${PKG_MANAGER}"
 # Step 2: Setup PostgreSQL with Docker
 log "Step 2/8: Setting up PostgreSQL with Docker..."
 
-# Stop and remove existing container if exists
+# Stop and remove existing container if exists (preserve data unless --force-recreate-db)
 if docker ps -a | grep -q "${DB_CONTAINER_NAME}"; then
-    log "Removing existing PostgreSQL container..."
-    docker stop "${DB_CONTAINER_NAME}" 2>/dev/null || true
-    docker rm "${DB_CONTAINER_NAME}" 2>/dev/null || true
+    if [ "${FORCE_RECREATE_DB}" = true ]; then
+        log "Removing existing PostgreSQL container (--force-recreate-db)..."
+        docker stop "${DB_CONTAINER_NAME}" 2>/dev/null || true
+        docker rm "${DB_CONTAINER_NAME}" 2>/dev/null || true
+    else
+        log "Existing PostgreSQL container found — keeping database (use --force-recreate-db to wipe)"
+    fi
 fi
 
-# Remove old volume to ensure clean installation
-if docker volume ls | grep -q nginx-love-postgres-data; then
-    log "Removing old PostgreSQL volume for clean installation..."
+# Remove old volume only when explicitly requested
+if [ "${FORCE_RECREATE_DB}" = true ] && docker volume ls | grep -q nginx-love-postgres-data; then
+    log "Removing PostgreSQL volume (--force-recreate-db)..."
     docker volume rm nginx-love-postgres-data 2>/dev/null || true
+elif docker volume ls | grep -q nginx-love-postgres-data; then
+    log "Existing PostgreSQL volume preserved"
 fi
 
 # Create Docker network if not exists
@@ -187,34 +206,38 @@ if ! docker network ls | grep -q nginx-love-network; then
     log "✓ Docker network created"
 fi
 
-# Start PostgreSQL container
-log "Starting PostgreSQL container..."
-docker run -d \
-    --name "${DB_CONTAINER_NAME}" \
-    --network nginx-love-network \
-    -e POSTGRES_DB="${DB_NAME}" \
-    -e POSTGRES_USER="${DB_USER}" \
-    -e POSTGRES_PASSWORD="${DB_PASSWORD}" \
-    -p 127.0.0.1:"${DB_PORT}":5432 \
-    -v nginx-love-postgres-data:/var/lib/postgresql/data \
-    --restart unless-stopped \
-    postgres:15-alpine >> "${LOG_FILE}" 2>&1 || error "Failed to start PostgreSQL container"
+# Start PostgreSQL only if container is not already running
+if ! docker ps --format '{{.Names}}' | grep -q "^${DB_CONTAINER_NAME}$"; then
+    log "Starting PostgreSQL container..."
+    docker run -d \
+        --name "${DB_CONTAINER_NAME}" \
+        --network nginx-love-network \
+        -e POSTGRES_DB="${DB_NAME}" \
+        -e POSTGRES_USER="${DB_USER}" \
+        -e POSTGRES_PASSWORD="${DB_PASSWORD}" \
+        -p 127.0.0.1:"${DB_PORT}":5432 \
+        -v nginx-love-postgres-data:/var/lib/postgresql/data \
+        --restart unless-stopped \
+        postgres:15-alpine >> "${LOG_FILE}" 2>&1 || error "Failed to start PostgreSQL container"
 
-# Wait for PostgreSQL to be ready
-log "Waiting for PostgreSQL to be ready..."
-sleep 5
-for i in {1..30}; do
-    if docker exec "${DB_CONTAINER_NAME}" pg_isready -U "${DB_USER}" > /dev/null 2>&1; then
-        log "✓ PostgreSQL is ready"
-        break
-    fi
-    if [ "${i}" -eq 30 ]; then
-        error "PostgreSQL failed to start"
-    fi
-    sleep 1
-done
+    log "Waiting for PostgreSQL to be ready..."
+    sleep 5
+    for i in {1..30}; do
+        if docker exec "${DB_CONTAINER_NAME}" pg_isready -U "${DB_USER}" > /dev/null 2>&1; then
+            log "✓ PostgreSQL is ready"
+            break
+        fi
+        if [ "${i}" -eq 30 ]; then
+            error "PostgreSQL failed to start"
+        fi
+        sleep 1
+    done
 
-log "✓ PostgreSQL container started successfully"
+    log "✓ PostgreSQL container started successfully"
+else
+    log "✓ PostgreSQL container already running"
+fi
+
 log "  • Database: ${DB_NAME}"
 log "  • User: ${DB_USER}"
 log "  • Port: ${DB_PORT}"
@@ -226,6 +249,10 @@ if ! command -v nginx &> /dev/null; then
     info "Nginx not found. Installing..."
     bash "${PROJECT_DIR}/scripts/install-nginx-modsecurity.sh" || error "Failed to install Nginx + ModSecurity"
     log "✓ Nginx + ModSecurity installed"
+elif nginx_needs_core_upgrade "${PROJECT_DIR}"; then
+    info "Nginx core upgrade required (missing modules or version mismatch)..."
+    upgrade_nginx_core "${PROJECT_DIR}" "${LOG_FILE}" || error "Failed to upgrade Nginx core"
+    log "✓ Nginx core upgraded ($(nginx -v 2>&1 | cut -d'/' -f2))"
 else
     log "✓ Nginx already installed ($(nginx -v 2>&1 | cut -d'/' -f2))"
 fi
@@ -309,7 +336,7 @@ log "✓ Backend setup completed"
 # Step 5: Build Backend
 log "Step 5/8: Building Backend..."
 cd "${PROJECT_DIR}"
-pnpm --filter @nginx-love/api build >> "${LOG_FILE}" 2>&1 || error "Failed to build backend"
+build_vm_backend "${PROJECT_DIR}" "${LOG_FILE}" || error "Failed to build backend"
 log "✓ Backend built successfully"
 
 # Step 6: Setup Frontend
@@ -374,50 +401,14 @@ EOF
     log "✓ ACME challenge snippet created"
 fi
 
-# Setup systemd services
+# Setup systemd services from templates
 log "Setting up systemd services..."
 
-# Backend service
-cat > /etc/systemd/system/nginx-love-backend.service <<EOF
-[Unit]
-Description=Nginx Love UI Backend
-After=network.target postgresql.service
+sed "s|{{PROJECT_DIR}}|${PROJECT_DIR}|g" \
+  "${PROJECT_DIR}/deploy/systemd/nginx-love-backend.service" \
+  > /etc/systemd/system/nginx-love-backend.service
 
-[Service]
-Type=simple
-User=root
-WorkingDirectory=${BACKEND_DIR}
-Environment=NODE_ENV=production
-ExecStart=$(which node) dist/index.js
-Restart=always
-RestartSec=10
-StandardOutput=append:/var/log/nginx-love-backend.log
-StandardError=append:/var/log/nginx-love-backend-error.log
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Frontend service (if using preview mode)
-cat > /etc/systemd/system/nginx-love-frontend.service <<EOF
-[Unit]
-Description=Nginx Love UI Frontend
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=${FRONTEND_DIR}
-Environment=NODE_ENV=production
-ExecStart=$(which pnpm) preview --host 0.0.0.0 --port 8080
-Restart=always
-RestartSec=10
-StandardOutput=append:/var/log/nginx-love-frontend.log
-StandardError=append:/var/log/nginx-love-frontend-error.log
-
-[Install]
-WantedBy=multi-user.target
-EOF
+install_vm_frontend_nginx "${PROJECT_DIR}" "${LOG_FILE}"
 
 # Reload systemd
 systemctl daemon-reload

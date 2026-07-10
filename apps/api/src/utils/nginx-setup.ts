@@ -84,6 +84,28 @@ export async function checkWebrootDirectory(): Promise<boolean> {
   }
 }
 
+const ACL_RULES_FILE = '/etc/nginx/conf.d/acl-rules.conf';
+
+const ACL_RULES_PLACEHOLDER = `# ACL Rules - Nginx Love UI
+# This file will be populated with ACL rules
+
+# No rules configured yet
+`;
+
+/**
+ * Ensure ACL rules placeholder file exists (required by domain vhost configs)
+ */
+export async function setupAclRulesFile(): Promise<void> {
+  try {
+    await fs.access(ACL_RULES_FILE);
+    logger.info(`✓ ACL rules file already exists: ${ACL_RULES_FILE}`);
+  } catch {
+    await fs.mkdir('/etc/nginx/conf.d', { recursive: true });
+    await fs.writeFile(ACL_RULES_FILE, ACL_RULES_PLACEHOLDER, 'utf8');
+    logger.info(`✅ Created ACL rules placeholder: ${ACL_RULES_FILE}`);
+  }
+}
+
 /**
  * Initialize all required nginx configurations for SSL
  */
@@ -91,6 +113,8 @@ export async function initializeNginxForSSL(): Promise<void> {
   logger.info('🔧 Initializing nginx configuration for SSL/ACME...');
   
   try {
+    await setupAclRulesFile();
+
     // Check and create nginx snippet
     const snippetExists = await checkNginxSnippet();
     if (!snippetExists) {

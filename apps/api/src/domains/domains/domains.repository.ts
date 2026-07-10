@@ -110,6 +110,11 @@ export class DomainsRepository {
             accessList: true,
           },
         },
+        botProfiles: {
+          include: {
+            profile: true,
+          },
+        },
       },
     });
 
@@ -130,6 +135,11 @@ export class DomainsRepository {
         accessLists: {
           include: {
             accessList: true,
+          },
+        },
+        botProfiles: {
+          include: {
+            profile: true,
           },
         },
       },
@@ -231,6 +241,10 @@ export class DomainsRepository {
           input.modsecEnabled !== undefined
             ? input.modsecEnabled
             : currentDomain.modsecEnabled,
+        botManagerEnabled:
+          input.botManagerEnabled !== undefined
+            ? input.botManagerEnabled
+            : currentDomain.botManagerEnabled,
         sslEnabled:
           input.sslEnabled !== undefined
             ? input.sslEnabled

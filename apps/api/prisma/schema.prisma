@@ -177,6 +177,7 @@ model Domain {
   sslEnabled    Boolean      @default(false)
   sslExpiry     DateTime?
   modsecEnabled Boolean      @default(true)
+  botManagerEnabled Boolean  @default(false)
 
   // Real IP Configuration (for Cloudflare and other proxies)
   realIpEnabled    Boolean  @default(false)
@@ -197,6 +198,7 @@ model Domain {
   modsecCRSRules ModSecCRSRule[]
   modsecRules    ModSecRule[]
   accessLists    AccessListDomain[]
+  botProfiles    BotProfileDomain[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -821,4 +823,78 @@ model NLBHealthCheck {
   @@index([nlbId, checkedAt])
   @@index([upstreamHost, upstreamPort])
   @@map("nlb_health_checks")
+}
+
+// Bot Manager (JA4 Fingerprint) Models
+
+enum Ja4FingerprintType {
+  ja4
+  ja4h
+  ja4s
+  ja4tcp
+  ja4one
+}
+
+enum BotPolicyMode {
+  blacklist
+  whitelist
+}
+
+enum BotRuleAction {
+  allow
+  deny
+  log_only
+}
+
+model BotProfile {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  description String?       @db.Text
+  enabled     Boolean       @default(true)
+  policyMode  BotPolicyMode @default(blacklist)
+  rules       BotRule[]
+  domains     BotProfileDomain[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bot_profiles")
+}
+
+model BotRule {
+  id              String             @id @default(cuid())
+  profileId       String?
+  profile         BotProfile?        @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name            String
+  fingerprintType Ja4FingerprintType
+  fingerprint     String             @db.Text
+  action          BotRuleAction
+  enabled         Boolean            @default(true)
+  priority        Int                @default(100)
+  notes           String?            @db.Text
+  clientLabel     String?
+  isBuiltin       Boolean            @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId, enabled, priority])
+  @@index([isBuiltin])
+  @@map("bot_rules")
+}
+
+model BotProfileDomain {
+  id        String     @id @default(cuid())
+  profileId String
+  domainId  String
+  enabled   Boolean    @default(true)
+  profile   BotProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  domain    Domain     @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([profileId, domainId])
+  @@index([domainId])
+  @@map("bot_profile_domains")
 }

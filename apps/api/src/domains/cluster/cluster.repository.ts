@@ -1,5 +1,6 @@
 import prisma from '../../config/database';
 import { SlaveNode, SlaveNodeResponse, SyncConfigData } from './cluster.types';
+import { botNginxService } from '../bot-manager/services/bot-nginx.service';
 
 /**
  * Cluster Repository - Database operations for slave nodes
@@ -198,6 +199,11 @@ export class ClusterRepository {
     const modsecCRS = await prisma.modSecCRSRule.findMany();
     const modsecCustom = await prisma.modSecRule.findMany();
     const acl = await prisma.aclRule.findMany();
+    const botProfiles = await prisma.botProfile.findMany();
+    const botRules = await prisma.botRule.findMany({ include: { profile: true } });
+    const botProfileDomains = await prisma.botProfileDomain.findMany({
+      include: { profile: true, domain: true },
+    });
     const users = await prisma.user.findMany();
 
     // Get Network Load Balancers
@@ -210,6 +216,7 @@ export class ClusterRepository {
         status: d.status,
         sslEnabled: d.sslEnabled,
         modsecEnabled: d.modsecEnabled,
+        botManagerEnabled: d.botManagerEnabled,
         upstreams: d.upstreams.map(u => ({
           host: u.host,
           port: u.port,
@@ -272,6 +279,32 @@ export class ClusterRepository {
         enabled: a.enabled
       })),
 
+      botProfiles: botProfiles.map(p => ({
+        name: p.name,
+        description: p.description,
+        enabled: p.enabled,
+        policyMode: p.policyMode,
+      })),
+
+      botRules: botRules.map(r => ({
+        profileName: r.profile?.name ?? null,
+        name: r.name,
+        fingerprintType: r.fingerprintType,
+        fingerprint: r.fingerprint,
+        action: r.action,
+        enabled: r.enabled,
+        priority: r.priority,
+        notes: r.notes,
+        clientLabel: r.clientLabel,
+        isBuiltin: r.isBuiltin,
+      })),
+
+      botProfileDomains: botProfileDomains.map(j => ({
+        profileName: j.profile.name,
+        domainName: j.domain.name,
+        enabled: j.enabled,
+      })),
+
       // Users (NO timestamps, NO IDs, keep password hashes)
       users: users.map(u => ({
         email: u.email,
@@ -325,6 +358,9 @@ export class ClusterRepository {
       modsecCRS: 0,
       modsecCustom: 0,
       acl: 0,
+      botProfiles: 0,
+      botRules: 0,
+      botProfileDomains: 0,
       users: 0,
       networkLoadBalancers: 0,
       nlbUpstreams: 0,
@@ -339,13 +375,15 @@ export class ClusterRepository {
           update: {
             status: domainData.status as any,
             sslEnabled: domainData.sslEnabled,
-            modsecEnabled: domainData.modsecEnabled
+            modsecEnabled: domainData.modsecEnabled,
+            botManagerEnabled: domainData.botManagerEnabled ?? false,
           },
           create: {
             name: domainData.name,
             status: domainData.status as any,
             sslEnabled: domainData.sslEnabled,
-            modsecEnabled: domainData.modsecEnabled
+            modsecEnabled: domainData.modsecEnabled,
+            botManagerEnabled: domainData.botManagerEnabled ?? false,
           }
         });
         results.domains++;
@@ -492,6 +530,78 @@ export class ClusterRepository {
       }
     }
 
+    // 5b. Import Bot Manager
+    if (config.botProfiles && Array.isArray(config.botProfiles)) {
+      for (const profileData of config.botProfiles) {
+        await prisma.botProfile.upsert({
+          where: { name: profileData.name },
+          update: {
+            description: profileData.description,
+            enabled: profileData.enabled,
+            policyMode: profileData.policyMode as any,
+          },
+          create: {
+            name: profileData.name,
+            description: profileData.description,
+            enabled: profileData.enabled,
+            policyMode: profileData.policyMode as any,
+          },
+        });
+        results.botProfiles++;
+      }
+    }
+
+    if (config.botRules && Array.isArray(config.botRules)) {
+      await prisma.botRule.deleteMany({ where: { isBuiltin: false } });
+
+      for (const ruleData of config.botRules) {
+        if (ruleData.isBuiltin) continue;
+
+        let profileId: string | null = null;
+        if (ruleData.profileName) {
+          const profile = await prisma.botProfile.findUnique({
+            where: { name: ruleData.profileName },
+          });
+          profileId = profile?.id ?? null;
+        }
+
+        await prisma.botRule.create({
+          data: {
+            profileId,
+            name: ruleData.name,
+            fingerprintType: ruleData.fingerprintType as any,
+            fingerprint: ruleData.fingerprint,
+            action: ruleData.action as any,
+            enabled: ruleData.enabled,
+            priority: ruleData.priority,
+            notes: ruleData.notes,
+            clientLabel: ruleData.clientLabel,
+            isBuiltin: false,
+          },
+        });
+        results.botRules++;
+      }
+    }
+
+    if (config.botProfileDomains && Array.isArray(config.botProfileDomains)) {
+      await prisma.botProfileDomain.deleteMany({});
+
+      for (const junction of config.botProfileDomains) {
+        const profile = await prisma.botProfile.findUnique({ where: { name: junction.profileName } });
+        const domain = await prisma.domain.findUnique({ where: { name: junction.domainName } });
+        if (!profile || !domain) continue;
+
+        await prisma.botProfileDomain.create({
+          data: {
+            profileId: profile.id,
+            domainId: domain.id,
+            enabled: junction.enabled,
+          },
+        });
+        results.botProfileDomains++;
+      }
+    }
+
     // 6. Import Users
     if (config.users && Array.isArray(config.users)) {
       for (const userData of config.users) {
@@ -560,8 +670,16 @@ export class ClusterRepository {
     }
 
     results.totalChanges = results.domains + results.ssl + results.modsecCRS +
-                           results.modsecCustom + results.acl + results.users +
+                           results.modsecCustom + results.acl + results.botProfiles +
+                           results.botRules + results.botProfileDomains + results.users +
                            results.networkLoadBalancers;
+
+    // Regenerate Bot Manager nginx configs after sync
+    try {
+      await botNginxService.applyAll();
+    } catch {
+      // Non-fatal on slave nodes without nginx write access
+    }
 
     return results;
   }

@@ -1,41 +1,91 @@
 # Frequently Asked Questions
 
-This section covers common questions about nginx waf.
+## General
 
-## General Questions
+### What is Nginx Love?
 
-### What is nginx waf?
+Nginx Love is an open-source platform for managing Nginx, ModSecurity WAF, SSL certificates, load balancing, and bot detection (JA4) through a web UI.
 
-nginx waf is a comprehensive management platform for Nginx and ModSecurity. It provides a user-friendly web interface to manage Nginx configurations, SSL certificates, ModSecurity rules, and monitor server performance.
+### Is it free?
+
+Yes. Nginx Love is open source. See [LICENSE](https://github.com/TinyActive/nginx-love/blob/main/LICENSE) for terms.
+
+### Can I use it in production?
+
+Yes. Docker Compose is the recommended production install. Test in staging first for critical workloads.
+
+## Installation
+
+### Which install method should I use?
+
+| Situation | Method |
+|-----------|--------|
+| New server | Docker — `bash scripts/install-docker.sh` |
+| Upgrade Docker install | `bash scripts/upgrade-docker.sh` |
+| Existing host-native install | Legacy — `scripts/update.sh` |
+| Move VM → Docker | `scripts/migrate-vm-to-docker.sh` |
 
 ### What are the system requirements?
 
-nginx waf requires:
-- Node.js 18 or higher
-- PostgreSQL 12 or higher
-- Nginx 1.18 or higher
-- ModSecurity 2.9 or higher (optional)
-- 2GB RAM minimum
-- 10GB disk space minimum
+**Docker (recommended):**
 
-### Is nginx waf free?
+- Docker 24+ and Compose v2
+- 2 GB RAM minimum, 4 GB recommended
+- 10 GB disk
 
-Yes, nginx waf is open-source and released under the Apache-2.0 license.
+**Legacy VM:**
 
-### Can I use nginx waf in production?
+- Ubuntu/Debian 22.04+
+- Nginx 1.28, ModSecurity 3, PostgreSQL 15 (installed by `deploy.sh`)
 
-Yes, nginx waf is designed for production use. However, always test in a staging environment first.
+## Docker & networking
 
-## Installation Questions
+### Do I need to configure CORS?
 
-### How do I install nginx waf?
+**No** for default Docker production. The frontend proxies `/api` on the same origin (`:8080`). Set `DISABLE_CORS=true` and `API_BEHIND_PROXY=true` in `.env` (defaults in `.env.docker.example`).
 
-See the [installation guide](/guide/installation) for detailed installation instructions.
+Legacy VM installs and dev mode with direct API access may require `CORS_ORIGIN`.
 
+### Why can't I access port 3001?
 
+From v2.2.0, Docker does not publish port 3001 to the host. Use:
 
-## Domain Management Questions
+```
+http://YOUR_HOST:8080/api/...
+```
+
+For debugging: `docker compose -f docker-compose.yml -f docker-compose.expose-api.yml up -d`
+
+### Which ports are public?
+
+| Port | Purpose |
+|------|---------|
+| 8080 | Admin UI + API proxy |
+| 80, 443 | WAF / customer websites |
+| 3001, 5432 | Internal only (Docker network) |
+
+## Usage
 
 ### Can I manage multiple domains?
 
-Yes, nginx waf is designed to manage multiple domains from a single interface.
+Yes. Add domains from the UI; nginx configuration is generated and applied automatically.
+
+### Default login credentials?
+
+```
+admin / admin123
+operator / operator123
+viewer / viewer123
+```
+
+Change the admin password after install.
+
+### How do I upgrade?
+
+See the [Upgrade guide](../guide/upgrade.md).
+
+## Related
+
+- [Installation](../guide/installation.md)
+- [Docker deployment](../guide/docker.md)
+- [Troubleshooting](./troubleshooting.md)

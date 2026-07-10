@@ -58,6 +58,7 @@ export interface BackupData {
   ssl: SSLBackupData[];
   modsec: ModSecBackupData;
   acl: ACLBackupData[];
+  botManager?: BotManagerBackupData;
   notificationChannels: any[];
   alertRules: any[];
   users: any[];
@@ -73,6 +74,7 @@ export interface DomainBackupData {
   status: string;
   sslEnabled: boolean;
   modsecEnabled: boolean;
+  botManagerEnabled?: boolean;
   upstreams: any[];
   loadBalancer?: any;
   vhostConfig?: string;
@@ -122,6 +124,35 @@ export interface ACLBackupData {
 }
 
 /**
+ * Bot Manager backup data
+ */
+export interface BotManagerBackupData {
+  profiles: Array<{
+    name: string;
+    description?: string | null;
+    enabled: boolean;
+    policyMode: string;
+  }>;
+  rules: Array<{
+    profileName?: string | null;
+    name: string;
+    fingerprintType: string;
+    fingerprint: string;
+    action: string;
+    enabled: boolean;
+    priority: number;
+    notes?: string | null;
+    clientLabel?: string | null;
+    isBuiltin: boolean;
+  }>;
+  profileDomains: Array<{
+    profileName: string;
+    domainName: string;
+    enabled: boolean;
+  }>;
+}
+
+/**
  * Import results
  */
 export interface ImportResults {
@@ -134,6 +165,9 @@ export interface ImportResults {
   modsecCRS: number;
   modsecCustom: number;
   acl: number;
+  botProfiles: number;
+  botRules: number;
+  botProfileDomains: number;
   alertChannels: number;
   alertRules: number;
   users: number;

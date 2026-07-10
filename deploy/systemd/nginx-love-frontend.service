@@ -1,0 +1,17 @@
+[Unit]
+Description=Nginx Love Frontend (nginx static + /api proxy — legacy VM)
+After=network.target nginx-love-backend.service
+Requires=nginx-love-backend.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory={{PROJECT_DIR}}/apps/web
+ExecStartPre=/usr/sbin/nginx -t -c /etc/nginx/nginx-love-frontend.conf
+ExecStart=/usr/sbin/nginx -g 'daemon off;' -c /etc/nginx/nginx-love-frontend.conf
+ExecStop=/bin/kill -s QUIT $MAINPID
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

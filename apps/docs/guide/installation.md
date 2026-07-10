@@ -1,380 +1,140 @@
 # Installation Guide
 
-This comprehensive guide will walk you through installing the Nginx WAF Management Platform on your system.
+Install Nginx Love using **Docker Compose** (recommended) or the **legacy VM** script for host-native deployments.
 
 ## Prerequisites
 
-Before you begin, ensure you have the following:
+### Docker (recommended)
 
-### System Requirements
-- **Operating System**: Ubuntu/Debian (22.04+ recommended)
-- **Memory**: 2GB RAM minimum (4GB+ recommended)
-- **Storage**: 10GB free space minimum
-- **Network**: Internet connection for package downloads and Let's Encrypt certificates
-- **Access**: Root/sudo privileges for production installation
+| Requirement | Minimum | Recommended |
+|-------------|---------|-------------|
+| OS | Linux with Docker 24+ | Ubuntu 22.04+ / Debian 12+ |
+| RAM | 2 GB | 4 GB+ |
+| Disk | 10 GB | 20 GB+ |
+| Software | Docker Engine + Compose v2 | — |
 
-### Software Requirements (for manual installation)
-- **Node.js**: 18.x or higher
-- **pnpm**: 8.15.0 or higher
-- **Docker**: Latest version
-- **Docker Compose**: Latest version
-- **PostgreSQL**: 15+ (if not using Docker)
-- **Nginx**: Latest stable version
-- **ModSecurity**: 3.x with OWASP CRS
+### Legacy VM
 
-## Installation Methods
-
-Choose the appropriate installation method based on your use case:
-
-| Use Case | Installation Method | Description |
-|----------|-------------------|-------------|
-| **New Server (Production)** | Automated Script | Full installation with systemd services |
-| **Development/Testing** | Quick Start Script | Development mode without root requirements |
-| **Manual Setup** | Manual Installation | Step-by-step manual configuration |
+| Requirement | Details |
+|-------------|---------|
+| OS | Ubuntu/Debian 22.04+ |
+| Access | root or sudo |
+| RAM | 4 GB recommended |
+| Disk | 10 GB+ free |
 
 ---
 
-## Method 1: Automated Production Installation
+## Method 1: Docker production (recommended)
 
-This method is recommended for new servers and production environments.
+Full details: [Docker guide](./docker.md) · [Architecture](./architecture.md)
 
-### 1. Clone the Repository
+### Install
 
 ```bash
 git clone https://github.com/TinyActive/nginx-love.git
 cd nginx-love
+bash scripts/install-docker.sh
 ```
 
-### 2. Run the Deployment Script
+The script creates `.env` from [`.env.docker.example`](../../.env.docker.example) (with generated secrets), builds images, and starts the stack. The base nginx image build can take **~15 minutes** on first run.
+
+### Manual install
 
 ```bash
-bash scripts/deploy.sh
+cp .env.docker.example .env
+# Edit secrets in .env, then:
+make all
+docker compose --env-file .env up -d --build
 ```
 
-The script will automatically install and configure:
-- ✅ Node.js 20.x (if not present)
-- ✅ pnpm 8.15.0 (if not present)
-- ✅ Docker + Docker Compose (if not present)
-- ✅ PostgreSQL 15 container with auto-generated credentials
-- ✅ Nginx + ModSecurity + OWASP CRS
-- ✅ Backend API + Frontend (production build)
-- ✅ Systemd services with auto-start
-- ✅ CORS configuration with Public IP
-
-### 3. Access Your Credentials
-
-After installation, credentials are saved at:
-```bash
-/root/.nginx-love-credentials
-```
-
-### 4. Verify Installation
-
-Once completed, you can access:
-- **Frontend**: http://YOUR_IP:8080
-- **Backend API**: http://YOUR_IP:3001
-- **API Documentation**: http://YOUR_IP:3001/api-docs
-- **Health Check**: http://YOUR_IP:3001/api/health
-
----
-
-## Method 2: Development Quick Start
-
-This method is ideal for development and testing environments.
-
-### 1. Clone the Repository
+### Pull from Docker Hub
 
 ```bash
-git clone https://github.com/TinyActive/nginx-love.git
-cd nginx-love
+cp .env.docker.example .env
+# Set DOCKERHUB_USER and IMAGE_TAG in .env
+docker compose -f docker-compose.yml -f docker-compose.pull.yml --env-file .env up -d
 ```
 
-### 2. Run the Quick Start Script
+### Access
 
-```bash
-./scripts/quickstart.sh
-```
+| URL | Purpose |
+|-----|---------|
+| `http://YOUR_IP:8080` | Admin web UI |
+| `http://YOUR_IP:8080/api/health` | API health check |
 
-This will:
-- Install all dependencies
-- Start PostgreSQL in Docker (optional)
-- Run database migrations and seeding
-- Start backend on http://localhost:3001
-- Start frontend on http://localhost:8080 (dev mode)
+Port **3001 is not exposed** on the host — API traffic goes through the frontend proxy at `/api`.
 
-### 3. Stop Services
-
-Press `Ctrl+C` to stop all services.
-
----
-
-## Method 3: Manual Installation
-
-This method provides full control over the installation process.
-
-### 1. System Preparation
-
-```bash
-# Update system packages
-sudo apt update && sudo apt upgrade -y
-
-# Install essential packages
-sudo apt install -y curl wget git build-essential
-```
-
-### 2. Install Node.js and pnpm
-
-```bash
-# Install Node.js 20.x
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
-
-# Install pnpm
-npm install -g pnpm@8.15.0
-
-# Verify installations
-node --version
-pnpm --version
-```
-
-### 3. Install Docker and Docker Compose
-
-```bash
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-
-# Add user to docker group
-sudo usermod -aG docker $USER
-
-# Install Docker Compose
-sudo apt install -y docker-compose-plugin
-
-# Verify installation
-docker --version
-docker compose version
-```
-
-### 4. Clone and Setup the Project
-
-```bash
-# Clone repository
-git clone https://github.com/TinyActive/nginx-love.git
-cd nginx-love
-
-# Install dependencies
-pnpm install
-```
-
-### 5. Database Setup
-
-```bash
-# Start PostgreSQL container
-docker-compose -f docker-compose.db.yml up -d
-
-# Configure environment
-cd apps/api
-cp .env.example .env
-
-# Edit .env file with your database settings
-nano .env
-```
-
-Example `.env` configuration:
-```env
-# Database
-DATABASE_URL="postgresql://nginx_love_user:your_password@localhost:5432/nginx_love_db"
-
-# JWT
-JWT_SECRET="your-super-secret-jwt-key"
-JWT_REFRESH_SECRET="your-super-secret-refresh-key"
-
-# Server
-PORT=3001
-NODE_ENV=production
-
-# Email (optional)
-SMTP_HOST="smtp.gmail.com"
-SMTP_PORT=587
-SMTP_USER="your-email@gmail.com"
-SMTP_PASS="your-app-password"
-```
-
-### 6. Database Migration and Seeding
-
-```bash
-cd apps/api
-
-# Generate Prisma client
-pnpm prisma generate
-
-# Run migrations
-pnpm prisma migrate deploy
-
-# Seed initial data
-pnpm prisma:seed
-```
-
-### 7. Build and Start Applications
-
-```bash
-# Build backend
-cd apps/api
-pnpm build
-
-# Build frontend
-cd ../web
-pnpm build
-
-# Start production servers
-cd ../../
-# Backend
-cd apps/api && pnpm start &
-
-# Frontend
-cd ../web && pnpm preview &
-```
-
-
-## Default Login Credentials
-
-After installation, use these default credentials:
+### Default login
 
 ```
 Username: admin
 Password: admin123
 ```
 
-⚠️ **Important**: Change the default password immediately after first login!
+Also available: `operator` / `operator123`, `viewer` / `viewer123`. Change the admin password after install.
 
 ---
 
-## Post-Installation Configuration
+## Method 2: Legacy VM production
 
-### 1. Firewall Configuration
-
-```bash
-# Configure UFW firewall
-sudo ufw allow 22/tcp      # SSH
-sudo ufw allow 80/tcp      # HTTP
-sudo ufw allow 443/tcp     # HTTPS
-sudo ufw allow 3001/tcp    # Backend API (if needed)
-sudo ufw allow 8080/tcp    # Frontend (if not behind proxy)
-sudo ufw enable
-```
-
-
----
-
-## Service Management
-
-### Production (systemd services)
+For servers already using host nginx + systemd, or when Docker is not available.
 
 ```bash
-# PostgreSQL Database
-docker start nginx-love-postgres
-docker stop nginx-love-postgres
-docker restart nginx-love-postgres
-docker logs -f nginx-love-postgres
-
-# Backend API Service
-sudo systemctl start nginx-love-backend
-sudo systemctl stop nginx-love-backend
-sudo systemctl restart nginx-love-backend
-sudo systemctl status nginx-love-backend
-
-# Frontend Service
-sudo systemctl start nginx-love-frontend
-sudo systemctl stop nginx-love-frontend
-sudo systemctl restart nginx-love-frontend
-sudo systemctl status nginx-love-frontend
-
-# Nginx Web Server
-sudo systemctl start nginx
-sudo systemctl stop nginx
-sudo systemctl restart nginx
-sudo systemctl status nginx
-sudo nginx -t  # Test configuration
-sudo nginx -s reload  # Reload configuration
-```
-
-### Development Environment
-
-```bash
-# Start development servers
+git clone https://github.com/TinyActive/nginx-love.git
 cd nginx-love
-
-# Backend (Terminal 1)
-cd apps/api && pnpm dev
-
-# Frontend (Terminal 2)
-cd apps/web && pnpm dev
-
-# Database operations
-cd apps/api
-pnpm prisma:studio    # Open Prisma Studio
-pnpm prisma:migrate   # Run migrations
-pnpm prisma:seed      # Seed database
-
-# Stop services
-Ctrl+C  # In each terminal
-
-# Or force kill processes
-npx kill-port 3001    # Backend port
-npx kill-port 8080    # Frontend port (dev & prod)
-npx kill-port 5555    # Prisma Studio port
+sudo bash scripts/deploy.sh
 ```
+
+`deploy.sh` installs:
+
+- Node.js 20, pnpm, Docker (for Postgres only)
+- PostgreSQL 15 in a Docker container on localhost
+- Nginx + ModSecurity + JA4 from source
+- Backend and frontend as systemd services
+
+Credentials are saved to `/root/.nginx-love-credentials`.
+
+### Access (legacy)
+
+| URL | Purpose |
+|-----|---------|
+| `http://YOUR_IP:8080` | Admin UI |
+| `http://YOUR_IP:3001/api/health` | API (direct; CORS configured by deploy script) |
+
+Re-run `deploy.sh` with `--force-recreate-db` **only** to intentionally wipe the database.
 
 ---
 
-## Verification
+## Method 3: Development
 
-To verify your installation is working correctly:
-
-### 1. Health Check
+### Docker dev profile
 
 ```bash
-curl http://localhost:3001/api/health
+bash scripts/quickstart.sh
+# equivalent to:
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
-Expected response:
-```json
-{
-  "success": true,
-  "message": "API is running",
-  "timestamp": "2025-10-04T09:53:00.000Z"
-}
+### Host-native dev (no full Docker stack)
+
+```bash
+bash scripts/quickstart.sh --legacy
 ```
 
-### 2. Access the Web Interface
-
-Open your browser and navigate to:
-- Development: http://localhost:8080
-- Production: http://YOUR_IP:8080
-
-
+See [Quick Start](./quick-start.md) for first-login steps.
 
 ---
 
-## Troubleshooting
+## After installation
 
-If you encounter issues during installation:
+1. Log in and change the default admin password.
+2. Follow [Quick Start](./quick-start.md) to add your first domain.
+3. For upgrades, see [Upgrade guide](./upgrade.md).
 
-1. **Port Conflicts**: Check if ports 3001, 8080, or 5432 are already in use
-2. **Permission Issues**: Ensure you have proper sudo/root privileges
-3. **Database Connection**: Verify PostgreSQL is running and credentials are correct
-4. **Node.js Version**: Ensure you're using Node.js 18.x or higher
+## Migrate VM → Docker
 
-For detailed troubleshooting, see the [Troubleshooting Guide](/reference/troubleshooting).
+```bash
+sudo bash scripts/migrate-vm-to-docker.sh
+```
 
----
-
-## Next Steps
-
-After successful installation:
-
-1. [Configure your first domain](/guide/domains)
-2. [Set up SSL certificates](/guide/ssl)
-3. [Configure ModSecurity WAF](/guide/modsecurity)
-4. [Create additional users](/guide/users)
-5. [Set up monitoring and alerts](/guide/performance)
+Backs up Postgres and nginx config, stops systemd services, and starts the Compose stack.

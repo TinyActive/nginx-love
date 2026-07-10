@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import fs from 'fs';
+import path from 'path';
 import authRoutes from '../domains/auth/auth.routes';
 import accountRoutes from '../domains/account/account.routes';
 import domainRoutes from '../domains/domains/domains.routes';
@@ -17,14 +19,25 @@ import backupRoutes from '../domains/backup/backup.routes';
 import slaveRoutes from '../domains/cluster/cluster.routes';
 import nodeSyncRoutes from '../domains/cluster/node-sync.routes';
 import nlbRoutes from '../domains/nlb/nlb.routes';
+import botManagerRoutes from '../domains/bot-manager/bot-manager.routes';
 
 const router = Router();
 
 // Health check
 router.get('/health', (req, res) => {
+  let version = process.env.APP_VERSION ?? 'unknown';
+  if (version === 'unknown') {
+    const versionFile = path.join(process.env.PROJECT_ROOT ?? '/app', 'VERSION');
+    try {
+      version = fs.readFileSync(versionFile, 'utf8').trim();
+    } catch {
+      // VERSION file optional on legacy VM installs
+    }
+  }
   res.json({
     success: true,
     message: 'API is running',
+    version,
     timestamp: new Date().toISOString(),
   });
 });
@@ -48,5 +61,6 @@ router.use('/slave', slaveRoutes);
 router.use('/system-config', systemConfigRoutes);
 router.use('/node-sync', nodeSyncRoutes);
 router.use('/nlb', nlbRoutes);
+router.use('/bot-manager', botManagerRoutes);
 
 export default router;

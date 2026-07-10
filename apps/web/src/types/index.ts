@@ -5,6 +5,7 @@ export interface Domain {
   sslEnabled: boolean;
   sslExpiry?: string;
   modsecEnabled: boolean;
+  botManagerEnabled?: boolean;
   upstreams: Upstream[];
   loadBalancer: LoadBalancerConfig;
   sslCertificate?: SSLCertificate | null;
@@ -173,6 +174,11 @@ export interface LogEntry {
   line?: string;
   data?: string;
   fullMessage?: string; // Complete log message without truncation
+  ja4?: string;
+  ja4h?: string;
+  ja4s?: string;
+  ja4tcp?: string;
+  ja4one?: string;
 }
 
 export interface NotificationChannel {

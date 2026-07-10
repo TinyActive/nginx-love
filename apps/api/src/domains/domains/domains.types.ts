@@ -1,4 +1,4 @@
-import { Domain, Upstream, LoadBalancerConfig, SSLCertificate, ModSecRule, AccessListDomain, AccessList } from '@prisma/client';
+import { Domain, Upstream, LoadBalancerConfig, SSLCertificate, ModSecRule, AccessListDomain, AccessList, BotProfileDomain, BotProfile } from '@prisma/client';
 
 /**
  * Domain types and interfaces
@@ -11,6 +11,7 @@ export interface DomainWithRelations extends Domain {
   sslCertificate: SSLCertificate | null;
   modsecRules?: ModSecRule[];
   accessLists?: (AccessListDomain & { accessList: AccessList })[];
+  botProfiles?: (BotProfileDomain & { profile: BotProfile })[];
 }
 
 // Upstream creation data
@@ -63,6 +64,7 @@ export interface CreateDomainInput {
   upstreams: CreateUpstreamData[];
   loadBalancer?: LoadBalancerConfigData;
   modsecEnabled?: boolean;
+  botManagerEnabled?: boolean;
   realIpConfig?: RealIpConfigData;
   advancedConfig?: AdvancedConfigData;
   autoCreateSSL?: boolean; // Auto-create SSL certificate after domain creation
@@ -74,6 +76,7 @@ export interface UpdateDomainInput {
   name?: string;
   status?: string;
   modsecEnabled?: boolean;
+  botManagerEnabled?: boolean;
   sslEnabled?: boolean;
   sslExpiry?: Date;
   upstreams?: CreateUpstreamData[];

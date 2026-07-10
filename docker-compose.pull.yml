@@ -1,0 +1,11 @@
+# Override images from Docker Hub (no local build)
+# Usage: docker compose -f docker-compose.yml -f docker-compose.pull.yml up -d
+
+services:
+  backend:
+    build: !reset null
+    image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER}/nginx-love-backend:${IMAGE_TAG:-latest}
+
+  frontend:
+    build: !reset null
+    image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER}/nginx-love-frontend:${IMAGE_TAG:-latest}
