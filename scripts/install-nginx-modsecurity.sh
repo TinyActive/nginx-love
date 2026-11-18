@@ -18,8 +18,9 @@ for arg in "$@"; do
     esac
 done
 
-# Configuration — JA4 module tested with nginx 1.27.3+ (TinyActive/ja4-nginx-module)
-NGINX_VERSION="1.27.3"
+
+# Configuration — JA4 module tested with nginx 1.30.90 (TinyActive/ja4-nginx-module)
+NGINX_VERSION="1.31.9"
 MODSECURITY_VERSION="3.0.14"
 MODSECURITY_NGINX_VERSION="1.0.4"
 INSTALL_LOG="/var/log/nginx-modsecurity-install.log"
